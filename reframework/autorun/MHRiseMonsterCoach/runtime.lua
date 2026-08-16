@@ -51,6 +51,7 @@ function M.new(config, profile)
         player_data = find_method("snow.player.PlayerBase", "get_PlayerData"),
         lobby_online = find_method("snow.LobbyManager", "IsQuestOnline"),
         quest_playing = find_method("snow.QuestManager", "isPlayQuest"),
+        quest_no = find_method("snow.QuestManager", "getQuestNo"),
     }
     if self.methods.enemy_physical then
         local physical_type = safe(function() return self.methods.enemy_physical:get_return_type() end)
@@ -164,6 +165,8 @@ function M.context(self)
     if quest and self.methods.quest_playing then
         in_quest = safe(function() return self.methods.quest_playing:call(quest) end) == true
     end
+    local quest_no = quest and self.methods.quest_no
+        and safe(function() return self.methods.quest_no:call(quest) end) or nil
     if lobby and self.methods.lobby_online then
         is_online = safe(function() return self.methods.lobby_online:call(lobby) end) == true
     end
@@ -181,6 +184,7 @@ function M.context(self)
         and self.tdb_version == self.config.supported_tdb_version
     self.last_context = {
         in_quest = in_quest,
+        quest_no = quest_no,
         is_online = is_online,
         target_found = self.enemy ~= nil,
         reader_ready = self.reader:ready(),

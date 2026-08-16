@@ -170,6 +170,20 @@ function M.draw_menu(self)
     imgui.text("Reader: " .. tostring(self.runtime.reader:description() and self.runtime.reader:description().name or "not calibrated"))
     imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
 
+    local training_quest = self.model.profile.training_quest
+    if training_quest then
+        imgui.separator()
+        imgui.text("Training Quest / 陪练任务")
+        ui_text_wrapped(training_quest.name_zh .. "  |  Quest ID " .. tostring(training_quest.id))
+        imgui.text("Map: " .. training_quest.map_name)
+        if self.model.context.in_quest then
+            local active = tonumber(self.model.context.quest_no) == training_quest.id
+            imgui.text(active and "Active: training quest selected" or ("Active Quest ID: " .. tostring(self.model.context.quest_no or "unknown")))
+        else
+            ui_text_wrapped("Select at: " .. training_quest.menu_path .. ". RiseQuestLoader is required; restart the game after installing the quest file.")
+        end
+    end
+
     if imgui.button("Capture reset anchors (F8)") then
         if writes_allowed(self) then
             local ok, reason = self.runtime:capture_anchors()
