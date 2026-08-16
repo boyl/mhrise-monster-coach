@@ -157,6 +157,31 @@ function M.current_monster_phase(self)
     return monster_phase(self)
 end
 
+function M.coaching_state(self)
+    local phase, source = monster_phase(self)
+    local state = { phase = phase, source = source }
+    local metadata = self.current_metadata or {}
+    local move = confirmed_evidence_move(self) or self.current_move
+    local timing = move and move.timing
+    local current = tonumber(metadata.current_frame)
+    if current and type(timing) == "table" and type(timing.active_windows) == "table" then
+        local next_start, final_end = nil, nil
+        for _, window in ipairs(timing.active_windows) do
+            local start_frame = tonumber(window.start_frame or window.start_value)
+            local end_frame = tonumber(window.end_frame or window.end_value)
+            if start_frame and end_frame then
+                final_end = final_end and math.max(final_end, end_frame) or end_frame
+                if start_frame > current and (next_start == nil or start_frame < next_start) then
+                    next_start = start_frame
+                end
+            end
+        end
+        if next_start then state.frames_to_next_active = math.max(0, next_start - current) end
+        if final_end then state.frames_from_final_active = current - final_end end
+    end
+    return state
+end
+
 function M.update_player_combat_state(self, state)
     self.player_combat_state = state
     if type(state) ~= "table" or self.current_action == nil then
@@ -356,7 +381,16 @@ local function named_move(self, action, metadata)
     local move = self.moves[key]
     if move then return move end
     local static_move = self.static_ai and self.static_ai.moves and self.static_ai.moves[key]
-    if static_move then return static_move end
+    if static_move then
+        local threat = self.static_ai.threats and self.static_ai.threats[key]
+        if threat then
+            local enriched = {}
+            for field, value in pairs(static_move) do enriched[field] = value end
+            enriched.threat = threat
+            return enriched
+        end
+        return static_move
+    end
     metadata = metadata or self.state_metadata[key]
     if metadata and type(metadata.motion_name) == "string" and metadata.motion_name ~= "" then
         return {

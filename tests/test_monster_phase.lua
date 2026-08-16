@@ -17,6 +17,11 @@ assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 10 })
 assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 22 }) == "active")
 assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 27 }) == "active",
     "multi-hit gaps remain active until the final confirmed hit window ends")
+assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 27,
+    runtime_hitbox_phase = "recovery" }) == "active",
+    "runtime off-edges between confirmed multi-hit windows must not advertise recovery")
+assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 10,
+    runtime_hitbox_phase = "active" }) == "active", "live active hitboxes always win")
 assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 40 }) == "recovery")
 local live_phase, live_reason = Phase.resolve(nil, { runtime_hitbox_phase = "active" })
 assert(live_phase == "active" and live_reason == "runtime_hitbox")

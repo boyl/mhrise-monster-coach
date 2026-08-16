@@ -63,6 +63,24 @@ local function loadout_text(model)
     return string.format("Long Sword loadout: %s scroll | 5/5 skills resolved", scroll)
 end
 
+local PHASE_NAMES = {
+    startup = "前摇",
+    active = "判定中",
+    recovery = "收招",
+    unknown = "阶段未知",
+}
+
+local function phase_text(model)
+    local state = model:coaching_state()
+    local text = "Phase / 阶段: " .. (PHASE_NAMES[state.phase] or tostring(state.phase))
+    if state.frames_to_next_active then
+        text = text .. string.format("  |  距下一判定 %.1f 帧", state.frames_to_next_active)
+    elseif state.phase == "recovery" and state.frames_from_final_active then
+        text = text .. string.format("  |  判定结束 %.1f 帧", math.max(0, state.frames_from_final_active))
+    end
+    return text, state.phase
+end
+
 function M.new(config, font)
     return setmetatable({ config = config, font = font }, { __index = M })
 end
@@ -104,7 +122,17 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     if self.config.show_prediction and model.current_action then
         lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text }
     end
+    if model.current_action then
+        local phase_line, phase = phase_text(model)
+        lines[#lines + 1] = { phase_line, phase == "active" and COLORS.warning
+            or (phase == "recovery" and COLORS.success or COLORS.text) }
+    end
     if self.config.show_advice and model.current_move then
+        local threat = model.current_move.threat
+        if threat then
+            lines[#lines + 1] = { "Threat / 威胁: " .. truncate(threat.direction, 30)
+                .. "  →  " .. truncate(threat.response, 42), COLORS.warning }
+        end
         lines[#lines + 1] = { "Response: " .. truncate(model.current_move.advice, 76), COLORS.text }
         local weapon_response = response_text(model)
         if weapon_response then lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text } end

@@ -225,6 +225,38 @@
       "certainty": "community_action_enum"
     }
   },
+  "threats": {
+    "2": { "direction": "正面直线", "response": "向冲锋路线侧面移动" },
+    "6": { "direction": "身体与尾部环形", "response": "拉开或贴近头侧外圈" },
+    "7": { "direction": "头部正面", "response": "向头部侧后方处理" },
+    "9": { "direction": "无直接判定", "response": "不要追近，观察下一派生" },
+    "10": { "direction": "冲锋路径末端", "response": "保持侧面，准备下一派生" },
+    "12": { "direction": "正面飞扑与落点", "response": "横向离开落点" },
+    "13": { "direction": "墙边飞扑落点", "response": "远离墙边与正前方" },
+    "14": { "direction": "头部周围咆哮", "response": "反击、无敌帧或离开范围" },
+    "15": { "direction": "转向内侧与尾部", "response": "向转弯外侧移动" },
+    "16": { "direction": "转向内侧", "response": "向外侧移动，准备再冲锋" },
+    "17": { "direction": "转向内侧", "response": "向外侧移动，利用较长收招" },
+    "18": { "direction": "怒态转向内侧", "response": "向外侧拉开，下一招通常冲锋" },
+    "19": { "direction": "头部周围咆哮", "response": "反击、无敌帧或离开范围" },
+    "20": { "direction": "短距离头部正面", "response": "向头侧处理" },
+    "21": { "direction": "中距离头部正面", "response": "离开咬合线或向头侧处理" },
+    "22": { "direction": "左侧起手的扇形弹道", "response": "横向穿过弹道间隙" },
+    "23": { "direction": "右侧起手的扇形弹道", "response": "横向穿过弹道间隙" },
+    "24": { "direction": "正面飞扑与落点", "response": "横向离开落点" },
+    "25": { "direction": "墙边飞扑落点", "response": "远离墙边与正前方" },
+    "26": { "direction": "身体与尾部右回旋", "response": "拉开回旋范围或处理判定时机" },
+    "27": { "direction": "左侧回身尾扫", "response": "离开尾部扫击弧线" },
+    "28": { "direction": "右侧回身尾扫", "response": "离开尾部扫击弧线" },
+    "29": { "direction": "头部正面钩咬", "response": "向头侧回避" },
+    "51": { "direction": "正面冲锋路径", "response": "横向离开獠牙突刺路线" },
+    "5000": { "direction": "短距离半回转头部", "response": "向回转外侧移动" },
+    "5001": { "direction": "两段半回转钩咬", "response": "保留第二段应对，不要提前追击" },
+    "5002": { "direction": "长距离半回转头部", "response": "向回转外侧移动" },
+    "5003": { "direction": "怒态两段半回转钩咬", "response": "处理第二段后再追击" },
+    "5004": { "direction": "左侧起手的扇形弹道", "response": "横向穿过弹道间隙" },
+    "5005": { "direction": "右侧起手的扇形弹道", "response": "横向穿过弹道间隙" }
+  },
   "actions": {
     "15": {
       "kind": "fixed",

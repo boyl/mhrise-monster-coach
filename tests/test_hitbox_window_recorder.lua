@@ -35,10 +35,13 @@ assert(row.observations[1][1].max_active_count == 2)
 model.current_state_key = "4:10"
 model.current_metadata = { motion_name = "em032_attack", current_frame = 9 }
 assert(model:current_monster_phase() == "startup")
+assert(model:coaching_state().frames_to_next_active == 1)
 model.current_metadata.current_frame = 12
 assert(model:current_monster_phase() == "active")
+assert(model:coaching_state().frames_to_next_active == nil)
 model.current_metadata.current_frame = 20
 assert(model:current_monster_phase() == "recovery")
+assert(model:coaching_state().frames_from_final_active == 5)
 
 -- A looping motion can keep the same Action ID while its frame counter wraps.
 -- The recorder must create a new observation instead of a bogus start>end window.

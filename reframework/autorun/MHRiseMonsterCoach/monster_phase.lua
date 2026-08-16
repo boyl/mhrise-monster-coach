@@ -7,25 +7,30 @@ local function finite_number(value)
 end
 
 function M.resolve(move, metadata)
-    if type(metadata) == "table" and metadata.runtime_hitbox_phase then
-        return metadata.runtime_hitbox_phase, "runtime_hitbox"
+    local runtime_phase = type(metadata) == "table" and metadata.runtime_hitbox_phase or nil
+    if runtime_phase == "active" then return "active", "runtime_hitbox" end
+    local function fallback(phase, reason)
+        if runtime_phase then return runtime_phase, "runtime_hitbox" end
+        return phase, reason
     end
-    if type(move) ~= "table" or type(metadata) ~= "table" then return "unknown", "missing_context" end
+    if type(move) ~= "table" or type(metadata) ~= "table" then
+        return fallback("unknown", "missing_context")
+    end
     local timing = move.timing
     if type(timing) ~= "table" or timing.status ~= "confirmed" then
-        return "unknown", "timing_unconfirmed"
+        return fallback("unknown", "timing_unconfirmed")
     end
     if timing.motion_name and timing.motion_name ~= metadata.motion_name then
-        return "unknown", "motion_mismatch"
+        return fallback("unknown", "motion_mismatch")
     end
     if type(timing.active_windows) ~= "table" or #timing.active_windows == 0 then
-        return "unknown", "active_windows_missing"
+        return fallback("unknown", "active_windows_missing")
     end
 
     local unit = timing.unit or "frame"
     local current = unit == "progress" and finite_number(metadata.motion_progress)
         or finite_number(metadata.current_frame)
-    if current == nil then return "unknown", "position_unavailable" end
+    if current == nil then return fallback("unknown", "position_unavailable") end
 
     local first_start, last_end = nil, nil
     for _, window in ipairs(timing.active_windows) do

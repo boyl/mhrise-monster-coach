@@ -42,9 +42,9 @@ function M.evaluate(monster, player)
     local startup_window = monster.phase == "startup"
     local can_prepare = startup_window and action_state.cancelable == true
 
-    if action_state.cancelable == true and (resources.spirit_gauge or 0) > 0 then
+    if startup_window and action_state.cancelable == true and (resources.spirit_gauge or 0) > 0 then
         results[#results + 1] = candidate("foresight_slash", "available", "before_hit",
-            "当前动作可取消且气刃槽可用。", "medium", { spirit_gauge = "positive" })
+            "怪物处于前摇，当前动作可取消且气刃槽可用。", "medium", { spirit_gauge = "positive" })
     elseif action_state.cancelable == false then
         results[#results + 1] = candidate("foresight_slash", "wait", "next_cancel_window",
             "当前动作不可取消。", "high", { spirit_gauge = "positive" })
@@ -97,7 +97,8 @@ function M.evaluate(monster, player)
     end
 
     results[#results + 1] = candidate("evade", "available", "before_hit",
-        "通用保底应对；方向仍需结合攻击范围。", "low")
+        monster.phase == "active" and "攻击判定已生效，优先离开攻击范围。"
+            or "通用保底应对；方向仍需结合攻击范围。", "low")
     return results, nil
 end
 
