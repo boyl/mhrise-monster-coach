@@ -17,7 +17,7 @@ function Resolve-GameRoot {
 
     $runningGame = Get-Process -Name 'MonsterHunterRise' -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($runningGame -and $runningGame.Path) {
-        $candidates.Add((Split-Path -LiteralPath $runningGame.Path -Parent))
+        $candidates.Add([IO.Path]::GetDirectoryName($runningGame.Path))
     }
 
     $steam = Get-ItemProperty -LiteralPath 'HKCU:\Software\Valve\Steam' -ErrorAction SilentlyContinue
@@ -82,7 +82,7 @@ foreach ($relativePath in $files) {
     if (-not (Test-Path -LiteralPath $sourceFile -PathType Leaf)) {
         throw "Required source file was not found: $sourceFile"
     }
-    $destinationDirectory = Split-Path -LiteralPath $destinationFile -Parent
+    $destinationDirectory = [IO.Path]::GetDirectoryName($destinationFile)
     if (-not (Test-Path -LiteralPath $destinationDirectory -PathType Container)) {
         New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
     }
