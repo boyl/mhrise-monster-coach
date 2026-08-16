@@ -284,11 +284,54 @@ def build_behavior_graph(input_root: Path, monster: str) -> dict[str, Any]:
     }
 
 
+def build_runtime_pack(graph: dict[str, Any], required_action_category: int) -> dict[str, Any]:
+    allowed_prefixes = (
+        "common/act_tbl_user_data/action/",
+        "common/act_tbl_user_data/combo/",
+    )
+    grouped: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
+    for edge in graph.get("fixed_action_edges", []):
+        source = edge.get("source", "")
+        if not source.startswith(allowed_prefixes):
+            continue
+        grouped[edge["from_action_no"]][edge["to_action_no"]].append(source)
+
+    actions = {}
+    for action_no, targets in sorted(grouped.items()):
+        candidates = []
+        total = 0
+        for target_no, sources in sorted(targets.items()):
+            total += len(sources)
+            candidates.append(
+                {
+                    "action": str(target_no),
+                    "evidence_count": len(sources),
+                    "sources": sorted(set(sources)),
+                }
+            )
+        actions[str(action_no)] = {
+            "kind": "fixed" if len(candidates) == 1 else "conditional",
+            "evidence_count": total,
+            "next": candidates,
+        }
+
+    return {
+        "schema_version": 1,
+        "monster": graph.get("monster"),
+        "required_action_category": required_action_category,
+        "evidence_policy": "unique_enemy_action_end_edge",
+        "allowed_scopes": list(allowed_prefixes),
+        "actions": actions,
+    }
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input_root", type=Path, help="RszAiDump JSON directory")
     parser.add_argument("output", type=Path, help="behavior graph JSON path")
     parser.add_argument("--monster", required=True, help="monster identifier, for example em032")
+    parser.add_argument("--runtime-pack-output", type=Path, help="optional compact runtime pack JSON")
+    parser.add_argument("--required-action-category", type=int, help="required with --runtime-pack-output")
     return parser.parse_args()
 
 
@@ -299,6 +342,14 @@ def main() -> int:
     args.output.write_text(
         json.dumps(graph, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
+    if args.runtime_pack_output is not None:
+        if args.required_action_category is None:
+            raise SystemExit("--required-action-category is required with --runtime-pack-output")
+        runtime_pack = build_runtime_pack(graph, args.required_action_category)
+        args.runtime_pack_output.parent.mkdir(parents=True, exist_ok=True)
+        args.runtime_pack_output.write_text(
+            json.dumps(runtime_pack, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
     summary = graph["summary"]
     print(
         f"{args.monster}: {summary['files_with_states']} graph files, "

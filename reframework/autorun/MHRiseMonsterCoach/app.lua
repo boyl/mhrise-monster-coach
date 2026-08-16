@@ -8,8 +8,8 @@ local Profile = require("MHRiseMonsterCoach.profile_tigrex")
 local M = {}
 
 function M.start()
-    local config, calibration = Config.load()
-    local model = Model.new(Profile, calibration, config)
+    local config, calibration, static_ai = Config.load()
+    local model = Model.new(Profile, calibration, config, static_ai)
     local runtime = Runtime.new(config, Profile)
     local view = View.new(config)
     local controller = Controller.new(model, runtime, view, config, Config)
@@ -32,7 +32,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.3.8-automatic-action-evidence-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.4.0-static-prediction-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

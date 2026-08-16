@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "monster": "em032",
+  "required_action_category": 4,
+  "evidence_policy": "unique_enemy_action_end_edge",
+  "allowed_scopes": [
+    "common/act_tbl_user_data/action/",
+    "common/act_tbl_user_data/combo/"
+  ],
+  "actions": {
+    "2": {
+      "kind": "conditional",
+      "evidence_count": 5,
+      "next": [
+        {
+          "action": "6",
+          "evidence_count": 2,
+          "sources": [
+            "common/act_tbl_user_data/action/em032_act_058.user.2",
+            "common/act_tbl_user_data/combo/em032_combo_006.user.2"
+          ]
+        },
+        {
+          "action": "10",
+          "evidence_count": 3,
+          "sources": [
+            "common/act_tbl_user_data/combo/em032_combo_002.user.2",
+            "common/act_tbl_user_data/combo/em032_combo_905.user.2",
+            "common/act_tbl_user_data/combo/em032_combo_930.user.2"
+          ]
+        }
+      ]
+    },
+    "15": {
+      "kind": "fixed",
+      "evidence_count": 3,
+      "next": [
+        {
+          "action": "2",
+          "evidence_count": 3,
+          "sources": [
+            "common/act_tbl_user_data/action/em032_act_021.user.2",
+            "common/act_tbl_user_data/action/em032_act_057.user.2"
+          ]
+        }
+      ]
+    },
+    "16": {
+      "kind": "fixed",
+      "evidence_count": 1,
+      "next": [
+        {
+          "action": "2",
+          "evidence_count": 1,
+          "sources": [
+            "common/act_tbl_user_data/action/em032_act_020.user.2"
+          ]
+        }
+      ]
+    },
+    "18": {
+      "kind": "fixed",
+      "evidence_count": 1,
+      "next": [
+        {
+          "action": "2",
+          "evidence_count": 1,
+          "sources": [
+            "common/act_tbl_user_data/action/em032_act_020.user.2"
+          ]
+        }
+      ]
+    },
+    "24": {
+      "kind": "conditional",
+      "evidence_count": 2,
+      "next": [
+        {
+          "action": "24",
+          "evidence_count": 1,
+          "sources": [
+            "common/act_tbl_user_data/combo/em032_combo_007.user.2"
+          ]
+        },
+        {
+          "action": "29",
+          "evidence_count": 1,
+          "sources": [
+            "common/act_tbl_user_data/action/em032_act_800.user.2"
+          ]
+        }
+      ]
+    }
+  }
+}

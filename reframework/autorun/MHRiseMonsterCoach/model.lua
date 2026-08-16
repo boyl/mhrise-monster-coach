@@ -28,7 +28,7 @@ local function merge_profile(profile, calibration)
     return moves, scenarios
 end
 
-function M.new(profile, calibration, config)
+function M.new(profile, calibration, config, static_ai)
     local moves, scenarios = merge_profile(profile, calibration)
     return setmetatable({
         state = M.states.INITIAL,
@@ -36,6 +36,7 @@ function M.new(profile, calibration, config)
         profile = profile,
         moves = moves,
         scenarios = scenarios,
+        static_ai = static_ai or { actions = {} },
         current_action = nil,
         current_move = nil,
         action_started_at = 0,
@@ -171,6 +172,32 @@ local function profile_prediction(self, move)
     }
 end
 
+local function static_prediction(self, action, metadata)
+    local pack = self.static_ai or {}
+    local required_category = tonumber(pack.required_action_category)
+    local current_category = metadata and tonumber(metadata.action_category) or nil
+    if required_category == nil or current_category ~= required_category then return nil end
+    local row = pack.actions and pack.actions[tostring(action)] or nil
+    if type(row) ~= "table" or type(row.next) ~= "table" then return nil end
+    local candidates = {}
+    for _, item in ipairs(row.next) do
+        local next_action = tostring(item.action)
+        candidates[#candidates + 1] = {
+            action = next_action,
+            name = named_move(self, next_action).short_name,
+            condition = item.condition,
+            evidence_count = item.evidence_count,
+        }
+    end
+    local kind = row.kind == "fixed" and #candidates == 1 and "fixed" or "conditional"
+    return {
+        kind = kind,
+        source = "static_ai",
+        evidence_count = row.evidence_count,
+        candidates = candidates,
+    }
+end
+
 local function record_transition(self, from_action, to_action)
     if from_action == nil or to_action == nil or from_action == to_action then return end
     local key = tostring(from_action)
@@ -229,7 +256,9 @@ function M.observe_action(self, action, now, metadata)
     self.current_action = action
     self.current_move = named_move(self, action, metadata)
     self.action_started_at = event_time
-    self.prediction = profile_prediction(self, self.current_move) or learned_prediction(self, action)
+    self.prediction = profile_prediction(self, self.current_move)
+        or static_prediction(self, action, metadata)
+        or learned_prediction(self, action)
     if self.context.safe_mode then
         self.state = M.states.DISABLED
         self.status = "Read-only mode: Action polling enabled; gameplay writes disabled"

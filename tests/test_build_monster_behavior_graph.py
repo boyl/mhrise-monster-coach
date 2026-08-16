@@ -5,6 +5,7 @@ from pathlib import Path
 from tools.build_monster_behavior_graph import (
     build_behavior_graph,
     build_file_graph,
+    build_runtime_pack,
     extract_fixed_action_edges,
 )
 
@@ -163,6 +164,23 @@ class BuildMonsterBehaviorGraphTests(unittest.TestCase):
             graph = build_behavior_graph(root, "em032")
         self.assertEqual(graph["summary"]["action_number_count"], 1)
         self.assertEqual(graph["action_catalog"]["8"][0]["state_id"], 0)
+
+    def test_runtime_pack_excludes_noncombat_scopes_and_preserves_branches(self):
+        graph = {
+            "monster": "em032",
+            "fixed_action_edges": [
+                {"source": "common/act_tbl_user_data/combo/a.user.2", "from_action_no": 2, "to_action_no": 10},
+                {"source": "common/act_tbl_user_data/action/b.user.2", "from_action_no": 2, "to_action_no": 6},
+                {"source": "common/act_tbl_user_data/action/c.user.2", "from_action_no": 15, "to_action_no": 2},
+                {"source": "common/act_tbl_user_data/marionette/d.user.2", "from_action_no": 2, "to_action_no": 99},
+            ],
+        }
+        pack = build_runtime_pack(graph, 4)
+        self.assertEqual(pack["required_action_category"], 4)
+        self.assertEqual(pack["actions"]["2"]["kind"], "conditional")
+        self.assertEqual([item["action"] for item in pack["actions"]["2"]["next"]], ["6", "10"])
+        self.assertEqual(pack["actions"]["15"]["kind"], "fixed")
+        self.assertNotIn("99", [item["action"] for item in pack["actions"]["2"]["next"]])
 
 
 if __name__ == "__main__":

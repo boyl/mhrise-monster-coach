@@ -69,6 +69,26 @@ model:observe_action("30", 1.5)
 equal(model.prediction.kind, "conditional", "invalid multi-target fixed data is downgraded")
 model:observe_action("10", 1.75)
 
+local static_profile = { id = "static", name = "Static", moves = {}, scenarios = {} }
+local static_ai = {
+    required_action_category = 4,
+    actions = {
+        ["15"] = { kind = "fixed", evidence_count = 3, next = { { action = "2" } } },
+        ["2"] = { kind = "conditional", next = { { action = "6" }, { action = "10" } } },
+    },
+}
+local static_model = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
+static_model:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
+static_model:observe_action("15", 1, { action_category = 4 })
+equal(static_model.prediction.kind, "fixed", "static unique ActionEnd edge is fixed")
+equal(static_model.prediction.candidates[1].action, "2", "static fixed target")
+static_model:observe_action("2", 2, { action_category = 4 })
+equal(static_model.prediction.kind, "conditional", "static multiple targets remain conditional")
+local wrong_category = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
+wrong_category:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
+wrong_category:observe_action("15", 1, { action_category = 3 })
+equal(wrong_category.prediction, nil, "static attack graph is gated by ActionCategory")
+
 model:observe_damage(12.5)
 model:observe_action("11", 2)
 equal(model.failures, 1, "damage closes failed round")

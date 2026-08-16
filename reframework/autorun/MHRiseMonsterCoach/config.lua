@@ -2,6 +2,7 @@ local M = {}
 
 local CONFIG_PATH = "MHRiseMonsterCoach/config.json"
 local CALIBRATION_PATH = "MHRiseMonsterCoach/tigrex_calibration.json"
+local STATIC_AI_PATH = "MHRiseMonsterCoach/tigrex_static_ai.json"
 
 local DEFAULTS = {
     schema_version = 1,
@@ -73,7 +74,11 @@ function M.load()
     if type(calibration.moves) ~= "table" then calibration.moves = {} end
     if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
 
-    return config, calibration
+    local static_ai = json.load_file(STATIC_AI_PATH)
+    if type(static_ai) ~= "table" then static_ai = { actions = {} } end
+    if type(static_ai.actions) ~= "table" then static_ai.actions = {} end
+
+    return config, calibration, static_ai
 end
 
 function M.save(config)
