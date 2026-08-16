@@ -23,7 +23,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         frame_counter = 0,
         input = input_adapter,
         input_state = { available = false, device = "keyboard" },
-        saved_evidence_revision = model.evidence_revision or 0,
+        saved_evidence_revision = 0,
     }, { __index = M })
 end
 

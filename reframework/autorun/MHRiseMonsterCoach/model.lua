@@ -30,9 +30,57 @@ local function merge_profile(profile, calibration)
     return moves, scenarios
 end
 
+local function rebuild_evidence_row(row)
+    if type(row) ~= "table" or type(row.observations) ~= "table" then return false end
+    local normalized, changed = {}, false
+    for _, observation in ipairs(row.observations) do
+        local current, last_start = {}, nil
+        for _, window in ipairs(observation) do
+            local start_frame, end_frame = tonumber(window.start_frame), tonumber(window.end_frame)
+            if start_frame and end_frame and end_frame >= start_frame then
+                if last_start and start_frame < last_start then
+                    if #current > 0 then normalized[#normalized + 1] = current end
+                    current, changed = {}, true
+                end
+                current[#current + 1] = window
+                last_start = start_frame
+            else changed = true end
+        end
+        if #current > 0 then normalized[#normalized + 1] = current end
+    end
+    if not changed then return false end
+    row.observations, row.samples = normalized, #normalized
+    row.window_count, row.aggregate_windows = nil, {}
+    row.variable_window_count = nil
+    local stable = true
+    for _, observation in ipairs(normalized) do
+        row.window_count = row.window_count or #observation
+        if row.window_count ~= #observation then row.variable_window_count = true end
+        for index, window in ipairs(observation) do
+            local aggregate = row.aggregate_windows[index] or {}
+            local start_frame, end_frame = tonumber(window.start_frame), tonumber(window.end_frame)
+            aggregate.min_start_frame = aggregate.min_start_frame
+                and math.min(aggregate.min_start_frame, start_frame) or start_frame
+            aggregate.max_start_frame = aggregate.max_start_frame
+                and math.max(aggregate.max_start_frame, start_frame) or start_frame
+            aggregate.min_end_frame = aggregate.min_end_frame
+                and math.min(aggregate.min_end_frame, end_frame) or end_frame
+            aggregate.max_end_frame = aggregate.max_end_frame
+                and math.max(aggregate.max_end_frame, end_frame) or end_frame
+            if aggregate.max_start_frame - aggregate.min_start_frame > 3
+                or aggregate.max_end_frame - aggregate.min_end_frame > 3 then stable = false end
+            row.aggregate_windows[index] = aggregate
+        end
+    end
+    row.status = row.variable_window_count and "variable"
+        or (row.samples >= 3 and stable and "confirmed"
+        or (row.samples >= 2 and "repeated" or "observed"))
+    return true
+end
+
 function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
     local moves, scenarios = merge_profile(profile, calibration)
-    return setmetatable({
+    local self = setmetatable({
         state = M.states.INITIAL,
         status = "Waiting for a single-player quest",
         profile = profile,
@@ -72,10 +120,41 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         config = config,
         context = { in_quest = false, is_online = false, target_found = false },
     }, { __index = M })
+    for _, row in pairs(self.hitbox_window_evidence) do
+        if rebuild_evidence_row(row) then self.evidence_revision = 1 end
+    end
+    return self
+end
+
+local function confirmed_evidence_move(self)
+    local metadata = self.current_metadata or {}
+    local state = tostring(self.current_state_key or "")
+    local motion = tostring(metadata.motion_name or "unknown_motion")
+    local row = self.hitbox_window_evidence[state .. "|" .. motion]
+        or self.hitbox_window_evidence[state]
+    if type(row) ~= "table" or row.status ~= "confirmed"
+        or type(row.aggregate_windows) ~= "table" then return nil end
+    local windows = {}
+    for _, aggregate in ipairs(row.aggregate_windows) do
+        local start_frame = tonumber(aggregate.min_start_frame)
+        local end_frame = tonumber(aggregate.max_end_frame)
+        if start_frame and end_frame and end_frame >= start_frame then
+            windows[#windows + 1] = { start_frame = start_frame, end_frame = end_frame }
+        end
+    end
+    if #windows == 0 then return nil end
+    return { timing = { status = "confirmed", unit = "frame",
+        motion_name = row.motion_name, active_windows = windows,
+        source = "automatic_native_evidence" } }
 end
 
 local function monster_phase(self)
-    return MonsterPhase.resolve(self.current_move, self.current_metadata)
+    return MonsterPhase.resolve(confirmed_evidence_move(self) or self.current_move,
+        self.current_metadata)
+end
+
+function M.current_monster_phase(self)
+    return monster_phase(self)
 end
 
 function M.update_player_combat_state(self, state)
@@ -106,6 +185,18 @@ function M.observe_hitboxes(self, sample)
     end
     local metadata = self.current_metadata or {}
     local observation = self.current_hitbox_observation
+    local frame = tonumber(metadata.current_frame)
+    local progress = tonumber(metadata.motion_progress)
+    if observation and observation.state_key == self.current_state_key then
+        local motion_changed = observation.motion_name ~= nil and metadata.motion_name ~= nil
+            and observation.motion_name ~= metadata.motion_name
+        local frame_wrapped = frame ~= nil and observation.last_frame ~= nil
+            and frame < observation.last_frame - 1
+        if motion_changed or frame_wrapped then
+            M.finalize_hitbox_observation(self)
+            observation = nil
+        end
+    end
     if observation == nil or observation.state_key ~= self.current_state_key then
         observation = { state_key = self.current_state_key, action = self.current_action,
             motion_name = metadata.motion_name, bank_id = metadata.bank_id,
@@ -114,8 +205,6 @@ function M.observe_hitboxes(self, sample)
     end
     local active = sample.active == true
     if active then self.live_hitbox_seen = true end
-    local frame = tonumber(metadata.current_frame)
-    local progress = tonumber(metadata.motion_progress)
     if active and not observation.was_active then
         observation.open_window = { start_frame = frame, start_progress = progress,
             entries = sample.entries, max_active_count = tonumber(sample.active_count) or 0 }
@@ -135,6 +224,7 @@ function M.observe_hitboxes(self, sample)
         observation.open_window = nil
     end
     observation.was_active = active
+    observation.last_frame = frame or observation.last_frame
     self.current_metadata = self.current_metadata or {}
     self.current_metadata.runtime_hitbox_phase = active and "active"
         or (self.live_hitbox_seen and "recovery" or "startup")
@@ -157,7 +247,13 @@ function M.finalize_hitbox_observation(self)
     end
     self.current_hitbox_observation = nil
     if #observation.windows == 0 then return false end
-    local key = tostring(observation.state_key)
+    local state_key_value = tostring(observation.state_key)
+    local motion_key = tostring(observation.motion_name or "unknown_motion")
+    local key = state_key_value .. "|" .. motion_key
+    local legacy = self.hitbox_window_evidence[state_key_value]
+    if type(legacy) == "table" and legacy.motion_name == observation.motion_name then
+        key = state_key_value
+    end
     local row = self.hitbox_window_evidence[key]
     if row == nil then
         row = { action = observation.action, state_key = key,

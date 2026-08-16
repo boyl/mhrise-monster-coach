@@ -33,6 +33,8 @@ app (composition root)
 
 `hitbox_provider_native.lua` 是正式的实时物理判定来源；`hitbox_provider_hitboxviewer.lua` 仅为可选交叉验证后端，`hitbox_provider.lua` 负责选择和比较。Runtime 读取统一样本，Model 把判定边沿归入当前 Action，阶段解析与武器建议不依赖第三方模块。Native 不可用时可暂时回退到 Viewer 或怪物数据包的已确认窗口。
 
+自动证据达到 `confirmed` 后无需人工复制到怪物 Profile：Model 会按 `ActionCategory + ActionNo + Motion` 生成只读 timing view，并直接交给阶段解析和武器应对引擎。运行时活动判定仍具有最高优先级；历史窗口用于前摇预判、收招判断以及 Native 暂不可用时的降级。
+
 ### MoveDefinition
 
 - 输入：Action 字符串键、名称、短名称、应对建议、派生类型和候选列表。
