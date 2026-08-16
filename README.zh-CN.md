@@ -1,6 +1,6 @@
 # 《怪物猎人崛起》怪物陪练 Mod
 
-版本：`0.3.4-static-ai-bridge-candidate`
+版本：`0.3.5-inherited-action-reader-candidate`
 
 > 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入只读诊断模式，不安装怪物 Update Hook，也不执行时间、生命或位置写入。只读模式仅通过 `EnemyManager` 轮询目标怪物，并尝试读取白名单中的 Action Getter/字段。
 

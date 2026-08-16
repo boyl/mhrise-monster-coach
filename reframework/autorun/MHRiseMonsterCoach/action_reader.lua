@@ -55,6 +55,30 @@ local function value_key(value)
     return tostring(value)
 end
 
+local function find_member_in_hierarchy(type_def, lookup, name)
+    local current = type_def
+    local visited = {}
+    local depth = 0
+    while current ~= nil and depth < 12 do
+        local key = safe_call(function() return current:get_full_name() end) or tostring(current)
+        if visited[key] then return nil end
+        visited[key] = true
+        local member = safe_call(function() return current[lookup](current, name) end)
+        if member ~= nil then return member end
+        current = safe_call(function() return current:get_parent_type() end)
+        depth = depth + 1
+    end
+    return nil
+end
+
+local function find_method(type_def, name)
+    return find_member_in_hierarchy(type_def, "get_method", name)
+end
+
+local function find_field(type_def, name)
+    return find_member_in_hierarchy(type_def, "get_field", name)
+end
+
 function M.new(config)
     return setmetatable({
         config = config,
@@ -75,7 +99,7 @@ local function release_candidates(candidates)
 end
 
 local function add_method_candidate(self, type_def, name)
-    local method = safe_call(function() return type_def:get_method(name) end)
+    local method = find_method(type_def, name)
     if method == nil then return end
     local count = safe_call(function() return method:get_num_params() end)
     if count ~= 0 then return end
@@ -90,7 +114,7 @@ local function add_method_candidate(self, type_def, name)
 end
 
 local function add_field_candidate(self, type_def, name)
-    local field = safe_call(function() return type_def:get_field(name) end)
+    local field = find_field(type_def, name)
     if field == nil then return end
     self.candidates[#self.candidates + 1] = {
         kind = "field",
@@ -104,7 +128,7 @@ end
 
 local function add_action_param_candidates(self, enemy_type)
     if sdk == nil or sdk.find_type_definition == nil then return end
-    local accessor = safe_call(function() return enemy_type:get_method("get_ActionParam") end)
+    local accessor = find_method(enemy_type, "get_ActionParam")
     if accessor == nil or safe_call(function() return accessor:get_num_params() end) ~= 0 then return end
     local param_type = safe_call(function() return sdk.find_type_definition(ACTION_PARAM_TYPE) end)
     if param_type == nil then return end

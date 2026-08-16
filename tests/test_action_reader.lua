@@ -112,13 +112,20 @@ local action_param_accessor = {
     get_num_params = function() return 0 end,
     call = function() return action_param end,
 }
-local nested_enemy_type = {
-    get_full_name = function() return "snow.enemy.em032.Em032_00Character" end,
+local nested_enemy_parent_type = {
+    get_full_name = function() return "snow.enemy.EnemyCharacterBase" end,
     get_method = function(_, name)
         if name == "get_ActionParam" then return action_param_accessor end
         return nil
     end,
     get_field = function() return nil end,
+    get_parent_type = function() return nil end,
+}
+local nested_enemy_type = {
+    get_full_name = function() return "snow.enemy.em032.Em032_00Character" end,
+    get_method = function() return nil end,
+    get_field = function() return nil end,
+    get_parent_type = function() return nested_enemy_parent_type end,
 }
 local nested_enemy = { get_type_definition = function() return nested_enemy_type end }
 sdk.find_type_definition = function(name)
