@@ -38,6 +38,8 @@
 
 Runtime 读取失败必须返回可观察的 `unavailable_reason`；不得把未知替换技当成默认技能。
 
+TDB 71 当前实机证据：`_playerWeaponType = 2` 且武器控制器类型为 `snow.player.PlayerWeaponCtrlLS_Sword` 时转换为 `long_sword`。必须同时满足两个证据，单独遇到 raw `2` 或相似类型名时保持 unknown；其他武器的 raw 映射在真实实现前不预填。
+
 ### `ResponseCandidate`
 
 - `action`：稳定语义，如 `foresight_slash`、`iai_spirit_slash`、`spirit_helmbreaker`、`evade`。

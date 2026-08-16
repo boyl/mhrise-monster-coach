@@ -4,7 +4,8 @@ local PROBE_PATH = "MHRiseMonsterCoach/runtime_player_state_probe.json"
 local STATE_PATH = "MHRiseMonsterCoach/runtime_player_combat_state.json"
 local KEYWORDS = {
     "weapon", "skill", "swap", "scroll", "wire", "gauge", "spirit",
-    "longsword", "long_sword", "tachi", "sheathe",
+    "longsword", "long_sword", "tachi", "sheathe", "actionset", "action_set",
+    "replace", "change", "red", "blue",
 }
 
 local function safe(fn)
@@ -76,6 +77,45 @@ local function inspect_hierarchy(root_type)
     return result
 end
 
+local function inspect_all_hierarchy(root_type)
+    local result = { root_type = type_name(root_type), hierarchy = {}, fields = {}, methods = {} }
+    local current = root_type
+    local visited = {}
+    local depth = 0
+    while current ~= nil and depth < 8 do
+        local current_name = type_name(current) or tostring(current)
+        if visited[current_name] then break end
+        visited[current_name] = true
+        result.hierarchy[#result.hierarchy + 1] = current_name
+        for _, field in ipairs(safe(function() return current:get_fields() end) or {}) do
+            local name = safe(function() return field:get_name() end)
+            if name then
+                result.fields[#result.fields + 1] = {
+                    declaring_type = current_name,
+                    name = name,
+                    value_type = member_type_name(field, "get_type"),
+                }
+            end
+        end
+        for _, method in ipairs(safe(function() return current:get_methods() end) or {}) do
+            local name = safe(function() return method:get_name() end)
+            local params = safe(function() return method:get_num_params() end)
+            if name and params == 0 then
+                result.methods[#result.methods + 1] = {
+                    declaring_type = current_name,
+                    name = name,
+                    return_type = member_type_name(method, "get_return_type"),
+                }
+            end
+        end
+        current = safe(function() return current:get_parent_type() end)
+        depth = depth + 1
+    end
+    table.sort(result.fields, function(a, b) return a.name < b.name end)
+    table.sort(result.methods, function(a, b) return a.name < b.name end)
+    return result
+end
+
 local function find_member(root_type, accessor, name)
     local current = root_type
     local visited = {}
@@ -134,11 +174,13 @@ function M.capture(self, player, player_data)
     local weapon_ctrl = call_exact_getter(player_type, player, "get_WeaponMainCtrl")
     local skill_list_type = skill_list and safe(function() return skill_list:get_type_definition() end) or nil
     local weapon_ctrl_type = weapon_ctrl and safe(function() return weapon_ctrl:get_type_definition() end) or nil
+    local player_skill_data_type = safe(function() return sdk.find_type_definition("snow.player.PlayerSkillData") end)
     local fingerprint = table.concat({
         type_name(player_type) or "nil",
         type_name(player_data_type) or "nil",
         type_name(skill_list_type) or "nil",
         type_name(weapon_ctrl_type) or "nil",
+        type_name(player_skill_data_type) or "nil",
     }, "|")
 
     local metadata_changed = fingerprint ~= self.fingerprint
@@ -153,6 +195,7 @@ function M.capture(self, player, player_data)
                 player_data = inspect_hierarchy(player_data_type),
                 player_skill_list = inspect_hierarchy(skill_list_type),
                 weapon_main_ctrl = inspect_hierarchy(weapon_ctrl_type),
+                player_skill_data = inspect_all_hierarchy(player_skill_data_type),
             },
         }
         local ok = safe(function() json.dump_file(PROBE_PATH, self.probe) return true end) == true
@@ -161,10 +204,18 @@ function M.capture(self, player, player_data)
         self.captured = true
     end
 
+    local weapon_type_raw = primitive_value(read_exact_field(player_type, player, "_playerWeaponType"))
+    local weapon_ctrl_name = type_name(weapon_ctrl_type)
+    local weapon_type = nil
+    if tonumber(weapon_type_raw) == 2 and weapon_ctrl_name == "snow.player.PlayerWeaponCtrlLS_Sword" then
+        weapon_type = "long_sword"
+    end
     local state = {
         schema_version = 1,
         availability = "partial",
-        weapon_type_raw = primitive_value(read_exact_field(player_type, player, "_playerWeaponType")),
+        weapon_type = weapon_type,
+        weapon_type_raw = weapon_type_raw,
+        weapon_controller_type = weapon_ctrl_name,
         usable_wirebugs = primitive_value(call_exact_getter(player_type, player, "getUsableHunterWireNum")),
         weapon_drawn = primitive_value(call_exact_getter(player_type, player, "isWeaponOn")),
         unavailable = {
@@ -184,6 +235,7 @@ function M.capture(self, player, player_data)
     local player_count = #self.probe.objects.player.fields + #self.probe.objects.player.methods
     local nested_count = #self.probe.objects.player_skill_list.fields + #self.probe.objects.player_skill_list.methods
         + #self.probe.objects.weapon_main_ctrl.fields + #self.probe.objects.weapon_main_ctrl.methods
+        + #self.probe.objects.player_skill_data.fields + #self.probe.objects.player_skill_data.methods
     self.status = string.format("weapon=%s; wirebugs=%s; nested candidates=%d",
         tostring(state.weapon_type_raw or "unknown"), tostring(state.usable_wirebugs or "unknown"), nested_count)
     return metadata_changed
@@ -198,6 +250,7 @@ function M.description(self)
         player_type = self.probe and self.probe.objects.player.root_type or nil,
         player_data_type = self.probe and self.probe.objects.player_data.root_type or nil,
         weapon_type_raw = self.state and self.state.weapon_type_raw or nil,
+        weapon_type = self.state and self.state.weapon_type or nil,
         usable_wirebugs = self.state and self.state.usable_wirebugs or nil,
         weapon_drawn = self.state and self.state.weapon_drawn or nil,
     }

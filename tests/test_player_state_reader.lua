@@ -2,6 +2,7 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 
 local dumped = {}
 json = { dump_file = function(path, value) dumped[path] = value end }
+sdk = { find_type_definition = function() return nil end }
 
 local function type_def(name, fields, methods, parent)
     return {
@@ -19,10 +20,11 @@ local function type_def(name, fields, methods, parent)
 end
 
 local number_type = type_def("System.Single")
+local weapon_raw = 2
 local weapon_field = {
-    get_name = function() return "_WeaponType" end,
+    get_name = function() return "_playerWeaponType" end,
     get_type = function() return number_type end,
-    get_data = function() return 3 end,
+    get_data = function() return weapon_raw end,
 }
 local unrelated_field = {
     get_name = function() return "_Health" end,
@@ -45,13 +47,21 @@ local weapon_drawn_method = {
     get_return_type = function() return number_type end,
     call = function() return true end,
 }
+local weapon_ctrl_type = type_def("snow.player.PlayerWeaponCtrlLS_Sword", {}, {})
+local weapon_ctrl = { get_type_definition = function() return weapon_ctrl_type end }
+local weapon_ctrl_method = {
+    get_name = function() return "get_WeaponMainCtrl" end,
+    get_num_params = function() return 0 end,
+    get_return_type = function() return weapon_ctrl_type end,
+    call = function() return weapon_ctrl end,
+}
 local unsafe_method = {
     get_name = function() return "set_SpiritGauge" end,
     get_num_params = function() return 1 end,
     get_return_type = function() return number_type end,
 }
 local player_type = type_def("snow.player.LongSwordPlayer", { weapon_field, unrelated_field }, {
-    gauge_method, wirebug_method, weapon_drawn_method, unsafe_method,
+    gauge_method, wirebug_method, weapon_drawn_method, weapon_ctrl_method, unsafe_method,
 })
 local data_type = type_def("snow.player.PlayerData", {}, {})
 local player = { get_type_definition = function() return player_type end }
@@ -63,11 +73,17 @@ assert(reader:capture(player, player_data), "first player capture writes metadat
 assert(not reader:capture(player, player_data), "same object types do not rewrite metadata")
 local probe = dumped["MHRiseMonsterCoach/runtime_player_state_probe.json"]
 assert(probe.policy == "metadata_only_plus_exact_whitelisted_getters")
-assert(#probe.objects.player.fields == 1 and probe.objects.player.fields[1].name == "_WeaponType")
-assert(#probe.objects.player.methods == 3)
+assert(#probe.objects.player.fields == 1 and probe.objects.player.fields[1].name == "_playerWeaponType")
+assert(#probe.objects.player.methods == 4)
 local state = dumped["MHRiseMonsterCoach/runtime_player_combat_state.json"]
-assert(state.weapon_type_raw == nil, "only the exact runtime field name is read")
+assert(state.weapon_type_raw == 2, "exact runtime weapon field is read")
+assert(state.weapon_type == "long_sword", "raw value plus LS controller resolves stable semantic")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)
+
+weapon_raw = 3
+local mismatch = Reader.new("mhrise", 71)
+mismatch:capture(player, player_data)
+assert(mismatch:description().weapon_type == nil, "raw value mismatch remains unknown even with LS controller")
 
 print("test_player_state_reader.lua: PASS")
