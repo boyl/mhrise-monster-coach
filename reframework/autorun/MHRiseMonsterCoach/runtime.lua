@@ -1,4 +1,5 @@
 local ActionReader = require("MHRiseMonsterCoach.action_reader")
+local QuestListOrder = require("MHRiseMonsterCoach.quest_list_order")
 
 local M = {}
 
@@ -141,6 +142,48 @@ function M.install_enemy_hook(self, callback)
                 self.enemy_anchor = nil
             end
         end, function(retval) return retval end)
+    end
+    return true
+end
+
+function M.install_quest_list_order_hook(self, quest_ids)
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then
+        return false, "Quest list ordering disabled for unsupported runtime"
+    end
+
+    local make_list = find_method("snow.QuestManager", "makeQuestNoList")
+    if make_list == nil then return false, "QuestManager.makeQuestNoList unavailable" end
+
+    local warned = false
+    local installed, install_error = pcall(function()
+        sdk.hook(make_list, function() end, function(retval)
+            local reordered, reorder_error = pcall(function()
+                local managed_list = sdk.to_managed_object(retval)
+                if managed_list == nil then error("Quest list return value unavailable") end
+                local adapter = {
+                    contains = function(_, id)
+                        return managed_list:call("Contains(System.Int32)", id) == true
+                    end,
+                    remove = function(_, id)
+                        return managed_list:call("Remove(System.Int32)", id) == true
+                    end,
+                    add = function(_, id)
+                        managed_list:call("Add(System.Int32)", id)
+                    end,
+                }
+                local _, order_error = QuestListOrder.move_registered_to_end(adapter, quest_ids)
+                if order_error then error(order_error) end
+            end)
+            if not reordered and not warned then
+                warned = true
+                log.warn("[MHRiseMonsterCoach] Quest list ordering unavailable: " .. tostring(reorder_error))
+            end
+            return retval
+        end)
+    end)
+    if not installed then
+        return false, "Failed to install quest list ordering: " .. tostring(install_error)
     end
     return true
 end

@@ -14,6 +14,11 @@ function M.start()
     local view = View.new(config)
     local controller = Controller.new(model, runtime, view, config, Config)
 
+    local order_hooked, order_error = runtime:install_quest_list_order_hook({ Profile.training_quest.id })
+    if not order_hooked then
+        log.warn("[MHRiseMonsterCoach] " .. tostring(order_error))
+    end
+
     if not config.diagnostic_safe_mode then
         local hooked, hook_error = runtime:install_enemy_hook(function()
             controller:guard("observe_enemy", function() controller:observe_enemy() end)
@@ -33,7 +38,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.2.0-quest-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.2.1-order-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
