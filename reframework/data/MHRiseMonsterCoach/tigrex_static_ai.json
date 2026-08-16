@@ -8,32 +8,10 @@
     "common/act_tbl_user_data/combo/"
   ],
   "actions": {
-    "2": {
-      "kind": "conditional",
-      "evidence_count": 5,
-      "next": [
-        {
-          "action": "6",
-          "evidence_count": 2,
-          "sources": [
-            "common/act_tbl_user_data/action/em032_act_058.user.2",
-            "common/act_tbl_user_data/combo/em032_combo_006.user.2"
-          ]
-        },
-        {
-          "action": "10",
-          "evidence_count": 3,
-          "sources": [
-            "common/act_tbl_user_data/combo/em032_combo_002.user.2",
-            "common/act_tbl_user_data/combo/em032_combo_905.user.2",
-            "common/act_tbl_user_data/combo/em032_combo_930.user.2"
-          ]
-        }
-      ]
-    },
     "15": {
       "kind": "fixed",
       "evidence_count": 3,
+      "runtime_observation_count": 3,
       "next": [
         {
           "action": "2",
@@ -48,6 +26,7 @@
     "16": {
       "kind": "fixed",
       "evidence_count": 1,
+      "runtime_observation_count": 0,
       "next": [
         {
           "action": "2",
@@ -61,6 +40,7 @@
     "18": {
       "kind": "fixed",
       "evidence_count": 1,
+      "runtime_observation_count": 3,
       "next": [
         {
           "action": "2",
@@ -70,26 +50,10 @@
           ]
         }
       ]
-    },
-    "24": {
-      "kind": "conditional",
-      "evidence_count": 2,
-      "next": [
-        {
-          "action": "24",
-          "evidence_count": 1,
-          "sources": [
-            "common/act_tbl_user_data/combo/em032_combo_007.user.2"
-          ]
-        },
-        {
-          "action": "29",
-          "evidence_count": 1,
-          "sources": [
-            "common/act_tbl_user_data/action/em032_act_800.user.2"
-          ]
-        }
-      ]
     }
+  },
+  "withheld_context_dependent_actions": {
+    "2": "Observed runtime successors exceed the local static FSM targets.",
+    "24": "Observed runtime successor differs from the local static FSM targets."
   }
 }
