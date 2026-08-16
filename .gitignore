@@ -7,6 +7,9 @@ reframework/data/MHRiseMonsterCoach/runtime_*.json
 *.dmp
 re2_framework_log.txt
 node_modules/
+__pycache__/
+bin/
+obj/
 work/
 
 # Editor and operating-system files

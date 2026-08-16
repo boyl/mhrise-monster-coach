@@ -93,4 +93,44 @@ assert(metadata.motion_name == "em032_attack_41", "motion metadata is returned w
 assert(metadata.end_frame == 48.0, "motion metadata includes animation end frame")
 motion_reader:shutdown()
 
+local action_param_values = { 2, 2, 10 }
+local action_param_index = 0
+local action_param = {}
+local action_param_field = {
+    get_name = function() return "_ActionNo" end,
+    get_data = function()
+        action_param_index = math.min(action_param_index + 1, #action_param_values)
+        return action_param_values[action_param_index]
+    end,
+}
+local action_param_type = {
+    get_full_name = function() return "snow.enemy.EnemyActionParam" end,
+    get_fields = function() return { action_param_field } end,
+    get_parent_type = function() return nil end,
+}
+local action_param_accessor = {
+    get_num_params = function() return 0 end,
+    call = function() return action_param end,
+}
+local nested_enemy_type = {
+    get_full_name = function() return "snow.enemy.em032.Em032_00Character" end,
+    get_method = function(_, name)
+        if name == "get_ActionParam" then return action_param_accessor end
+        return nil
+    end,
+    get_field = function() return nil end,
+}
+local nested_enemy = { get_type_definition = function() return nested_enemy_type end }
+sdk.find_type_definition = function(name)
+    if name == "snow.enemy.EnemyActionParam" then return action_param_type end
+    return nil
+end
+
+local nested_reader = ActionReader.new({ action_reader = { kind = "auto", name = "" } })
+assert(nested_reader:read(nested_enemy) == "2", "reads ActionNo through EnemyActionParam")
+assert(nested_reader:read(nested_enemy) == "2", "nested ActionNo remains stable")
+assert(nested_reader:read(nested_enemy) == "10", "nested ActionNo observes transition")
+assert(nested_reader:description().kind == "action_param_field", "nested reader is identified")
+assert(nested_reader:description().name == "get_ActionParam()._ActionNo", "nested field is reported")
+
 print("test_action_reader.lua: PASS")

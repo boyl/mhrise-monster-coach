@@ -1,6 +1,6 @@
 # 《怪物猎人崛起》怪物陪练 Mod
 
-版本：`0.3.3-motion-names-candidate`
+版本：`0.3.4-static-ai-bridge-candidate`
 
 > 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入只读诊断模式，不安装怪物 Update Hook，也不执行时间、生命或位置写入。只读模式仅通过 `EnemyManager` 轮询目标怪物，并尝试读取白名单中的 Action Getter/字段。
 
@@ -85,6 +85,16 @@ Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置�
 生命保护默认开启。它会检测生命下降、记录本轮受击量，然后恢复生命；这能显著减少猫车和重新接任务，但“未受伤”结果目前只代表没有检测到生命下降，不代表识别了武器专属 GP、看破、居合或防御判定。
 
 ## 为轰龙标注招式
+
+### 离线 AI 提取（开发流程）
+
+`tools/extract_monster_ai.py` 使用 MHRise 文件列表和 RETool，从指定怪物的 `ai_fsm_user_data` 开始递归追踪 UTF-16 资源引用，只提取该怪物实际依赖的 Action、Combo、Routine 等 `.user.2` 文件。它不会完整展开游戏 PAK，也不会把原始游戏资源写入仓库。
+
+`tools/rsz_ai_dump` 通过外部 RszTool 项目和 `rszmhrise.json`，把已提取文件批量转换为结构化 RSZ JSON。构建时必须显式传入 `-p:RszToolProject=...`；项目不内置或分发第三方解析器、Capcom 文件和 RSZ dump。
+
+`tools/build_monster_behavior_graph.py` 再把结构化 RSZ JSON 转为与解析器无关的行为图，保留 ThinkState、动作实例、条件、下一状态与资源来源。它只把“唯一 `EnemyActionEnd` 边，且起点和终点都各有一个轰龙攻击 Action”的关系列入 `fixed_action_edges`；距离、角度、随机或多边状态不会被误报成固定派生。
+
+当前开发实测从 140 个轰龙入口文件收敛到 424 个引用闭包文件；424 个文件全部解析成功，得到 3,090 个状态、3,920 条条件边、48 个 ActionNo 和 14 条严格固定攻击边，诊断为 0。原始文件和约 3.7 MB 的研究图只保存在本地 `work` 目录，不进入 Mod 包。此结果属于静态结构证据，招式中文语义和运行时 ActionNo 对接仍需独立验证。
 
 校准文件中的 `moves` 以 Action 字符串为键：
 

@@ -22,6 +22,23 @@ local SAFE_FIELD_NAMES = {
     "_MotionNo",
 }
 
+local ACTION_PARAM_TYPE = "snow.enemy.EnemyActionParam"
+local SAFE_ACTION_PARAM_FIELDS = {
+    ["_ActionNo"] = true,
+    ["ActionNo"] = true,
+    ["<ActionNo>k__BackingField"] = true,
+    ["_CurrentActionNo"] = true,
+    ["CurrentActionNo"] = true,
+    ["<CurrentActionNo>k__BackingField"] = true,
+    ["_ActionID"] = true,
+    ["ActionID"] = true,
+    ["<ActionID>k__BackingField"] = true,
+    ["_ActionCategory"] = true,
+    ["ActionCategory"] = true,
+    ["<ActionCategory>k__BackingField"] = true,
+    ["_Category"] = true,
+}
+
 local function safe_call(fn)
     local ok, value = pcall(fn)
     if ok then return value end
@@ -85,6 +102,50 @@ local function add_field_candidate(self, type_def, name)
     }
 end
 
+local function add_action_param_candidates(self, enemy_type)
+    if sdk == nil or sdk.find_type_definition == nil then return end
+    local accessor = safe_call(function() return enemy_type:get_method("get_ActionParam") end)
+    if accessor == nil or safe_call(function() return accessor:get_num_params() end) ~= 0 then return end
+    local param_type = safe_call(function() return sdk.find_type_definition(ACTION_PARAM_TYPE) end)
+    if param_type == nil then return end
+
+    local visited = {}
+    local field_names = {}
+    local discovered = {}
+    local depth = 0
+    while param_type ~= nil and depth < 8 do
+        local type_name = safe_call(function() return param_type:get_full_name() end) or ""
+        if visited[type_name] then break end
+        visited[type_name] = true
+        local fields = safe_call(function() return param_type:get_fields() end) or {}
+        for _, field in ipairs(fields) do
+            local name = safe_call(function() return field:get_name() end)
+            if name ~= nil and SAFE_ACTION_PARAM_FIELDS[name] == true and not field_names[name] then
+                field_names[name] = true
+                discovered[#discovered + 1] = {
+                    kind = "action_param_field",
+                    name = "get_ActionParam()." .. name,
+                    field_name = name,
+                    accessor = accessor,
+                    member = field,
+                    values = {},
+                    changes = 0,
+                    last = nil,
+                }
+            end
+        end
+        param_type = safe_call(function() return param_type:get_parent_type() end)
+        depth = depth + 1
+    end
+    table.sort(discovered, function(a, b)
+        local a_category = string.find(string.lower(a.field_name), "category", 1, true) ~= nil
+        local b_category = string.find(string.lower(b.field_name), "category", 1, true) ~= nil
+        if a_category ~= b_category then return not a_category end
+        return a.field_name < b.field_name
+    end)
+    for _, candidate in ipairs(discovered) do self.candidates[#self.candidates + 1] = candidate end
+end
+
 local function add_motion_candidate(self, enemy)
     local motion_type = safe_call(function() return sdk.typeof("via.motion.Motion") end)
     if motion_type == nil then return end
@@ -137,13 +198,14 @@ function M.discover(self, enemy)
     else
         for _, name in ipairs(SAFE_METHOD_NAMES) do add_method_candidate(self, type_def, name) end
         for _, name in ipairs(SAFE_FIELD_NAMES) do add_field_candidate(self, type_def, name) end
+        if #self.candidates == 0 then add_action_param_candidates(self, type_def) end
         if #self.candidates == 0 then add_motion_candidate(self, enemy) end
     end
 
     return #self.candidates > 0
 end
 
-local function read_candidate(candidate, enemy)
+local function read_candidate(candidate, enemy, shared)
     if candidate.kind == "motion" then
         local bank = safe_call(function() return candidate.member:call("get_MotionBankID") end)
         local motion = safe_call(function() return candidate.member:call("get_MotionID") end)
@@ -176,15 +238,24 @@ local function read_candidate(candidate, enemy)
     if candidate.kind == "method" then
         return safe_call(function() return candidate.member:call(enemy) end)
     end
+    if candidate.kind == "action_param_field" then
+        if shared.action_param_unread then
+            shared.action_param = safe_call(function() return candidate.accessor:call(enemy) end)
+            shared.action_param_unread = false
+        end
+        if shared.action_param == nil then return nil end
+        return safe_call(function() return candidate.member:get_data(shared.action_param) end)
+    end
     return safe_call(function() return candidate.member:get_data(enemy) end)
 end
 
 function M.read(self, enemy)
     if not M.discover(self, enemy) then return nil end
     self.samples = self.samples + 1
+    local shared = { action_param_unread = true, action_param = nil }
 
     for _, candidate in ipairs(self.candidates) do
-        local raw_value, metadata = read_candidate(candidate, enemy)
+        local raw_value, metadata = read_candidate(candidate, enemy, shared)
         local value = value_key(raw_value)
         if value ~= nil then
             candidate.values[value] = true

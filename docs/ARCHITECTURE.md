@@ -18,7 +18,7 @@ app (composition root)
 - `model.lua` 只处理训练状态、动作转换、派生语义和有界历史，不调用游戏 API。
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
 - `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
-- `action_reader.lua` 是游戏版本变化最大的边界，只调用明确白名单中的零参数 Getter 或字段，不自动枚举怪物的全部运行时元数据。直接 Action 成员不可用时，降级为只读 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询该状态的引擎名称和结束帧；脚本重载时释放该实例。诊断中显式标记为 `motion`，不得宣称它是 FSM Action ID。
+- `action_reader.lua` 是游戏版本变化最大的边界，优先调用怪物对象上明确白名单中的零参数 Getter 或字段。直接成员不可用时，只枚举已知只读对象 `EnemyActionParam` 的字段定义，并且只读取 ActionNo/ActionID/ActionCategory 精确白名单；不调用枚举出的未知方法。仍不可用时才降级为 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询名称和结束帧；脚本重载时释放该实例。诊断必须分别标记 `action_param_field` 或 `motion`。
 - `view.lua` 只消费 Model 和屏幕尺寸，不决定固定/随机派生。
 - `controller.lua` 拥有输入边沿、单人安全门、生命周期和用例编排。
 - `profile_tigrex.lua` 与校准 JSON 保存怪物知识；原始 Action ID 不散布在业务代码中。
@@ -42,6 +42,13 @@ app (composition root)
 - `observed_state_metadata` 保存状态键到 Motion 名称、Bank/ID 和结束帧的映射；`observed_history` 保存有界的时序与持续时间；`observed_transitions` 保存聚合派生。
 - 首次实机采样用于验证引擎名称质量。确认有效后，再基于名称、连续时间线和重复派生自动聚类候选招式；玩家只确认少量中文语义，不采集视频证据。
 - 自动名称查询失败时退化为原始状态键和时间线，不中断实时观察。
+
+### 离线怪物数据管线
+
+- `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。
+- `rsz_ai_dump` 是第三方 RszTool 的薄适配器，只输出实例类型、字段、值和引用 ID；领域层不依赖 RszTool 对象。
+- `build_monster_behavior_graph.py` 只消费结构化 RSZ JSON，输出稳定的 ThinkState、Action、Condition 和 Transition 契约。`fixed_action_edges` 采用保守证明规则：当前状态只有一条 `EnemyActionEnd` 边，且两端各有一个该怪物的编号攻击 Action。这样更换 REasy、RszTool 或新版 RSZ dump 时，不影响 Mod 的 Model/View/Controller。
+- 原始 PAK、解出的 `.user.2` 和完整 RSZ dump 仅留在本地研究目录，不提交、不打包、不发布。
 
 ### BranchPrediction
 
