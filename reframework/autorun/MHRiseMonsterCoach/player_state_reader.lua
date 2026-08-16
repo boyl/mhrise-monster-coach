@@ -25,6 +25,8 @@ local function type_name(type_def)
     return type_def and safe(function() return type_def:get_full_name() end) or nil
 end
 
+local primitive_value
+
 local function member_type_name(member, accessor)
     local member_type = safe(function() return member[accessor](member) end)
     return type_name(member_type) or tostring(member_type or "unknown")
@@ -82,9 +84,11 @@ local function inspect_exact_type(root_type)
     for _, field in ipairs(safe(function() return root_type:get_fields() end) or {}) do
         local name = safe(function() return field:get_name() end)
         if name then
+            local is_literal = safe(function() return field:is_literal() end) == true
             result.fields[#result.fields + 1] = {
                 name = name,
                 value_type = member_type_name(field, "get_type"),
+                literal_value = is_literal and primitive_value(safe(function() return field:get_data(nil) end)) or nil,
             }
         end
     end
@@ -102,6 +106,18 @@ local function inspect_exact_type(root_type)
     table.sort(result.fields, function(a, b) return a.name < b.name end)
     table.sort(result.methods, function(a, b) return a.name < b.name end)
     return result
+end
+
+local function managed_array_values(array, limit)
+    if array == nil then return nil end
+    local elements = safe(function() return array:get_elements() end)
+    if type(elements) ~= "table" then return nil end
+    local values = {}
+    for index, value in ipairs(elements) do
+        if index > limit then break end
+        values[#values + 1] = value
+    end
+    return values
 end
 
 local function find_member(root_type, accessor, name)
@@ -131,7 +147,7 @@ local function read_exact_field(root_type, instance, name)
     return field and safe(function() return field:get_data(instance) end) or nil
 end
 
-local function primitive_value(value)
+primitive_value = function(value)
     local kind = type(value)
     if kind == "number" or kind == "string" or kind == "boolean" then return value end
     return value ~= nil and tostring(value) or nil
@@ -165,6 +181,7 @@ function M.capture(self, player, player_data)
     local weapon_ctrl_type = weapon_ctrl and safe(function() return weapon_ctrl:get_type_definition() end) or nil
     local replace_holder_type = replace_holder and safe(function() return replace_holder:get_type_definition() end) or nil
     local replace_data_type = safe(function() return sdk.find_type_definition("snow.player.ReplaceAtkMysetData") end)
+    local replace_attack_type = safe(function() return sdk.find_type_definition("snow.player.PlayerBase.ReplaceAttackType") end)
     local fingerprint = table.concat({
         type_name(player_type) or "nil",
         type_name(player_data_type) or "nil",
@@ -172,6 +189,7 @@ function M.capture(self, player, player_data)
         type_name(weapon_ctrl_type) or "nil",
         type_name(replace_holder_type) or "nil",
         type_name(replace_data_type) or "nil",
+        type_name(replace_attack_type) or "nil",
     }, "|")
 
     local metadata_changed = fingerprint ~= self.fingerprint
@@ -188,6 +206,7 @@ function M.capture(self, player, player_data)
                 weapon_main_ctrl = inspect_hierarchy(weapon_ctrl_type),
                 replace_attack_holder = inspect_exact_type(replace_holder_type),
                 replace_attack_data = inspect_exact_type(replace_data_type),
+                replace_attack_enum = inspect_exact_type(replace_attack_type),
             },
         }
         local ok = safe(function() json.dump_file(PROBE_PATH, self.probe) return true end) == true
@@ -220,9 +239,27 @@ function M.capture(self, player, player_data)
         usable_wirebugs = primitive_value(call_exact_getter(player_type, player, "getUsableHunterWireNum")),
         weapon_drawn = primitive_value(call_exact_getter(player_type, player, "isWeaponOn")),
         unavailable = {
-            "active_scroll", "switch_skills_red", "switch_skills_blue", "quick_sheathe_level",
+            "switch_skills_red", "switch_skills_blue", "quick_sheathe_level",
         },
     }
+    local selected_replace_index = replace_holder_type and replace_holder
+        and primitive_value(call_exact_getter(replace_holder_type, replace_holder, "getSelectedIndex")) or nil
+    local replace_sets = {}
+    local replace_data_array = replace_holder_type and replace_holder
+        and read_exact_field(replace_holder_type, replace_holder, "_ReplaceAtkMysetData") or nil
+    for set_index, replace_data in ipairs(managed_array_values(replace_data_array, 2) or {}) do
+        local set_type = safe(function() return replace_data:get_type_definition() end) or replace_data_type
+        local raw_types = set_type and read_exact_field(set_type, replace_data, "_ReplaceAtkTypes") or nil
+        local raw_values = {}
+        for _, value in ipairs(managed_array_values(raw_types, 5) or {}) do
+            raw_values[#raw_values + 1] = primitive_value(value)
+        end
+        replace_sets[set_index] = raw_values
+    end
+    state.active_scroll_index = selected_replace_index
+    state.active_scroll = tonumber(selected_replace_index) == 0 and "red"
+        or tonumber(selected_replace_index) == 1 and "blue" or "unknown"
+    state.switch_skills_raw = { red = replace_sets[1], blue = replace_sets[2] }
     state.resources = {
         usable_wirebugs = state.usable_wirebugs,
         spirit_gauge = long_sword_gauge,
@@ -232,6 +269,8 @@ function M.capture(self, player, player_data)
     local state_key = table.concat({
         tostring(state.weapon_type_raw), tostring(state.usable_wirebugs), tostring(state.weapon_drawn),
         tostring(long_sword_gauge), tostring(long_sword_spirit_level),
+        tostring(selected_replace_index),
+        table.concat(replace_sets[1] or {}, ","), table.concat(replace_sets[2] or {}, ","),
     }, "|")
     if state_key ~= self.last_state_key then
         safe(function() json.dump_file(STATE_PATH, state) end)
@@ -244,6 +283,7 @@ function M.capture(self, player, player_data)
         + #self.probe.objects.weapon_main_ctrl.fields + #self.probe.objects.weapon_main_ctrl.methods
         + #self.probe.objects.replace_attack_holder.fields + #self.probe.objects.replace_attack_holder.methods
         + #self.probe.objects.replace_attack_data.fields + #self.probe.objects.replace_attack_data.methods
+        + #self.probe.objects.replace_attack_enum.fields + #self.probe.objects.replace_attack_enum.methods
     self.status = string.format("weapon=%s; wirebugs=%s; nested candidates=%d",
         tostring(state.weapon_type_raw or "unknown"), tostring(state.usable_wirebugs or "unknown"), nested_count)
     return metadata_changed

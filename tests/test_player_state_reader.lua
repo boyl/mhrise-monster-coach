@@ -3,8 +3,10 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 local dumped = {}
 json = { dump_file = function(path, value) dumped[path] = value end }
 local replace_data_type
+local replace_attack_type
 sdk = { find_type_definition = function(name)
     if name == "snow.player.ReplaceAtkMysetData" then return replace_data_type end
+    if name == "snow.player.PlayerBase.ReplaceAttackType" then return replace_attack_type end
 end }
 
 local function type_def(name, fields, methods, parent)
@@ -73,8 +75,33 @@ local unsafe_method = {
     get_num_params = function() return 1 end,
     get_return_type = function() return number_type end,
 }
-replace_data_type = type_def("snow.player.ReplaceAtkMysetData", {}, {})
-local replace_holder_type = type_def("snow.player.PlayerReplaceAtkMysetHolder", {}, {})
+local function managed_array(values)
+    return { get_elements = function() return values end }
+end
+local replace_types_a = managed_array({ 10, 20, 30, 40, 50 })
+local replace_types_b = managed_array({ 11, 21, 31, 41, 51 })
+local replace_types_field = {
+    get_name = function() return "_ReplaceAtkTypes" end,
+    get_type = function() return number_type end,
+    get_data = function(_, instance) return instance.types end,
+}
+replace_data_type = type_def("snow.player.ReplaceAtkMysetData", { replace_types_field }, {})
+replace_attack_type = type_def("snow.player.PlayerBase.ReplaceAttackType", {}, {})
+local replace_data_a = { types = replace_types_a, get_type_definition = function() return replace_data_type end }
+local replace_data_b = { types = replace_types_b, get_type_definition = function() return replace_data_type end }
+local replace_data_array = managed_array({ replace_data_a, replace_data_b })
+local replace_data_array_field = {
+    get_name = function() return "_ReplaceAtkMysetData" end,
+    get_type = function() return number_type end,
+    get_data = function() return replace_data_array end,
+}
+local selected_index_method = {
+    get_name = function() return "getSelectedIndex" end,
+    get_num_params = function() return 0 end,
+    get_return_type = function() return number_type end,
+    call = function() return 1 end,
+}
+local replace_holder_type = type_def("snow.player.PlayerReplaceAtkMysetHolder", { replace_data_array_field }, { selected_index_method })
 local replace_holder = { get_type_definition = function() return replace_holder_type end }
 local replace_holder_field = {
     get_name = function() return "_ReplaceAtkMysetHolder" end,
@@ -106,6 +133,11 @@ assert(state.weapon_type == "long_sword", "raw value plus LS controller resolves
 assert(state.resources.usable_wirebugs == 2, "runtime resource is exposed through the semantic contract")
 assert(state.resources.spirit_gauge == 64, "verified long sword gauge field is read")
 assert(state.resources.spirit_level == 2, "verified long sword level field fallback is read")
+assert(state.active_scroll_index == 1 and state.active_scroll == "blue")
+assert(#state.switch_skills_raw.red == 5 and state.switch_skills_raw.red[1] == 10,
+    "red raw set count=" .. tostring(#state.switch_skills_raw.red))
+assert(#state.switch_skills_raw.blue == 5 and state.switch_skills_raw.blue[5] == 51,
+    "blue raw set count=" .. tostring(#state.switch_skills_raw.blue))
 assert(state.action_state.weapon_drawn == true, "action state retains the verified draw state")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)
