@@ -21,6 +21,10 @@
   ],
   "actions": {
     "foresight_slash": { "name": "见切斩", "kind": "counter", "runtime_required": ["cancelable", "spirit_gauge"] },
+    "step_slash": { "name": "踏步斩", "kind": "switch_skill" },
+    "drawn_double_slash": { "name": "拔刀二连斩", "kind": "switch_skill" },
+    "spirit_roundslash_combo": { "name": "气刃大回旋斩连段", "kind": "switch_skill" },
+    "spirit_reckoning_combo": { "name": "气刃无双斩连段", "kind": "switch_skill" },
     "special_sheathe_combo": { "name": "特殊纳刀连段", "kind": "switch_skill" },
     "iai_spirit_slash": { "name": "居合拔刀气刃斩", "kind": "counter", "requires_switch_skill": "special_sheathe_combo" },
     "sacred_sheathe_combo": { "name": "神威居合连段", "kind": "switch_skill" },
@@ -28,6 +32,9 @@
     "soaring_kick": { "name": "飞翔踢", "kind": "switch_skill", "wirebug_cost": 1 },
     "spirit_helmbreaker": { "name": "气刃兜割", "kind": "punish", "requires_switch_skill": "soaring_kick" },
     "silkbind_sakura_slash": { "name": "樱花铁虫气刃斩", "kind": "switch_skill", "wirebug_cost": 1 },
+    "tempered_spirit_blade": { "name": "刚·气刃斩", "kind": "counter", "wirebug_cost": 1 },
+    "serene_pose": { "name": "水月架势", "kind": "counter", "wirebug_cost": 2 },
+    "harvest_moon": { "name": "圆月", "kind": "switch_skill", "wirebug_cost": 2 },
     "evade": { "name": "回避", "kind": "defense" }
   }
 }

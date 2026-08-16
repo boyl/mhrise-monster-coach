@@ -39,6 +39,8 @@ function M.evaluate(monster, player)
     local skills = active_switch_skills(player)
     local special_sheathe = has_skill(skills, "special_sheathe_combo")
     local sacred_sheathe = has_skill(skills, "sacred_sheathe_combo")
+    local startup_window = monster.phase == "startup"
+    local can_prepare = startup_window and action_state.cancelable == true
 
     if action_state.cancelable == true and (resources.spirit_gauge or 0) > 0 then
         results[#results + 1] = candidate("foresight_slash", "available", "before_hit",
@@ -49,8 +51,10 @@ function M.evaluate(monster, player)
     end
 
     if special_sheathe == true then
-        results[#results + 1] = candidate("iai_spirit_slash", "available", "during_startup",
-            "当前书装备特殊纳刀；需自行确认纳刀准备窗口。", "high")
+        results[#results + 1] = candidate("iai_spirit_slash", can_prepare and "available" or "wait",
+            can_prepare and "during_startup" or "next_confirmed_cancel_window",
+            can_prepare and "当前书装备特殊纳刀，且已确认前摇与可取消窗口。"
+                or "已装备特殊纳刀，但尚未确认当前动作可取消且怪物处于前摇。", "high")
     elseif special_sheathe == false then
         results[#results + 1] = candidate("iai_spirit_slash", "unavailable", "none",
             "当前书未装备特殊纳刀。", "high")
@@ -60,9 +64,20 @@ function M.evaluate(monster, player)
     end
 
     if sacred_sheathe == true then
-        results[#results + 1] = candidate("sacred_sheathe", "available", "during_startup",
-            "当前书装备神威居合；自动反击会消耗一层刃色。", "high",
+        results[#results + 1] = candidate("sacred_sheathe", can_prepare and "available" or "wait",
+            can_prepare and "during_startup" or "next_confirmed_cancel_window",
+            can_prepare and "当前书装备神威居合，且已确认前摇与可取消窗口；自动反击会消耗刃色。"
+                or "已装备神威居合，但尚未确认当前动作可取消且怪物处于前摇。", "high",
             { spirit_level = "one_or_more" })
+    end
+
+    local tempered = has_skill(skills, "tempered_spirit_blade")
+    if tempered == true and tonumber(resources.usable_wirebugs or 0) >= 1 then
+        results[#results + 1] = candidate("tempered_spirit_blade", startup_window and "available" or "wait",
+            startup_window and "before_hit" or "next_confirmed_startup",
+            startup_window and "当前书装备刚·气刃斩、翔虫可用，且怪物处于前摇。"
+                or "刚·气刃斩与翔虫可用，但尚未识别到怪物前摇窗口。", "medium",
+            { usable_wirebugs = 1 })
     end
 
     if monster.phase == "recovery" then
@@ -73,6 +88,11 @@ function M.evaluate(monster, player)
             results[#results + 1] = candidate("spirit_helmbreaker", "available", "after_recovery",
                 "怪物处于收招，飞翔踢、翔虫和刃色条件满足。", "medium",
                 { usable_wirebugs = 1, spirit_level = 1 })
+        end
+        if has_skill(skills, "silkbind_sakura_slash") == true and wirebugs and wirebugs >= 1 then
+            results[#results + 1] = candidate("silkbind_sakura_slash", "available", "after_recovery",
+                "怪物处于收招，樱花铁虫气刃斩与翔虫条件满足。", "medium",
+                { usable_wirebugs = 1 })
         end
     end
 

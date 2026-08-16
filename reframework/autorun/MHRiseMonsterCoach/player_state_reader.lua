@@ -1,4 +1,5 @@
 local M = {}
+local LongSwordSwitchSkills = require("MHRiseMonsterCoach.long_sword_switch_skills")
 
 local PROBE_PATH = "MHRiseMonsterCoach/runtime_player_state_probe.json"
 local STATE_PATH = "MHRiseMonsterCoach/runtime_player_combat_state.json"
@@ -270,7 +271,7 @@ function M.capture(self, player, player_data)
         local set_type = safe(function() return replace_data:get_type_definition() end) or replace_data_type
         local raw_types = set_type and read_exact_field(set_type, replace_data, "_ReplaceAtkTypes") or nil
         local raw_values = {}
-        for _, value in ipairs(managed_array_values(raw_types, 5) or {}) do
+        for _, value in ipairs(managed_array_values(raw_types, 8) or {}) do
             raw_values[#raw_values + 1] = primitive_value(value)
         end
         replace_sets[set_index] = raw_values
@@ -279,6 +280,12 @@ function M.capture(self, player, player_data)
     state.active_scroll = tonumber(selected_replace_index) == 0 and "red"
         or tonumber(selected_replace_index) == 1 and "blue" or "unknown"
     state.switch_skills_raw = { red = replace_sets[1], blue = replace_sets[2] }
+    local red_skills = LongSwordSwitchSkills.resolve(replace_sets[1])
+    local blue_skills = LongSwordSwitchSkills.resolve(replace_sets[2])
+    if red_skills and blue_skills then
+        state.switch_skills = { red = red_skills, blue = blue_skills }
+        state.unavailable = { "quick_sheathe_level" }
+    end
     state.resources = {
         usable_wirebugs = state.usable_wirebugs,
         spirit_gauge = long_sword_gauge,

@@ -32,7 +32,20 @@ results = Response.evaluate({ phase = "startup" }, {
 })
 assert(find(results, "foresight_slash").availability == "wait")
 assert(find(results, "iai_spirit_slash").availability == "unavailable")
-assert(find(results, "sacred_sheathe").availability == "available")
+assert(find(results, "sacred_sheathe").availability == "wait")
+
+results = Response.evaluate({ phase = "startup" }, {
+    weapon_type = "long_sword",
+    active_scroll = "red",
+    switch_skills = { red = { "tempered_spirit_blade" }, blue = {} },
+    resources = { usable_wirebugs = 1 },
+    action_state = {},
+})
+assert(find(results, "tempered_spirit_blade").availability == "available")
+
+results = Response.evaluate({ phase = "unknown" }, base)
+assert(find(results, "iai_spirit_slash").availability == "wait",
+    "unknown monster timing must not claim Iai is immediately available")
 
 results = Response.evaluate({ phase = "recovery" }, base)
 assert(find(results, "spirit_helmbreaker").availability == "available")

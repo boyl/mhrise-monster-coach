@@ -80,7 +80,7 @@ local unsafe_method = {
 local function managed_array(values)
     return { get_elements = function() return values end }
 end
-local fallback_array_values = { 12, 22, 32, 42, 52 }
+local fallback_array_values = { 1, 0, 1, 1, 1, 0 }
 local fallback_array = {}
 local array_length_method = {
     get_name = function() return "get_Length" end,
@@ -91,14 +91,14 @@ local array_value_method = {
     call = function(_, instance, index) return fallback_array_values[index + 1] end,
 }
 system_array_type = type_def("System.Array", {}, { array_length_method, array_value_method })
-local replace_types_a = managed_array({ 10, 20, 30, 40, 50 })
+local replace_types_a = managed_array({ 0, 1, 0, 0, 0, 1 })
 local boxed_value_field = {
     get_name = function() return "value__" end,
     get_type = function() return number_type end,
     get_data = function(_, instance) return instance.raw end,
 }
 local boxed_enum_type = type_def("snow.player.PlayerBase.ReplaceAttackType", { boxed_value_field }, {})
-fallback_array_values[5] = { raw = 52, get_type_definition = function() return boxed_enum_type end }
+fallback_array_values[5] = { raw = 1, get_type_definition = function() return boxed_enum_type end }
 local replace_types_b = fallback_array
 local replace_types_field = {
     get_name = function() return "_ReplaceAtkTypes" end,
@@ -154,10 +154,14 @@ assert(state.resources.usable_wirebugs == 2, "runtime resource is exposed throug
 assert(state.resources.spirit_gauge == 64, "verified long sword gauge field is read")
 assert(state.resources.spirit_level == 2, "verified long sword level field fallback is read")
 assert(state.active_scroll_index == 1 and state.active_scroll == "blue")
-assert(#state.switch_skills_raw.red == 5 and state.switch_skills_raw.red[1] == 10,
+assert(#state.switch_skills_raw.red == 6 and state.switch_skills_raw.red[1] == 0,
     "red raw set count=" .. tostring(#state.switch_skills_raw.red))
-assert(#state.switch_skills_raw.blue == 5 and state.switch_skills_raw.blue[5] == 52,
+assert(#state.switch_skills_raw.blue == 6 and state.switch_skills_raw.blue[5] == 1,
     "blue raw set count=" .. tostring(#state.switch_skills_raw.blue))
+assert(state.switch_skills.red[1] == "step_slash")
+assert(state.switch_skills.red[5] == "harvest_moon")
+assert(state.switch_skills.blue[3] == "sacred_sheathe_combo")
+assert(state.switch_skills.blue[4] == "tempered_spirit_blade", "boxed enum is unboxed and mapped")
 assert(state.action_state.weapon_drawn == true, "action state retains the verified draw state")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)

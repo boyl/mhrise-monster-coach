@@ -44,6 +44,8 @@ TDB 71 当前实机证据：`_playerWeaponType = 2` 且武器控制器类型为 
 
 完整 `rszmhrise.json` 将交换技运行时结构缩小为 `PlayerBase._ReplaceAtkMysetHolder`、`PlayerReplaceAtkMysetHolder`、`ReplaceAtkMysetData._ReplaceAtkTypes` 与 `PlayerData._OldReplaceAtkIndex`。诊断版只枚举两个紧凑目标类型的成员签名，用于确定精确白名单；不读取数组内容、不调用未知方法：<https://github.com/alphazolam/RE_RSZ/blob/master/rszmhrise.json>。
 
+当前候选映射读取每套书的六个 `ReplaceAttackType` 标记，再解析为 UI 的五个技能槽：A 对应踏步斩/拔刀二连斩，C 对应气刃大回旋连段/气刃无双连段，D 对应特殊纳刀/神威居合，B 与 E 共同决定飞翔踢/樱花铁虫气刃斩/刚·气刃斩，F 对应水月架势/圆月。`Default=0`、`Replace=1` 已由运行时枚举元数据确认；A-F 到技能槽的对应关系是根据 RSZ 条件类型与 MHRice 动作目录作出的静态推导，仍须通过最终一次红蓝书实机快照验收。未知值或不足六项时整体保持 unresolved，不猜默认配置。
+
 ### `ResponseCandidate`
 
 - `action`：稳定语义，如 `foresight_slash`、`iai_spirit_slash`、`spirit_helmbreaker`、`evade`。

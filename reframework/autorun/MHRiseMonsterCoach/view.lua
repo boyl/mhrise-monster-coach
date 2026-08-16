@@ -51,6 +51,18 @@ local function response_text(model)
     return "Weapon response: current weapon state is incomplete"
 end
 
+local function loadout_text(model)
+    local state = model.player_combat_state
+    if not state or state.weapon_type ~= "long_sword" then return nil end
+    local scroll = state.active_scroll
+    local skills = state.switch_skills and state.switch_skills[scroll]
+    if scroll ~= "red" and scroll ~= "blue" then return "Long Sword loadout: active scroll unknown" end
+    if type(skills) ~= "table" or #skills ~= 5 then
+        return string.format("Long Sword loadout: %s scroll | unresolved", scroll)
+    end
+    return string.format("Long Sword loadout: %s scroll | 5/5 skills resolved", scroll)
+end
+
 function M.new(config, font)
     return setmetatable({ config = config, font = font }, { __index = M })
 end
@@ -97,6 +109,8 @@ function M.draw(self, model, runtime, slowmo_active)
         local weapon_response = response_text(model)
         if weapon_response then lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text } end
     end
+    local loadout = loadout_text(model)
+    if loadout then lines[#lines + 1] = { loadout, COLORS.muted } end
     if model.context.outcome_tracking and model.last_result then
         lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
     end

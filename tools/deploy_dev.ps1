@@ -67,6 +67,7 @@ $files = @(
     'autorun\MHRiseMonsterCoach\controller.lua',
     'autorun\MHRiseMonsterCoach\font.lua',
     'autorun\MHRiseMonsterCoach\model.lua',
+    'autorun\MHRiseMonsterCoach\long_sword_switch_skills.lua',
     'autorun\MHRiseMonsterCoach\player_state_reader.lua',
     'autorun\MHRiseMonsterCoach\response_long_sword.lua',
     'autorun\MHRiseMonsterCoach\profile_tigrex.lua',
