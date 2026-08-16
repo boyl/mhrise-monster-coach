@@ -173,6 +173,13 @@ equal(hit_timing.min_hit_frame, 30, "hit timing keeps earliest observed frame")
 equal(hit_timing.max_hit_progress, 0.6, "hit timing keeps latest observed progress")
 equal(hit_timing.total_damage, 30, "hit timing retains total observed damage")
 
+readonly:clear_round_runtime("Round reset in place")
+equal(readonly.current_action, nil, "quick reset clears the previous action prompt")
+equal(readonly.current_metadata, nil, "quick reset clears stale motion metadata")
+equal(readonly.prediction, nil, "quick reset clears stale branch prediction")
+equal(readonly.round_damage, 0, "quick reset clears current-round damage")
+equal(readonly.status, "Round reset in place", "quick reset exposes an explicit result")
+
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.current_action, nil, "leaving quest clears current action")
 

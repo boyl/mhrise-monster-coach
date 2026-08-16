@@ -139,15 +139,15 @@ function M.is_tigrex(self, enemy)
     return string.find(text, "em032_00", 1, true) ~= nil
 end
 
-local function clear_enemy(self)
+local function clear_enemy(self, clear_anchor)
     self.enemy = nil
     self.enemy_id = nil
-    self.enemy_anchor = nil
+    if clear_anchor then self.enemy_anchor = nil end
 end
 
 function M.poll_target_enemy(self, quest_no, is_online)
     if is_online or tonumber(quest_no) ~= self.profile.training_quest.id then
-        clear_enemy(self)
+        clear_enemy(self, true)
         return false, "Not in the supported single-player training quest"
     end
     if self.methods.boss_enemy_count == nil or self.methods.boss_enemy == nil then
@@ -283,11 +283,11 @@ function M.context(self)
     if in_quest and build_supported and not is_online then
         M.poll_target_enemy(self, quest_no, false)
     else
-        clear_enemy(self)
+        clear_enemy(self, true)
     end
     if self.was_in_quest and not in_quest then
         M.restore_time_scale(self)
-        clear_enemy(self)
+        clear_enemy(self, true)
         self.player_anchor = nil
         self.last_player_health = nil
     end
@@ -370,6 +370,10 @@ local function get_position(transform)
     return transform and safe(function() return transform:call("get_Position") end) or nil
 end
 
+local function get_rotation(transform)
+    return transform and safe(function() return transform:call("get_Rotation") end) or nil
+end
+
 function M.capture_anchors(self)
     if self.player == nil or self.enemy == nil then return false, "Player or Tigrex unavailable" end
     local player_transform = get_transform(self.player)
@@ -377,9 +381,13 @@ function M.capture_anchors(self)
     local player_position = get_position(player_transform)
     local enemy_position = get_position(enemy_transform)
     if player_position == nil or enemy_position == nil then return false, "Transform position unavailable" end
-    self.player_anchor = player_position
-    self.enemy_anchor = enemy_position
+    self.player_anchor = { position = player_position, rotation = get_rotation(player_transform) }
+    self.enemy_anchor = { position = enemy_position, rotation = get_rotation(enemy_transform) }
     return true
+end
+
+function M.anchors_ready(self)
+    return self.player_anchor ~= nil and self.enemy_anchor ~= nil
 end
 
 function M.restore_anchors(self)
@@ -388,8 +396,10 @@ function M.restore_anchors(self)
     local enemy_transform = get_transform(self.enemy)
     if player_transform == nil or enemy_transform == nil then return false, "Transform unavailable" end
     local ok = pcall(function()
-        player_transform:call("set_Position", self.player_anchor)
-        enemy_transform:call("set_Position", self.enemy_anchor)
+        player_transform:call("set_Position", self.player_anchor.position)
+        enemy_transform:call("set_Position", self.enemy_anchor.position)
+        if self.player_anchor.rotation then player_transform:call("set_Rotation", self.player_anchor.rotation) end
+        if self.enemy_anchor.rotation then enemy_transform:call("set_Rotation", self.enemy_anchor.rotation) end
     end)
     return ok, ok and nil or "Position reset failed"
 end
@@ -416,6 +426,10 @@ end
 
 function M.quick_reset(self)
     M.restore_time_scale(self)
+    local hitboxes = self.hitbox_provider:poll(self.enemy)
+    if hitboxes and hitboxes.active then
+        return false, "Waiting for active monster hitboxes to close", true
+    end
     local player_ok, player_error = M.restore_player_resources(self)
     local monster_ok, monster_error = M.restore_monster_health(self)
     local anchor_ok, anchor_error = M.restore_anchors(self)

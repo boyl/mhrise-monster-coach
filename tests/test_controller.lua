@@ -22,11 +22,15 @@ local runtime = {
     restores = 0,
     set_time_scale = function(self, scale) self.scales[#self.scales + 1] = scale return true end,
     restore_time_scale = function(self) self.restores = self.restores + 1 return true end,
+    anchors_ready = function() return true end,
+    read_player_health = function() return 100 end,
 }
 local config = {
     enabled = true,
     time_control_enabled = true,
     slowmo_scale = 0.25,
+    quick_reset_enabled = true,
+    auto_capture_anchors = true,
     keys = { slowmo_hold = 117, quick_reset = 118, capture_anchor = 119 },
 }
 local controller = Controller.new(model, runtime, {}, config, {})
@@ -76,7 +80,8 @@ assert(logged_errors == 1, "identical callback errors are logged once")
 local captures, resets = 0, 0
 runtime.capture_anchors = function() captures = captures + 1 return true end
 runtime.quick_reset = function() resets = resets + 1 return true end
-model.reset_round = function() end
+model.reset_round = function(self, reason) self.last_reset = reason end
+model.clear_round_runtime = function(self, reason) self.last_clear = reason end
 config.diagnostic_safe_mode = false
 config.time_control_enabled = true
 controller.input_state = { capture_pressed = true, reset_pressed = false }
@@ -84,13 +89,34 @@ controller:capture_anchors()
 assert(captures == 1, "gamepad short chord reaches capture use case")
 controller.input_state = { capture_pressed = false, reset_pressed = true }
 controller:quick_reset()
-assert(resets == 1, "gamepad long chord reaches reset use case")
+assert(resets == 0 and controller.reset_pending, "gamepad long chord queues reset use case")
+controller:execute_pending_reset()
+assert(resets == 1 and model.last_clear == "Round reset in place", "queued reset executes and clears runtime state")
 drawing_ui = true
 controller.input_state = { capture_pressed = true, reset_pressed = true }
 controller:capture_anchors()
 controller:quick_reset()
 assert(captures == 1 and resets == 1, "open REFramework menu consumes controller events without execution")
 drawing_ui = false
+
+local attempts = 0
+runtime.quick_reset = function()
+    attempts = attempts + 1
+    if attempts == 1 then return false, "Waiting for active monster hitboxes to close", true end
+    return true
+end
+controller:request_quick_reset()
+controller:execute_pending_reset()
+assert(controller.reset_pending and attempts == 1, "active hitbox keeps reset queued")
+controller:execute_pending_reset()
+assert(not controller.reset_pending and attempts == 2, "queued reset retries automatically at safe state")
+
+runtime.anchors_ready = function() return false end
+captures = 0
+controller.auto_anchor_stable_frames = 119
+controller:update_auto_anchors()
+assert(captures == 1, "automatic anchors capture after a stable startup window")
+runtime.anchors_ready = function() return true end
 
 local writes = 0
 local health_values = { 100, 80 }

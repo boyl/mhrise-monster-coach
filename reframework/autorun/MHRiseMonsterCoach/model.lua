@@ -351,7 +351,7 @@ function M.set_context(self, context)
         self.status = context.error
     elseif context.safe_mode then
         self.state = M.states.DISABLED
-        self.status = "Read-only mode: Action polling enabled; gameplay writes disabled"
+        self.status = "Diagnostic mode: polling and guarded training controls enabled"
     elseif context.build_supported == false then
         self.state = M.states.DISABLED
         self.status = string.format("Read-only: unsupported runtime %s / TDB %s", tostring(context.game_name), tostring(context.tdb_version))
@@ -596,7 +596,7 @@ function M.observe_action(self, action, now, metadata)
         or learned_prediction(self, next_state_key)) or nil
     if self.context.safe_mode then
         self.state = M.states.DISABLED
-        self.status = "Read-only mode: Action polling enabled; gameplay writes disabled"
+        self.status = "Diagnostic mode: polling and guarded training controls enabled"
     elseif self.context.build_supported == false then
         self.state = M.states.DISABLED
         self.status = string.format("Read-only: unsupported runtime %s / TDB %s", tostring(self.context.game_name), tostring(self.context.tdb_version))
@@ -672,6 +672,24 @@ function M.reset_round(self, reason)
     self.round_damage = 0
     self.last_result = reason or "Training round reset"
     self.state = self.current_action and M.states.RUNNING or M.states.READY
+    self.status = self.last_result
+end
+
+function M.clear_round_runtime(self, reason)
+    M.finalize_hitbox_observation(self)
+    self.current_action = nil
+    self.current_state_key = nil
+    self.current_move = nil
+    self.current_metadata = nil
+    self.current_hitbox_observation = nil
+    self.prediction = nil
+    self.response_candidates = {}
+    self.response_error = nil
+    self.round_damage = 0
+    self.live_hitbox_seen = false
+    self.live_hitbox_state_key = nil
+    self.last_result = reason or "Training round reset"
+    self.state = M.states.READY
     self.status = self.last_result
 end
 
