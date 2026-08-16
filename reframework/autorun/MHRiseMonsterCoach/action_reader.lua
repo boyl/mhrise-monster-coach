@@ -48,6 +48,15 @@ function M.new(config)
     }, { __index = M })
 end
 
+local function release_candidates(candidates)
+    for _, candidate in ipairs(candidates or {}) do
+        if candidate.motion_info ~= nil then
+            safe_call(function() candidate.motion_info:release() end)
+            candidate.motion_info = nil
+        end
+    end
+end
+
 local function add_method_candidate(self, type_def, name)
     local method = safe_call(function() return type_def:get_method(name) end)
     if method == nil then return end
@@ -89,10 +98,19 @@ local function add_motion_candidate(self, enemy)
     if layer == nil then layer = safe_call(function() return motion:call("getLayer", 0) end) end
     if layer == nil then return end
 
+    local motion_info = safe_call(function()
+        local value = sdk.create_instance("via.motion.MotionInfo")
+        if value ~= nil then value:add_ref() end
+        return value
+    end)
+
     self.candidates[#self.candidates + 1] = {
         kind = "motion",
         name = "via.motion.Motion layer 0",
         member = layer,
+        motion = motion,
+        motion_info = motion_info,
+        metadata = {},
         values = {},
         changes = 0,
         last = nil,
@@ -105,6 +123,7 @@ function M.discover(self, enemy)
     local type_name = type_def:get_full_name()
     if self.target_type == type_name then return #self.candidates > 0 end
 
+    release_candidates(self.candidates)
     self.target_type = type_name
     self.candidates = {}
     self.active = nil
@@ -129,7 +148,30 @@ local function read_candidate(candidate, enemy)
         local bank = safe_call(function() return candidate.member:call("get_MotionBankID") end)
         local motion = safe_call(function() return candidate.member:call("get_MotionID") end)
         if bank == nil or motion == nil then return nil end
-        return tostring(bank) .. ":" .. tostring(motion)
+        local key = tostring(bank) .. ":" .. tostring(motion)
+        local cached = candidate.metadata[key]
+        if cached ~= nil and cached.motion_name ~= nil then return key, cached end
+        local metadata = {
+            bank_id = tonumber(bank),
+            motion_id = tonumber(motion),
+        }
+        if candidate.motion_info ~= nil then
+            local resolved, found = pcall(function()
+                return candidate.motion:call(
+                    "getMotionInfo(System.UInt32, System.UInt32, via.motion.MotionInfo)",
+                    bank,
+                    motion,
+                    candidate.motion_info
+                )
+            end)
+            if resolved and found ~= false then
+                local name = safe_call(function() return candidate.motion_info:call("get_MotionName") end)
+                local end_frame = safe_call(function() return candidate.motion_info:call("get_MotionEndFrame") end)
+                if type(name) == "string" and name ~= "" then metadata.motion_name = name end
+                if type(end_frame) == "number" then metadata.end_frame = end_frame end
+            end
+        end
+        return key, metadata
     end
     if candidate.kind == "method" then
         return safe_call(function() return candidate.member:call(enemy) end)
@@ -142,11 +184,13 @@ function M.read(self, enemy)
     self.samples = self.samples + 1
 
     for _, candidate in ipairs(self.candidates) do
-        local value = value_key(read_candidate(candidate, enemy))
+        local raw_value, metadata = read_candidate(candidate, enemy)
+        local value = value_key(raw_value)
         if value ~= nil then
             candidate.values[value] = true
             if candidate.last ~= nil and candidate.last ~= value then candidate.changes = candidate.changes + 1 end
             candidate.last = value
+            if metadata ~= nil then candidate.metadata[value] = metadata end
         end
     end
 
@@ -163,7 +207,8 @@ function M.read(self, enemy)
         end
     end
 
-    return self.active and self.active.last or nil
+    if self.active == nil then return nil end
+    return self.active.last, self.active.metadata and self.active.metadata[self.active.last] or nil
 end
 
 function M.ready(self)
@@ -172,7 +217,19 @@ end
 
 function M.description(self)
     if self.active == nil then return nil end
-    return { kind = self.active.kind, name = self.active.name, changes = self.active.changes }
+    local metadata = self.active.metadata and self.active.metadata[self.active.last] or nil
+    return {
+        kind = self.active.kind,
+        name = self.active.name,
+        changes = self.active.changes,
+        motion_name = metadata and metadata.motion_name or nil,
+    }
+end
+
+function M.shutdown(self)
+    release_candidates(self.candidates)
+    self.candidates = {}
+    self.active = nil
 end
 
 function M.diagnostics(self)

@@ -58,8 +58,8 @@ function M.update_context(self)
 end
 
 function M.observe_enemy(self)
-    local action = self.runtime:read_action()
-    if action ~= nil then self.model:observe_action(action, now()) end
+    local action, metadata = self.runtime:read_action()
+    if action ~= nil then self.model:observe_action(action, now(), metadata) end
 end
 
 function M.update_health(self)
@@ -174,6 +174,7 @@ function M.draw_menu(self)
     local reader = self.runtime.reader:description()
     imgui.text("Reader: " .. tostring(reader and reader.name or "not calibrated"))
     if reader then imgui.text("Observed Action changes: " .. tostring(reader.changes or 0)) end
+    if reader and reader.motion_name then ui_text_wrapped("Engine Motion: " .. reader.motion_name) end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
     if self.model.context.outcome_tracking then
         imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
@@ -227,7 +228,7 @@ function M.draw_menu(self)
 end
 
 function M.shutdown(self)
-    self.runtime:restore_time_scale()
+    self.runtime:shutdown()
     self.slowmo_active = false
 end
 

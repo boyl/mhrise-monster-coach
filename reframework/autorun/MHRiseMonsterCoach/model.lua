@@ -42,6 +42,8 @@ function M.new(profile, calibration, config)
         prediction = nil,
         transitions = {},
         history = {},
+        state_metadata = {},
+        state_metadata_count = 0,
         unknown_actions = {},
         unknown_action_count = 0,
         learned_actions = 0,
@@ -96,16 +98,34 @@ function M.set_context(self, context)
     end
 end
 
-local function named_move(self, action)
+local function named_move(self, action, metadata)
     local key = tostring(action)
     local move = self.moves[key]
     if move then return move end
+    metadata = metadata or self.state_metadata[key]
+    if metadata and type(metadata.motion_name) == "string" and metadata.motion_name ~= "" then
+        return {
+            name = metadata.motion_name,
+            short_name = metadata.motion_name,
+            advice = "Engine motion name captured; combat meaning awaits confirmation.",
+            certainty = "engine_name",
+        }
+    end
     return {
         name = "Uncatalogued action " .. key,
         short_name = "Action " .. key,
         advice = "Observe the tell; add a name and advice in tigrex_calibration.json.",
         certainty = "unknown",
     }
+end
+
+local function record_state_metadata(self, action, metadata)
+    if metadata == nil then return end
+    if self.state_metadata[action] == nil then
+        if self.state_metadata_count >= self.config.learned_action_limit then return end
+        self.state_metadata_count = self.state_metadata_count + 1
+    end
+    self.state_metadata[action] = metadata
 end
 
 local function learned_prediction(self, action)
@@ -183,10 +203,16 @@ function M.finish_round(self)
     self.round_damage = 0
 end
 
-function M.observe_action(self, action, now)
+function M.observe_action(self, action, now, metadata)
     if action == nil then return false end
     action = tostring(action)
-    if action == self.current_action then return false end
+    record_state_metadata(self, action, metadata)
+    if action == self.current_action then
+        if self.moves[action] == nil and metadata and metadata.motion_name then
+            self.current_move = named_move(self, action, metadata)
+        end
+        return false
+    end
 
     local previous = self.current_action
     if previous ~= nil then
@@ -201,7 +227,7 @@ function M.observe_action(self, action, now)
     local event_time = now or 0
     local duration = previous and math.max(0, event_time - self.action_started_at) or nil
     self.current_action = action
-    self.current_move = named_move(self, action)
+    self.current_move = named_move(self, action, metadata)
     self.action_started_at = event_time
     self.prediction = profile_prediction(self, self.current_move) or learned_prediction(self, action)
     if self.context.safe_mode then
@@ -258,7 +284,7 @@ function M.export_calibration(self, reader)
     for action in pairs(self.unknown_actions) do unknown[#unknown + 1] = action end
     table.sort(unknown)
     return {
-        schema_version = 2,
+        schema_version = 3,
         profile = self.profile.id,
         reader = reader,
         moves = self.moves,
@@ -266,6 +292,7 @@ function M.export_calibration(self, reader)
         observed_unknown_actions = unknown,
         observed_transitions = self.transitions,
         observed_history = self.history,
+        observed_state_metadata = self.state_metadata,
         state_changes = self.state_changes,
         outcome_tracking = self.context.outcome_tracking == true,
     }

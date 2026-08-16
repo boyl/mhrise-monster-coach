@@ -18,7 +18,7 @@ app (composition root)
 - `model.lua` 只处理训练状态、动作转换、派生语义和有界历史，不调用游戏 API。
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
 - `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
-- `action_reader.lua` 是游戏版本变化最大的边界，只调用明确白名单中的零参数 Getter 或字段，不自动枚举怪物的全部运行时元数据。直接 Action 成员不可用时，降级为只读 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并在诊断中显式标记为 `motion`，不得宣称它是 FSM Action ID。
+- `action_reader.lua` 是游戏版本变化最大的边界，只调用明确白名单中的零参数 Getter 或字段，不自动枚举怪物的全部运行时元数据。直接 Action 成员不可用时，降级为只读 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询该状态的引擎名称和结束帧；脚本重载时释放该实例。诊断中显式标记为 `motion`，不得宣称它是 FSM Action ID。
 - `view.lua` 只消费 Model 和屏幕尺寸，不决定固定/随机派生。
 - `controller.lua` 拥有输入边沿、单人安全门、生命周期和用例编排。
 - `profile_tigrex.lua` 与校准 JSON 保存怪物知识；原始 Action ID 不散布在业务代码中。
@@ -34,6 +34,14 @@ app (composition root)
 - 输入：Action 字符串键、名称、短名称、应对建议、派生类型和候选列表。
 - 不变量：`fixed` 只能有一个经验证的候选；观测数据不得升级为 `fixed`。
 - 未知动作：显示 raw Action 并进入有界未知集合，不影响游戏。
+- 自动名称：已校准名称优先；否则可显示 `MotionInfo` 返回的开发者名称，但其确定性只能标记为 `engine_name`，不能自动当作已确认的战斗语义。
+
+### 自动采集与低成本标注
+
+- 每帧只查询当前状态，不扫描 MotionBank，也不枚举类型成员。
+- `observed_state_metadata` 保存状态键到 Motion 名称、Bank/ID 和结束帧的映射；`observed_history` 保存有界的时序与持续时间；`observed_transitions` 保存聚合派生。
+- 首次实机采样用于验证引擎名称质量。确认有效后，再基于名称、连续时间线和重复派生自动聚类候选招式；玩家只确认少量中文语义，不采集视频证据。
+- 自动名称查询失败时退化为原始状态键和时间线，不中断实时观察。
 
 ### BranchPrediction
 

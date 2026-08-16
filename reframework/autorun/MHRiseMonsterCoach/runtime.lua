@@ -290,6 +290,11 @@ function M.read_action(self)
     return self.reader:read(self.enemy)
 end
 
+function M.shutdown(self)
+    M.restore_time_scale(self)
+    self.reader:shutdown()
+end
+
 function M.read_player_health(self)
     if self.player_data == nil or self.fields.player_health == nil then return nil end
     return safe(function() return self.fields.player_health:get_data(self.player_data) end)
