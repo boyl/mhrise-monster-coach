@@ -18,6 +18,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         font = font,
         previous_keys = {},
         slowmo_active = false,
+        slowmo_toggled = false,
         last_health = nil,
         last_error = nil,
         frame_counter = 0,
@@ -32,6 +33,7 @@ function M.guard(self, label, fn)
     if ok then return true end
     self.runtime:restore_time_scale()
     self.slowmo_active = false
+    self.slowmo_toggled = false
     local current_error = label .. ": " .. tostring(error_message)
     local is_new_error = current_error ~= self.last_error
     self.last_error = current_error
@@ -100,10 +102,13 @@ function M.update_health(self)
 end
 
 function M.update_slowmo(self)
-    local _, keyboard_held = pressed(self, "slowmo", self.config.keys.slowmo_hold)
+    local keyboard_edge = pressed(self, "slowmo", self.config.keys.slowmo_hold)
     local gamepad_held = self.input_state and self.input_state.slowmo_down == true
-    if keyboard_held and not gamepad_held and self.input then self.input:mark_keyboard() end
-    local held = keyboard_held or gamepad_held
+    if keyboard_edge and not gamepad_held then
+        self.slowmo_toggled = not self.slowmo_toggled
+        if self.input then self.input:mark_keyboard() end
+    end
+    local held = self.slowmo_toggled or gamepad_held
     local allowed = self.config.enabled
         and self.config.time_control_enabled == true
         and self.model.context.in_quest
@@ -112,7 +117,7 @@ function M.update_slowmo(self)
         and self.model.context.target_found
         and not reframework:is_drawing_ui()
 
-    if held and allowed and not self.slowmo_active then
+    if held and allowed then
         local ok, reason = self.runtime:set_time_scale(self.config.slowmo_scale)
         if ok then
             self.slowmo_active = true
@@ -123,6 +128,7 @@ function M.update_slowmo(self)
         self.runtime:restore_time_scale()
         self.slowmo_active = false
     end
+    if not allowed then self.slowmo_toggled = false end
 end
 
 function M.capture_anchors(self)
@@ -147,6 +153,7 @@ function M.quick_reset(self)
     if not writes_allowed(self) then return end
     local ok, reason = self.runtime:quick_reset()
     self.slowmo_active = false
+    self.slowmo_toggled = false
     self.model:reset_round(ok and "Round reset in place" or reason)
 end
 
@@ -328,6 +335,7 @@ function M.shutdown(self)
     M.persist_runtime_evidence(self, true)
     self.runtime:shutdown()
     self.slowmo_active = false
+    self.slowmo_toggled = false
 end
 
 return M

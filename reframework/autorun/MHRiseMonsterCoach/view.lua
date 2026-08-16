@@ -151,7 +151,7 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     elseif slowmo_active then
         controls = input_state and input_state.device == "gamepad"
             and string.format("Release shoulder buttons: 1.00x | ACTIVE %.2fx", self.config.slowmo_scale)
-            or string.format("F6 release: 1.00x  |  ACTIVE %.2fx", self.config.slowmo_scale)
+            or string.format("Press F6: 1.00x  |  ACTIVE %.2fx", self.config.slowmo_scale)
     elseif not self.config.time_control_enabled then
         controls = model.context.safe_mode
             and "READ-ONLY: Action/Hitbox polling on; gameplay writes off"
@@ -159,9 +159,9 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     elseif input_state and input_state.available and input_state.device == "gamepad" then
         controls = "Hold LB+RB/L1+R1: slow | L3+R3 tap: anchors | hold: reset"
     elseif model.context.safe_mode then
-        controls = "Hold F6: slow time | health/position/forced actions locked"
+        controls = "Press F6: toggle slow time | health/position/forced actions locked"
     else
-        controls = "Hold F6: slow time  |  F7: reset round  |  F8: capture anchors"
+        controls = "Press F6: toggle slow time  |  F7: reset round  |  F8: capture anchors"
     end
     lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
 

@@ -34,14 +34,20 @@ local controller = Controller.new(model, runtime, {}, config, {})
 keys[117] = true
 controller:update_slowmo()
 controller:update_slowmo()
-assert(#runtime.scales == 1, "hold applies slow motion once")
+assert(#runtime.scales == 2, "toggle mode reapplies global speed while active")
 
 keys[117] = false
 controller:update_slowmo()
-assert(runtime.restores == 1, "release restores once")
+assert(#runtime.scales == 3 and runtime.restores == 0, "key release keeps toggle mode active")
 
 keys[117] = true
 controller:update_slowmo()
+assert(runtime.restores == 1, "second F6 press disables slow motion")
+keys[117] = false
+controller:update_slowmo()
+keys[117] = true
+controller:update_slowmo()
+assert(#runtime.scales == 4, "third F6 press enables slow motion again")
 model.context.is_online = true
 controller:update_slowmo()
 assert(runtime.restores == 2, "online transition restores time")
@@ -49,12 +55,15 @@ assert(runtime.restores == 2, "online transition restores time")
 model.context.is_online = false
 model.context.build_supported = false
 controller:update_slowmo()
-assert(#runtime.scales == 2, "unsupported build never reapplies slow motion")
+assert(#runtime.scales == 4, "unsupported build never reapplies slow motion")
 
 model.context.build_supported = true
 config.diagnostic_safe_mode = true
+keys[117] = false
 controller:update_slowmo()
-assert(#runtime.scales == 3, "guarded time control remains available in diagnostic safe mode")
+keys[117] = true
+controller:update_slowmo()
+assert(#runtime.scales == 5, "guarded time control remains available in diagnostic safe mode")
 config.time_control_enabled = false
 controller:update_slowmo()
 assert(runtime.restores == 3, "disabling time control immediately restores normal speed")

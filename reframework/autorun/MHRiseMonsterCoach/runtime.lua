@@ -97,11 +97,16 @@ function M.get_scene(self)
 end
 
 function M.set_time_scale(self, scale)
-    local scene = M.get_scene(self)
-    if scene == nil then return false, "Current scene unavailable" end
-    local ok = pcall(function() scene:call("set_TimeScale", scale) end)
+    local application = sdk.get_native_singleton("via.Application")
+    local application_type = safe(function() return sdk.find_type_definition("via.Application") end)
+    if application == nil or application_type == nil then
+        return false, "via.Application unavailable"
+    end
+    local ok = pcall(function()
+        sdk.call_native_func(application, application_type, "set_GlobalSpeed", scale)
+    end)
     if ok then self.time_scale_owned = scale ~= 1.0 end
-    return ok, ok and nil or "set_TimeScale failed"
+    return ok, ok and nil or "set_GlobalSpeed failed"
 end
 
 function M.restore_time_scale(self)
