@@ -19,13 +19,6 @@ function M.start()
         log.warn("[MHRiseMonsterCoach] " .. tostring(order_error))
     end
 
-    if not config.diagnostic_safe_mode then
-        local hooked, hook_error = runtime:install_enemy_hook(function()
-            controller:guard("observe_enemy", function() controller:observe_enemy() end)
-        end)
-        if not hooked then model:fail(hook_error) end
-    end
-
     re.on_pre_application_entry("UpdateBehavior", function()
         runtime:flush_quest_list_order()
         controller:guard("update", function() controller:update() end)
@@ -39,7 +32,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.2.2-order-deferred-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.3.0-action-polling-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

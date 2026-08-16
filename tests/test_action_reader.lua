@@ -20,8 +20,8 @@ local type_def = {
         return nil
     end,
     get_field = function() return nil end,
-    get_methods = function() return {} end,
-    get_fields = function() return {} end,
+    get_methods = function() error("full method enumeration is forbidden") end,
+    get_fields = function() error("full field enumeration is forbidden") end,
     get_parent_type = function() return nil end,
 }
 local enemy = { get_type_definition = function() return type_def end }

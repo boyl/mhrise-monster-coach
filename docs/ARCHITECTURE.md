@@ -17,7 +17,8 @@ app (composition root)
 
 - `model.lua` 只处理训练状态、动作转换、派生语义和有界历史，不调用游戏 API。
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
-- `action_reader.lua` 是游戏版本变化最大的边界，只调用明确的零参数 getter 或字段。
+- `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
+- `action_reader.lua` 是游戏版本变化最大的边界，只调用明确白名单中的零参数 Getter 或字段，不自动枚举怪物的全部运行时元数据。
 - `view.lua` 只消费 Model 和屏幕尺寸，不决定固定/随机派生。
 - `controller.lua` 拥有输入边沿、单人安全门、生命周期和用例编排。
 - `profile_tigrex.lua` 与校准 JSON 保存怪物知识；原始 Action ID 不散布在业务代码中。

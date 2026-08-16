@@ -55,6 +55,12 @@ function M.draw(self, model, runtime, slowmo_active)
     local lines = {}
     lines[#lines + 1] = { "MONSTER COACH  |  " .. model.profile.name, COLORS.title }
     lines[#lines + 1] = { truncate(model.status, 88), result_color(model.state) }
+    if model.context.in_quest then
+        local target = model.context.target_found
+            and ("Target: Tigrex detected  |  Enemy ID " .. tostring(model.context.enemy_id or "unknown"))
+            or "Target: waiting for Tigrex"
+        lines[#lines + 1] = { target, model.context.target_found and COLORS.success or COLORS.muted }
+    end
 
     if self.config.show_move and model.current_move then
         lines[#lines + 1] = { "Move: " .. truncate(model.current_move.name, 74), COLORS.text }
@@ -70,7 +76,7 @@ function M.draw(self, model, runtime, slowmo_active)
 
     local controls
     if model.context.safe_mode then
-        controls = "SAFE MODE: gameplay hooks and writes disabled"
+        controls = "READ-ONLY: Action polling on; time/health/position writes off"
     elseif model.context.build_supported == false then
         controls = string.format("Read-only runtime: %s / TDB %s", tostring(model.context.game_name), tostring(model.context.tdb_version))
     elseif model.context.is_online then

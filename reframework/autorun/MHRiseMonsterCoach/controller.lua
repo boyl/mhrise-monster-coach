@@ -120,6 +120,8 @@ end
 
 function M.update(self)
     M.update_context(self)
+    if self.model.context.in_quest and self.model.context.build_supported ~= false
+        and not self.model.context.is_online then M.observe_enemy(self) end
     M.update_slowmo(self)
     M.capture_anchors(self)
     M.quick_reset(self)
@@ -165,9 +167,13 @@ function M.draw_menu(self)
     ui_text_wrapped("Status: " .. tostring(self.model.status))
     imgui.text(string.format("Runtime: %s / TDB %s", tostring(self.model.context.game_name or "unknown"), tostring(self.model.context.tdb_version or "unknown")))
     if self.config.diagnostic_safe_mode then
-        ui_text_wrapped("SAFE MODE: monster hooks, time control, health writes and position writes are disabled after a native crash.")
+        ui_text_wrapped("READ-ONLY MODE: polling can identify Tigrex and read whitelisted Action members; time, health and position writes remain disabled.")
     end
-    imgui.text("Reader: " .. tostring(self.runtime.reader:description() and self.runtime.reader:description().name or "not calibrated"))
+    imgui.text("Target: " .. (self.model.context.target_found
+        and ("Tigrex / " .. tostring(self.model.context.enemy_id or "unknown")) or "waiting"))
+    local reader = self.runtime.reader:description()
+    imgui.text("Reader: " .. tostring(reader and reader.name or "not calibrated"))
+    if reader then imgui.text("Observed Action changes: " .. tostring(reader.changes or 0)) end
     imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
 
     local training_quest = self.model.profile.training_quest

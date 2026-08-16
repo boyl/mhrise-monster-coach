@@ -49,10 +49,9 @@ function M.new(config, profile)
     }
 
     self.methods = {
-        enemy_update = find_method("snow.enemy.EnemyCharacterBase", "update"),
-        enemy_destroy = find_method("snow.enemy.EnemyCharacterBase", "onDestroy"),
-        enemy_is_boss = find_method("snow.enemy.EnemyCharacterBase", "get_isBossEnemy"),
         enemy_type = find_method("snow.enemy.EnemyCharacterBase", "get_EnemyType"),
+        boss_enemy_count = find_method("snow.enemy.EnemyManager", "getBossEnemyCount"),
+        boss_enemy = find_method("snow.enemy.EnemyManager", "getBossEnemy"),
         enemy_physical = find_method("snow.enemy.EnemyCharacterBase", "get_PhysicalParam"),
         player_data = find_method("snow.player.PlayerBase", "get_PlayerData"),
         lobby_online = find_method("snow.LobbyManager", "IsQuestOnline"),
@@ -123,32 +122,43 @@ function M.is_tigrex(self, enemy)
     return string.find(text, "em032_00", 1, true) ~= nil
 end
 
-function M.observe_enemy(self, enemy)
-    if enemy == nil or self.methods.enemy_is_boss == nil then return end
-    local is_boss = safe(function() return self.methods.enemy_is_boss:call(enemy) end)
-    if not is_boss or not M.is_tigrex(self, enemy) then return end
-    self.enemy = enemy
-    self.enemy_id = M.read_enemy_id(self, enemy)
+local function clear_enemy(self)
+    self.enemy = nil
+    self.enemy_id = nil
+    self.enemy_anchor = nil
 end
 
-function M.install_enemy_hook(self, callback)
-    if self.methods.enemy_update == nil then return false, "EnemyCharacterBase.update unavailable" end
-    sdk.hook(self.methods.enemy_update, function(args)
-        local enemy = sdk.to_managed_object(args[2])
-        M.observe_enemy(self, enemy)
-        if enemy == self.enemy then callback(enemy) end
-    end, function(retval) return retval end)
-    if self.methods.enemy_destroy then
-        sdk.hook(self.methods.enemy_destroy, function(args)
-            local enemy = sdk.to_managed_object(args[2])
-            if enemy == self.enemy then
-                self.enemy = nil
-                self.enemy_id = nil
-                self.enemy_anchor = nil
-            end
-        end, function(retval) return retval end)
+function M.poll_target_enemy(self, quest_no, is_online)
+    if is_online or tonumber(quest_no) ~= self.profile.training_quest.id then
+        clear_enemy(self)
+        return false, "Not in the supported single-player training quest"
     end
-    return true
+    if self.methods.boss_enemy_count == nil or self.methods.boss_enemy == nil then
+        clear_enemy(self)
+        return false, "EnemyManager boss accessors unavailable"
+    end
+
+    local manager = sdk.get_managed_singleton("snow.enemy.EnemyManager")
+    if manager == nil then
+        clear_enemy(self)
+        return false, "EnemyManager unavailable"
+    end
+    local count = safe(function() return self.methods.boss_enemy_count:call(manager) end)
+    if type(count) ~= "number" or count < 0 or count > 8 then
+        clear_enemy(self)
+        return false, "Invalid boss enemy count"
+    end
+
+    for index = 0, count - 1 do
+        local enemy = safe(function() return self.methods.boss_enemy:call(manager, index) end)
+        if enemy ~= nil and M.is_tigrex(self, enemy) then
+            self.enemy = enemy
+            self.enemy_id = M.read_enemy_id(self, enemy)
+            return true
+        end
+    end
+    clear_enemy(self)
+    return false, "Tigrex not available yet"
 end
 
 function M.install_quest_list_order_hook(self, quest_ids)
@@ -242,23 +252,27 @@ function M.context(self)
     if lobby and self.methods.lobby_online then
         is_online = safe(function() return self.methods.lobby_online:call(lobby) end) == true
     end
+    local build_supported = self.game_name == self.config.supported_game_name
+        and self.tdb_version == self.config.supported_tdb_version
+    if in_quest and build_supported and not is_online then
+        M.poll_target_enemy(self, quest_no, false)
+    else
+        clear_enemy(self)
+    end
     if self.was_in_quest and not in_quest then
         M.restore_time_scale(self)
-        self.enemy = nil
-        self.enemy_id = nil
+        clear_enemy(self)
         self.player_anchor = nil
-        self.enemy_anchor = nil
         self.last_player_health = nil
     end
     self.was_in_quest = in_quest
     M.refresh_player(self)
-    local build_supported = self.game_name == self.config.supported_game_name
-        and self.tdb_version == self.config.supported_tdb_version
     self.last_context = {
         in_quest = in_quest,
         quest_no = quest_no,
         is_online = is_online,
         target_found = self.enemy ~= nil,
+        enemy_id = self.enemy_id,
         reader_ready = self.reader:ready(),
         player_found = self.player ~= nil,
         safe_mode = self.config.diagnostic_safe_mode == true,

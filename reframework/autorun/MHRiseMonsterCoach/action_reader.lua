@@ -44,7 +44,6 @@ function M.new(config)
         target_type = nil,
         candidates = {},
         active = nil,
-        metadata_written = false,
         samples = 0,
     }, { __index = M })
 end
@@ -77,44 +76,6 @@ local function add_field_candidate(self, type_def, name)
     }
 end
 
-local function collect_metadata(type_def)
-    local result = { type_name = type_def:get_full_name(), methods = {}, fields = {} }
-    local current = type_def
-    while current ~= nil do
-        for _, method in ipairs(current:get_methods() or {}) do
-            local name = method:get_name()
-            local lower = string.lower(name)
-            if string.find(lower, "action", 1, true)
-                or string.find(lower, "motion", 1, true)
-                or string.find(lower, "think", 1, true)
-                or string.find(lower, "fsm", 1, true) then
-                result.methods[#result.methods + 1] = {
-                    name = name,
-                    params = method:get_num_params(),
-                    declared_by = method:get_declaring_type():get_full_name(),
-                    returns = method:get_return_type():get_full_name(),
-                }
-            end
-        end
-        for _, field in ipairs(current:get_fields() or {}) do
-            local name = field:get_name()
-            local lower = string.lower(name)
-            if string.find(lower, "action", 1, true)
-                or string.find(lower, "motion", 1, true)
-                or string.find(lower, "think", 1, true)
-                or string.find(lower, "fsm", 1, true) then
-                result.fields[#result.fields + 1] = {
-                    name = name,
-                    declared_by = field:get_declaring_type():get_full_name(),
-                    type = field:get_type():get_full_name(),
-                }
-            end
-        end
-        current = current:get_parent_type()
-    end
-    return result
-end
-
 function M.discover(self, enemy)
     if enemy == nil then return false end
     local type_def = enemy:get_type_definition()
@@ -136,13 +97,6 @@ function M.discover(self, enemy)
         for _, name in ipairs(SAFE_FIELD_NAMES) do add_field_candidate(self, type_def, name) end
     end
 
-    if not self.metadata_written then
-        local metadata = safe_call(function() return collect_metadata(type_def) end)
-        if metadata then
-            json.dump_file("MHRiseMonsterCoach/runtime_action_members.json", metadata)
-            self.metadata_written = true
-        end
-    end
     return #self.candidates > 0
 end
 

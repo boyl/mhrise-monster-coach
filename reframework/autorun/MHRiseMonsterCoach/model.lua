@@ -70,7 +70,7 @@ function M.set_context(self, context)
         self.status = context.error
     elseif context.safe_mode then
         self.state = M.states.DISABLED
-        self.status = "Safe diagnostic mode: gameplay hooks and writes are disabled"
+        self.status = "Read-only mode: Action polling enabled; gameplay writes disabled"
     elseif context.build_supported == false then
         self.state = M.states.DISABLED
         self.status = string.format("Read-only: unsupported runtime %s / TDB %s", tostring(context.game_name), tostring(context.tdb_version))
@@ -199,7 +199,7 @@ function M.observe_action(self, action, now)
     self.prediction = profile_prediction(self, self.current_move) or learned_prediction(self, action)
     if self.context.safe_mode then
         self.state = M.states.DISABLED
-        self.status = "Safe diagnostic mode: gameplay hooks and writes are disabled"
+        self.status = "Read-only mode: Action polling enabled; gameplay writes disabled"
     elseif self.context.build_supported == false then
         self.state = M.states.DISABLED
         self.status = string.format("Read-only: unsupported runtime %s / TDB %s", tostring(self.context.game_name), tostring(self.context.tdb_version))
