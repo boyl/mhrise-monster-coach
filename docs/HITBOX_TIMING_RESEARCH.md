@@ -18,6 +18,8 @@ HitboxViewer 现在仅是可选校验后端，适配器只接受 `2.2.0`。安�
 
 Monster Coach 菜单提供 `HitboxViewer debug shapes / 显示判定体` 开关，默认关闭 HitboxViewer 的 Hitbox、Hurtbox、Pressbox 与 Collisionbox 绘制。该开关不影响 Native Provider；仅在交叉验证或研究判定范围时临时开启。
 
+Native 样本会自动绑定当前 `ActionCategory + ActionNo + Motion`。每次 Action 结束时保存完整的多段判定窗口；同一状态观察一次为 `observed`、两次为 `repeated`、至少三次且各窗口边沿波动不超过三帧为 `confirmed`。判定段数变化标记为 `variable`，不会自动宣称固定窗口。证据随动作切换自动写入校准文件，无需手动导出或截图。
+
 兼容层只沉淀接口事实和独立实现，不分发 HitboxViewer 文件。未来 Viewer 版本必须重新核对模块结构与更新顺序后再加入允许列表；正式运行不要求安装 HitboxViewer。
 
 ## 结论

@@ -23,6 +23,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         frame_counter = 0,
         input = input_adapter,
         input_state = { available = false, device = "keyboard" },
+        saved_evidence_revision = model.evidence_revision or 0,
     }, { __index = M })
 end
 
@@ -67,6 +68,16 @@ function M.observe_enemy(self)
     local hitboxes = self.runtime:read_hitboxes()
     if hitboxes ~= nil then self.model:observe_hitboxes(hitboxes) end
     self.model:update_player_combat_state(self.runtime:player_combat_state())
+end
+
+function M.persist_runtime_evidence(self, force)
+    local revision = self.model.evidence_revision or 0
+    if revision <= self.saved_evidence_revision then return false end
+    if not force and self.frame_counter % 60 ~= 0 then return false end
+    self.config_module.write_calibration(
+        self.model:export_calibration(self.runtime.reader:description()))
+    self.saved_evidence_revision = revision
+    return true
 end
 
 function M.update_health(self)
@@ -149,6 +160,7 @@ function M.update(self)
     M.quick_reset(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.update_health(self) end
+    M.persist_runtime_evidence(self, not self.model.context.in_quest)
 end
 
 function M.draw_overlay(self)
@@ -230,6 +242,10 @@ function M.draw_menu_content(self)
             validation_stats.matched_active, validation_stats.max_native,
             validation_stats.max_validator))
     end
+    local window_summary = self.model:hitbox_window_summary()
+    ui_text_wrapped(string.format("Automatic hitbox windows: actions %d | observations %d | confirmed %d | variable %d",
+        window_summary.actions, window_summary.observations,
+        window_summary.confirmed, window_summary.variable))
     if self.input then
         local input = self.input:description()
         ui_text_wrapped(string.format("Controller shortcuts: %s | runtime %s | active %s",
@@ -305,6 +321,8 @@ function M.draw_menu(self)
 end
 
 function M.shutdown(self)
+    self.model:finalize_hitbox_observation()
+    M.persist_runtime_evidence(self, true)
     self.runtime:shutdown()
     self.slowmo_active = false
 end

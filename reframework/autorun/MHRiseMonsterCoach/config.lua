@@ -79,6 +79,8 @@ function M.load()
     if type(calibration) ~= "table" then calibration = {} end
     if type(calibration.moves) ~= "table" then calibration.moves = {} end
     if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
+    if type(calibration.observed_hit_timing) ~= "table" then calibration.observed_hit_timing = {} end
+    if type(calibration.observed_hitbox_windows) ~= "table" then calibration.observed_hitbox_windows = {} end
 
     local static_ai = M.load_static_ai()
 

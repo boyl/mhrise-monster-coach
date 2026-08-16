@@ -163,7 +163,7 @@ equal(readonly.rounds, 0, "read-only transitions do not invent completed rounds"
 equal(readonly.successes, 0, "read-only transitions do not invent successful outcomes")
 equal(readonly.history[2].previous_duration, 0.5, "read-only timeline records state duration")
 local evidence = readonly:export_calibration({ kind = "motion", name = "test" })
-equal(evidence.schema_version, 4, "hit timing export uses schema version 4")
+equal(evidence.schema_version, 5, "hit timing export uses schema version 5")
 equal(#evidence.observed_history, 2, "timeline export includes chronological history")
 equal(evidence.outcome_tracking, false, "timeline export declares unavailable outcomes")
 equal(evidence.observed_state_metadata["4:99"].motion_name, "em032_roar", "timeline exports engine motion metadata")

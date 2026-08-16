@@ -53,7 +53,10 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         history = {},
         state_metadata = {},
         state_metadata_count = 0,
-        hit_timing_evidence = {},
+        hit_timing_evidence = calibration.observed_hit_timing or {},
+        hitbox_window_evidence = calibration.observed_hitbox_windows or {},
+        current_hitbox_observation = nil,
+        evidence_revision = 0,
         live_hitbox_seen = false,
         live_hitbox_state_key = nil,
         unknown_actions = {},
@@ -101,9 +104,39 @@ function M.observe_hitboxes(self, sample)
         self.live_hitbox_state_key = self.current_state_key
         self.live_hitbox_seen = false
     end
-    if sample.active == true then self.live_hitbox_seen = true end
+    local metadata = self.current_metadata or {}
+    local observation = self.current_hitbox_observation
+    if observation == nil or observation.state_key ~= self.current_state_key then
+        observation = { state_key = self.current_state_key, action = self.current_action,
+            motion_name = metadata.motion_name, bank_id = metadata.bank_id,
+            motion_id = metadata.motion_id, windows = {}, was_active = false }
+        self.current_hitbox_observation = observation
+    end
+    local active = sample.active == true
+    if active then self.live_hitbox_seen = true end
+    local frame = tonumber(metadata.current_frame)
+    local progress = tonumber(metadata.motion_progress)
+    if active and not observation.was_active then
+        observation.open_window = { start_frame = frame, start_progress = progress,
+            entries = sample.entries, max_active_count = tonumber(sample.active_count) or 0 }
+    elseif active and observation.open_window then
+        observation.open_window.max_active_count = math.max(
+            observation.open_window.max_active_count, tonumber(sample.active_count) or 0)
+    end
+    if active and observation.open_window then
+        observation.open_window.last_active_frame = frame
+        observation.open_window.last_active_progress = progress
+    elseif not active and observation.was_active and observation.open_window then
+        observation.open_window.end_frame = observation.open_window.last_active_frame
+        observation.open_window.end_progress = observation.open_window.last_active_progress
+        observation.open_window.last_active_frame = nil
+        observation.open_window.last_active_progress = nil
+        observation.windows[#observation.windows + 1] = observation.open_window
+        observation.open_window = nil
+    end
+    observation.was_active = active
     self.current_metadata = self.current_metadata or {}
-    self.current_metadata.runtime_hitbox_phase = sample.active == true and "active"
+    self.current_metadata.runtime_hitbox_phase = active and "active"
         or (self.live_hitbox_seen and "recovery" or "startup")
     self.current_metadata.runtime_hitbox_count = tonumber(sample.active_count) or 0
     self.current_metadata.runtime_hitbox_source = sample.source
@@ -111,9 +144,77 @@ function M.observe_hitboxes(self, sample)
     return true
 end
 
+function M.finalize_hitbox_observation(self)
+    local observation = self.current_hitbox_observation
+    if type(observation) ~= "table" then return false end
+    if observation.open_window then
+        observation.open_window.end_frame = observation.open_window.last_active_frame
+        observation.open_window.end_progress = observation.open_window.last_active_progress
+        observation.open_window.last_active_frame = nil
+        observation.open_window.last_active_progress = nil
+        observation.windows[#observation.windows + 1] = observation.open_window
+        observation.open_window = nil
+    end
+    self.current_hitbox_observation = nil
+    if #observation.windows == 0 then return false end
+    local key = tostring(observation.state_key)
+    local row = self.hitbox_window_evidence[key]
+    if row == nil then
+        row = { action = observation.action, state_key = key,
+            motion_name = observation.motion_name, bank_id = observation.bank_id,
+            motion_id = observation.motion_id, samples = 0, observations = {} }
+        self.hitbox_window_evidence[key] = row
+    end
+    row.samples = row.samples + 1
+    row.observations[#row.observations + 1] = observation.windows
+    self.evidence_revision = self.evidence_revision + 1
+    if #row.observations > 32 then table.remove(row.observations, 1) end
+    if row.window_count == nil then row.window_count = #observation.windows end
+    if row.window_count == #observation.windows then
+        row.aggregate_windows = row.aggregate_windows or {}
+        local stable = true
+        for index, window in ipairs(observation.windows) do
+            local aggregate = row.aggregate_windows[index] or {}
+            local start_frame, end_frame = tonumber(window.start_frame), tonumber(window.end_frame)
+            if start_frame and end_frame then
+                aggregate.min_start_frame = aggregate.min_start_frame
+                    and math.min(aggregate.min_start_frame, start_frame) or start_frame
+                aggregate.max_start_frame = aggregate.max_start_frame
+                    and math.max(aggregate.max_start_frame, start_frame) or start_frame
+                aggregate.min_end_frame = aggregate.min_end_frame
+                    and math.min(aggregate.min_end_frame, end_frame) or end_frame
+                aggregate.max_end_frame = aggregate.max_end_frame
+                    and math.max(aggregate.max_end_frame, end_frame) or end_frame
+                if aggregate.max_start_frame - aggregate.min_start_frame > 3
+                    or aggregate.max_end_frame - aggregate.min_end_frame > 3 then stable = false end
+            else stable = false end
+            row.aggregate_windows[index] = aggregate
+        end
+        row.status = row.variable_window_count and "variable"
+            or (row.samples >= 3 and stable and "confirmed"
+            or (row.samples >= 2 and "repeated" or "observed"))
+    else
+        row.variable_window_count = true
+        row.status = "variable"
+    end
+    return true
+end
+
+function M.hitbox_window_summary(self)
+    local summary = { actions = 0, observations = 0, confirmed = 0, variable = 0 }
+    for _, row in pairs(self.hitbox_window_evidence) do
+        summary.actions = summary.actions + 1
+        summary.observations = summary.observations + (tonumber(row.samples) or 0)
+        if row.status == "confirmed" then summary.confirmed = summary.confirmed + 1 end
+        if row.status == "variable" then summary.variable = summary.variable + 1 end
+    end
+    return summary
+end
+
 function M.set_context(self, context)
     local was_in_quest = self.context.in_quest
     if was_in_quest and not context.in_quest then
+        M.finalize_hitbox_observation(self)
         self.current_action = nil
         self.current_state_key = nil
         self.current_move = nil
@@ -340,6 +441,7 @@ function M.observe_action(self, action, now, metadata)
     local previous_state_key = self.current_state_key
     local previous_metadata = self.current_metadata
     if previous ~= nil then
+        M.finalize_hitbox_observation(self)
         if self.context.outcome_tracking == true then
             M.finish_round(self)
         else
@@ -453,7 +555,7 @@ function M.export_calibration(self, reader)
     for action in pairs(self.unknown_actions) do unknown[#unknown + 1] = action end
     table.sort(unknown)
     return {
-        schema_version = 4,
+        schema_version = 5,
         profile = self.profile.id,
         reader = reader,
         moves = self.moves,
@@ -463,6 +565,7 @@ function M.export_calibration(self, reader)
         observed_history = self.history,
         observed_state_metadata = self.state_metadata,
         observed_hit_timing = self.hit_timing_evidence,
+        observed_hitbox_windows = self.hitbox_window_evidence,
         state_changes = self.state_changes,
         outcome_tracking = self.context.outcome_tracking == true,
     }
