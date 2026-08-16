@@ -140,4 +140,30 @@ assert(nested_reader:read(nested_enemy) == "10", "nested ActionNo observes trans
 assert(nested_reader:description().kind == "action_param_field", "nested reader is identified")
 assert(nested_reader:description().name == "get_ActionParam()._ActionNo", "nested field is reported")
 
+local action_param_method_values = { 6, 10 }
+local action_param_method_index = 0
+local action_no_method = {
+    get_name = function() return "get_ActionNo" end,
+    get_num_params = function() return 0 end,
+    call = function()
+        action_param_method_index = math.min(action_param_method_index + 1, #action_param_method_values)
+        return action_param_method_values[action_param_method_index]
+    end,
+}
+local method_param_type = {
+    get_full_name = function() return "snow.enemy.EnemyActionParam" end,
+    get_fields = function() return {} end,
+    get_methods = function() return { action_no_method } end,
+    get_method = function(_, name) if name == "get_ActionNo" then return action_no_method end end,
+    get_parent_type = function() return nil end,
+}
+sdk.find_type_definition = function(name)
+    if name == "snow.enemy.EnemyActionParam" then return method_param_type end
+    return nil
+end
+local method_reader = ActionReader.new({ action_reader = { kind = "auto", name = "" } })
+assert(method_reader:read(nested_enemy) == "6", "reads ActionNo getter through EnemyActionParam")
+assert(method_reader:read(nested_enemy) == "10", "nested ActionNo getter observes transition")
+assert(method_reader:description().kind == "action_param_method", "nested getter is identified")
+
 print("test_action_reader.lua: PASS")

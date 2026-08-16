@@ -23,6 +23,18 @@ local SAFE_FIELD_NAMES = {
 }
 
 local ACTION_PARAM_TYPE = "snow.enemy.EnemyActionParam"
+local ACTION_PARAM_PROBE_PATH = "MHRiseMonsterCoach/runtime_action_param_probe.json"
+local SAFE_ACTION_PARAM_METHOD_NAMES = {
+    "get_ActionNo",
+    "get_ActionID",
+    "get_ActionId",
+    "get_CurrentActionNo",
+    "get_CurrentActionID",
+    "get_CurrentActionId",
+    "get_ActionCategory",
+    "get_Category",
+    "get_ActionCode",
+}
 local SAFE_ACTION_PARAM_FIELDS = {
     ["_ActionNo"] = true,
     ["ActionNo"] = true,
@@ -127,14 +139,33 @@ local function add_field_candidate(self, type_def, name)
 end
 
 local function add_action_param_candidates(self, enemy_type)
+    local probe = {
+        schema_version = 1,
+        enemy_type = safe_call(function() return enemy_type:get_full_name() end),
+        accessor_found = false,
+        action_param_type_found = false,
+        fields = {},
+        methods = {},
+        selected = {},
+    }
+    self.action_param_probe = probe
     if sdk == nil or sdk.find_type_definition == nil then return end
     local accessor = find_method(enemy_type, "get_ActionParam")
-    if accessor == nil or safe_call(function() return accessor:get_num_params() end) ~= 0 then return end
+    probe.accessor_found = accessor ~= nil
+    if accessor == nil or safe_call(function() return accessor:get_num_params() end) ~= 0 then
+        safe_call(function() json.dump_file(ACTION_PARAM_PROBE_PATH, probe) end)
+        return
+    end
     local param_type = safe_call(function() return sdk.find_type_definition(ACTION_PARAM_TYPE) end)
-    if param_type == nil then return end
+    probe.action_param_type_found = param_type ~= nil
+    if param_type == nil then
+        safe_call(function() json.dump_file(ACTION_PARAM_PROBE_PATH, probe) end)
+        return
+    end
 
     local visited = {}
     local field_names = {}
+    local method_names = {}
     local discovered = {}
     local depth = 0
     while param_type ~= nil and depth < 8 do
@@ -144,6 +175,7 @@ local function add_action_param_candidates(self, enemy_type)
         local fields = safe_call(function() return param_type:get_fields() end) or {}
         for _, field in ipairs(fields) do
             local name = safe_call(function() return field:get_name() end)
+            if name ~= nil and not field_names[name] then probe.fields[#probe.fields + 1] = name end
             if name ~= nil and SAFE_ACTION_PARAM_FIELDS[name] == true and not field_names[name] then
                 field_names[name] = true
                 discovered[#discovered + 1] = {
@@ -158,6 +190,34 @@ local function add_action_param_candidates(self, enemy_type)
                 }
             end
         end
+        local methods = safe_call(function() return param_type:get_methods() end) or {}
+        for _, method in ipairs(methods) do
+            local name = safe_call(function() return method:get_name() end)
+            local params = safe_call(function() return method:get_num_params() end)
+            if name ~= nil and not method_names[name] then
+                probe.methods[#probe.methods + 1] = { name = name, params = params }
+                method_names[name] = true
+            end
+        end
+        for _, name in ipairs(SAFE_ACTION_PARAM_METHOD_NAMES) do
+            if not method_names["selected:" .. name] then
+                local method = safe_call(function() return param_type:get_method(name) end)
+                local params = method and safe_call(function() return method:get_num_params() end) or nil
+                if method ~= nil and params == 0 then
+                    method_names["selected:" .. name] = true
+                    discovered[#discovered + 1] = {
+                        kind = "action_param_method",
+                        name = "get_ActionParam()." .. name .. "()",
+                        field_name = name,
+                        accessor = accessor,
+                        member = method,
+                        values = {},
+                        changes = 0,
+                        last = nil,
+                    }
+                end
+            end
+        end
         param_type = safe_call(function() return param_type:get_parent_type() end)
         depth = depth + 1
     end
@@ -167,7 +227,11 @@ local function add_action_param_candidates(self, enemy_type)
         if a_category ~= b_category then return not a_category end
         return a.field_name < b.field_name
     end)
-    for _, candidate in ipairs(discovered) do self.candidates[#self.candidates + 1] = candidate end
+    for _, candidate in ipairs(discovered) do
+        self.candidates[#self.candidates + 1] = candidate
+        probe.selected[#probe.selected + 1] = candidate.name
+    end
+    safe_call(function() json.dump_file(ACTION_PARAM_PROBE_PATH, probe) end)
 end
 
 local function add_motion_candidate(self, enemy)
@@ -262,12 +326,15 @@ local function read_candidate(candidate, enemy, shared)
     if candidate.kind == "method" then
         return safe_call(function() return candidate.member:call(enemy) end)
     end
-    if candidate.kind == "action_param_field" then
+    if candidate.kind == "action_param_field" or candidate.kind == "action_param_method" then
         if shared.action_param_unread then
             shared.action_param = safe_call(function() return candidate.accessor:call(enemy) end)
             shared.action_param_unread = false
         end
         if shared.action_param == nil then return nil end
+        if candidate.kind == "action_param_method" then
+            return safe_call(function() return candidate.member:call(shared.action_param) end)
+        end
         return safe_call(function() return candidate.member:get_data(shared.action_param) end)
     end
     return safe_call(function() return candidate.member:get_data(enemy) end)

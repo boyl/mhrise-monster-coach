@@ -18,7 +18,7 @@ app (composition root)
 - `model.lua` 只处理训练状态、动作转换、派生语义和有界历史，不调用游戏 API。
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
 - `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
-- `action_reader.lua` 是游戏版本变化最大的边界，优先调用怪物对象上明确白名单中的零参数 Getter 或字段。直接成员不可用时，只枚举已知只读对象 `EnemyActionParam` 的字段定义，并且只读取 ActionNo/ActionID/ActionCategory 精确白名单；不调用枚举出的未知方法。仍不可用时才降级为 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询名称和结束帧；脚本重载时释放该实例。诊断必须分别标记 `action_param_field` 或 `motion`。
+- `action_reader.lua` 是游戏版本变化最大的边界，优先沿怪物继承链查找明确白名单中的零参数 Getter 或字段。直接成员不可用时，只枚举已知只读对象 `EnemyActionParam` 的成员定义，并且只读取 ActionNo/ActionID/ActionCategory 精确白名单字段或调用精确白名单零参数 Getter；枚举出的其他方法只记录名称，不执行。仍不可用时才降级为 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询名称和结束帧；脚本重载时释放该实例。诊断必须分别标记 `action_param_field`、`action_param_method` 或 `motion`。
 - `view.lua` 只消费 Model 和屏幕尺寸，不决定固定/随机派生。
 - `controller.lua` 拥有输入边沿、单人安全门、生命周期和用例编排。
 - `profile_tigrex.lua` 与校准 JSON 保存怪物知识；原始 Action ID 不散布在业务代码中。
