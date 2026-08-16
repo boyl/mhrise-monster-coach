@@ -56,4 +56,21 @@ end
 function M.description(self)
     return { available = self.available, version = self.version, status = self.status }
 end
+
+function M.set_debug_shapes(self, enabled)
+    if not self.available or type(self.config.current) ~= "table"
+        or type(self.config.current.mod) ~= "table" then
+        return false, self.status
+    end
+    local mod = self.config.current.mod
+    mod.enabled_hitboxes = enabled == true
+    mod.enabled_hurtboxes = enabled == true
+    if enabled ~= true then
+        mod.enabled_pressboxes = false
+        mod.enabled_collisionboxes = false
+    end
+    self.status = enabled and "HitboxViewer validation and debug shapes enabled"
+        or "HitboxViewer debug shapes disabled; native reader remains active"
+    return true
+end
 return M

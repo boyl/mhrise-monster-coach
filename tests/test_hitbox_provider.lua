@@ -19,6 +19,11 @@ local provider = Provider.new({ loader = function(name) return assert(modules[na
 local sample = assert(provider:poll(enemy))
 assert(sample.active and sample.active_count == 1 and sample.known_count == 2)
 assert(sample.entries[1].set_idx == 7 and sample.entries[1].attack_id == "attack-a")
+assert(provider:set_debug_shapes(false) == true)
+assert(modules["HitboxViewer.config.init"].current.mod.enabled_hitboxes == false)
+assert(modules["HitboxViewer.config.init"].current.mod.enabled_hurtboxes == false)
+assert(provider:set_debug_shapes(true) == true)
+assert(modules["HitboxViewer.config.init"].current.mod.enabled_hitboxes == true)
 
 local unsupported = Provider.new({ sdk = unavailable_sdk, loader = function(name)
     if name == "HitboxViewer.config.version" then return { version = "9.0.0" } end

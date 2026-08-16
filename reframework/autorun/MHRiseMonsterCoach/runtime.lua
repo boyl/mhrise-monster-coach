@@ -57,6 +57,7 @@ function M.new(config, profile)
         disabled_reason = string.format("Native hitbox hook disabled for %s / TDB %s",
             tostring(self.game_name), tostring(self.tdb_version)),
     })
+    self.hitbox_provider:set_debug_shapes(config.show_hitboxviewer_debug_shapes == true)
 
     self.methods = {
         enemy_type = find_method("snow.enemy.EnemyCharacterBase", "get_EnemyType"),
@@ -316,6 +317,10 @@ end
 
 function M.hitbox_provider_description(self)
     return self.hitbox_provider:description()
+end
+
+function M.set_hitboxviewer_debug_shapes(self, enabled)
+    return self.hitbox_provider:set_debug_shapes(enabled)
 end
 
 function M.shutdown(self)

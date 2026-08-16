@@ -44,9 +44,13 @@ local sample = assert(provider:poll(enemy))
 assert(sample.source == "monster_coach_native")
 assert(sample.active == true and sample.active_count == 1 and sample.known_count == 1)
 assert(sample.entries[1].resource_path == "em032.rcol" and sample.entries[1].set_idx == 7)
+local stats = provider:description()
+assert(stats.hook_requests_seen == 1 and stats.target_requests_seen == 1 and stats.collidables_seen == 1)
+assert(stats.active_edges == 1 and stats.active_frames == 1)
 
 collidable.read_byte = function() return 0 end
 sample = assert(provider:poll(enemy))
 assert(sample.active == false and sample.known_count == 1)
+assert(provider:description().active_edges == 1)
 
 print("test_hitbox_provider_native.lua: PASS")

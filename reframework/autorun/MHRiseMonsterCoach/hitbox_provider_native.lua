@@ -7,7 +7,8 @@ local function address(value) return value and safe(function() return value:get_
 function M.new(api)
     return setmetatable({ api = api or sdk, available = false, installed = false,
         status = "Native hitbox hook not installed", pending = {}, collidables = {},
-        target_address = nil }, { __index = M })
+        target_address = nil, hook_requests_seen = 0, target_requests_seen = 0, collidables_seen = 0,
+        active_frames = 0, active_edges = 0, was_active = false }, { __index = M })
 end
 
 function M.install(self)
@@ -30,6 +31,7 @@ function M.install(self)
             if rsc == nil or game_object == nil then return end
             self.pending[#self.pending + 1] = { rsc = rsc, game_object_address = address(game_object),
                 resource_idx = tonumber(resource_idx), set_idx = tonumber(set_idx) }
+            self.hook_requests_seen = self.hook_requests_seen + 1
             if #self.pending > MAX_PENDING then table.remove(self.pending, 1) end
         end, function(retval) return retval end)
     end)
@@ -50,6 +52,7 @@ function M.consume_pending(self, target_address)
     local remaining = {}
     for _, request in ipairs(self.pending) do
         if request.game_object_address == target_address then
+            self.target_requests_seen = self.target_requests_seen + 1
             local count = safe(function() return request.rsc:call(
                 "getNumCollidables(System.UInt32, System.UInt32)", request.resource_idx, request.set_idx) end)
                 or safe(function() return request.rsc:getNumCollidables(request.resource_idx, request.set_idx) end)
@@ -60,9 +63,12 @@ function M.consume_pending(self, target_address)
                     request.resource_idx, request.set_idx, index) end)
                     or safe(function() return request.rsc:getCollidable(request.resource_idx, request.set_idx, index) end)
                 local key = address(collidable)
-                if key then self.collidables[key] = { collidable = collidable,
+                if key then
+                    if self.collidables[key] == nil then self.collidables_seen = self.collidables_seen + 1 end
+                    self.collidables[key] = { collidable = collidable,
                     resource_path = resource_path(request.rsc, request.resource_idx),
-                    resource_idx = request.resource_idx, set_idx = request.set_idx, collidable_idx = index } end
+                    resource_idx = request.resource_idx, set_idx = request.set_idx, collidable_idx = index }
+                end
             end
         else remaining[#remaining + 1] = request end
     end
@@ -96,11 +102,18 @@ function M.poll(self, enemy)
     end
     self.status = known_count > 0 and "Monster Coach native hitbox reader active"
         or "Native hook ready; waiting for monster attack data"
-    return { active = active_count > 0, active_count = active_count, known_count = known_count,
+    local active = active_count > 0
+    if active then self.active_frames = self.active_frames + 1 end
+    if active and not self.was_active then self.active_edges = self.active_edges + 1 end
+    self.was_active = active
+    return { active = active, active_count = active_count, known_count = known_count,
         entries = entries, source = "monster_coach_native", version = 1 }
 end
 
 function M.description(self)
-    return { available = self.available, installed = self.installed, status = self.status }
+    return { available = self.available, installed = self.installed, status = self.status,
+        hook_requests_seen = self.hook_requests_seen, target_requests_seen = self.target_requests_seen,
+        collidables_seen = self.collidables_seen,
+        active_frames = self.active_frames, active_edges = self.active_edges }
 end
 return M

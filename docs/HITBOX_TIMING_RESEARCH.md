@@ -16,6 +16,8 @@
 
 HitboxViewer 现在仅是可选校验后端，适配器只接受 `2.2.0`。安装时会同时比较 Native 与 Viewer 的活动状态；未安装、版本变化、Draw Hitboxes 关闭或缓存未就绪不影响 Native Provider。实时阶段规则为：首次启用前是前摇，任一判定启用时是攻击阶段，本 Action 已出现判定且全部关闭后是收招。没有攻击判定的 Action 不会被误当成已验证收招。
 
+Monster Coach 菜单提供 `HitboxViewer debug shapes / 显示判定体` 开关，默认关闭 HitboxViewer 的 Hitbox、Hurtbox、Pressbox 与 Collisionbox 绘制。该开关不影响 Native Provider；仅在交叉验证或研究判定范围时临时开启。
+
 兼容层只沉淀接口事实和独立实现，不分发 HitboxViewer 文件。未来 Viewer 版本必须重新核对模块结构与更新顺序后再加入允许列表；正式运行不要求安装 HitboxViewer。
 
 ## 结论

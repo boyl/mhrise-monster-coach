@@ -178,6 +178,12 @@ function M.draw_menu_content(self)
     changed = checkbox("Show move / 显示招式", self.config, "show_move") or changed
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("Show response / 显示应对", self.config, "show_advice") or changed
+    local shapes_changed = checkbox("HitboxViewer debug shapes / 显示判定体",
+        self.config, "show_hitboxviewer_debug_shapes")
+    if shapes_changed then
+        self.runtime:set_hitboxviewer_debug_shapes(self.config.show_hitboxviewer_debug_shapes)
+        changed = true
+    end
     changed = checkbox("Controller shortcuts (experimental, may conflict)", self.config.controller_input, "enabled") or changed
     changed = checkbox("Player safety lock (offline only)", self.config, "safety_health_lock") or changed
     changed = checkbox("Protect monster HP (offline only)", self.config, "protect_monster_health") or changed
@@ -207,11 +213,22 @@ function M.draw_menu_content(self)
     if player_probe.player_type then ui_text_wrapped("Player type: " .. tostring(player_probe.player_type)) end
     local hitbox_provider = self.runtime:hitbox_provider_description()
     ui_text_wrapped("Hitbox timing: " .. tostring(hitbox_provider.status))
+    local native_stats = hitbox_provider.primary or {}
+    ui_text_wrapped(string.format("Native capture: target requests %d | collidables %d | active edges %d | active frames %d",
+        native_stats.target_requests_seen or 0, native_stats.collidables_seen or 0,
+        native_stats.active_edges or 0, native_stats.active_frames or 0))
     if hitbox_provider.validation then
         ui_text_wrapped(string.format("Hitbox cross-check: %s | native %d / viewer %d",
             hitbox_provider.validation.matches and "match" or "mismatch",
             hitbox_provider.validation.native_active_count,
             hitbox_provider.validation.validator_active_count))
+    end
+    local validation_stats = hitbox_provider.validation_stats
+    if validation_stats and validation_stats.samples > 0 then
+        ui_text_wrapped(string.format("Cross-check history: samples %d | mismatches %d | matched active %d | max %d/%d",
+            validation_stats.samples, validation_stats.mismatches,
+            validation_stats.matched_active, validation_stats.max_native,
+            validation_stats.max_validator))
     end
     if self.input then
         local input = self.input:description()

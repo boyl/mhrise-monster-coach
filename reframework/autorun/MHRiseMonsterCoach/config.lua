@@ -15,6 +15,7 @@ local DEFAULTS = {
     show_move = true,
     show_prediction = true,
     show_advice = true,
+    show_hitboxviewer_debug_shapes = false,
     slowmo_scale = 0.25,
     safety_health_lock = false,
     protect_monster_health = false,
