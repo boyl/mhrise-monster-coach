@@ -26,6 +26,16 @@ local weapon_field = {
     get_type = function() return number_type end,
     get_data = function() return weapon_raw end,
 }
+local spirit_gauge_field = {
+    get_name = function() return "_LongSwordGauge" end,
+    get_type = function() return number_type end,
+    get_data = function() return 64 end,
+}
+local spirit_level_field = {
+    get_name = function() return "_LongSwordGaugeLv" end,
+    get_type = function() return number_type end,
+    get_data = function() return 2 end,
+}
 local unrelated_field = {
     get_name = function() return "_Health" end,
     get_type = function() return number_type end,
@@ -60,7 +70,7 @@ local unsafe_method = {
     get_num_params = function() return 1 end,
     get_return_type = function() return number_type end,
 }
-local player_type = type_def("snow.player.LongSwordPlayer", { weapon_field, unrelated_field }, {
+local player_type = type_def("snow.player.LongSwordPlayer", { weapon_field, spirit_gauge_field, spirit_level_field, unrelated_field }, {
     gauge_method, wirebug_method, weapon_drawn_method, weapon_ctrl_method, unsafe_method,
 })
 local data_type = type_def("snow.player.PlayerData", {}, {})
@@ -73,12 +83,14 @@ assert(reader:capture(player, player_data), "first player capture writes metadat
 assert(not reader:capture(player, player_data), "same object types do not rewrite metadata")
 local probe = dumped["MHRiseMonsterCoach/runtime_player_state_probe.json"]
 assert(probe.policy == "metadata_only_plus_exact_whitelisted_getters")
-assert(#probe.objects.player.fields == 1 and probe.objects.player.fields[1].name == "_playerWeaponType")
+assert(#probe.objects.player.fields == 3)
 assert(#probe.objects.player.methods == 4)
 local state = dumped["MHRiseMonsterCoach/runtime_player_combat_state.json"]
 assert(state.weapon_type_raw == 2, "exact runtime weapon field is read")
 assert(state.weapon_type == "long_sword", "raw value plus LS controller resolves stable semantic")
 assert(state.resources.usable_wirebugs == 2, "runtime resource is exposed through the semantic contract")
+assert(state.resources.spirit_gauge == 64, "verified long sword gauge field is read")
+assert(state.resources.spirit_level == 2, "verified long sword level field fallback is read")
 assert(state.action_state.weapon_drawn == true, "action state retains the verified draw state")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)

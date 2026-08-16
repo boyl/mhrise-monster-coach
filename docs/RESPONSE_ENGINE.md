@@ -40,6 +40,8 @@ Runtime 读取失败必须返回可观察的 `unavailable_reason`；不得把未
 
 TDB 71 当前实机证据：`_playerWeaponType = 2` 且武器控制器类型为 `snow.player.PlayerWeaponCtrlLS_Sword` 时转换为 `long_sword`。必须同时满足两个证据，单独遇到 raw `2` 或相似类型名时保持 unknown；其他武器的 raw 映射在真实实现前不预填。
 
+太刀资源白名单来自两个成熟开源实现：Bimmr 的 Buffer 在 `snow.player.LongSword.update` 中使用 `_LongSwordGauge` 与 `_LongSwordGaugeLv`；MHR Overlay 使用 `get_LongSwordGaugeLv()`。本项目只读这些成员，并优先使用 getter、字段作为兼容回退：<https://github.com/Bimmr/Monster-Hunter-Rise-Reframework-Scripts-/blob/main/Buffer/autorun/Buffer/Modules/LongSword.lua>、<https://github.com/GreenComfyTea/MHR-Overlay/blob/main/reframework/autorun/MHR_Overlay/Buffs/weapon_skills.lua>。
+
 ### `ResponseCandidate`
 
 - `action`：稳定语义，如 `foresight_slash`、`iai_spirit_slash`、`spirit_helmbreaker`、`evade`。

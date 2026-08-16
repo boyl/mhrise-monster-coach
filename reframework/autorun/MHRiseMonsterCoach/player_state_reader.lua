@@ -164,8 +164,17 @@ function M.capture(self, player, player_data)
     local weapon_type_raw = primitive_value(read_exact_field(player_type, player, "_playerWeaponType"))
     local weapon_ctrl_name = type_name(weapon_ctrl_type)
     local weapon_type = nil
+    local long_sword_gauge = nil
+    local long_sword_spirit_level = nil
     if tonumber(weapon_type_raw) == 2 and weapon_ctrl_name == "snow.player.PlayerWeaponCtrlLS_Sword" then
         weapon_type = "long_sword"
+        -- Mature REFramework mods read these members from snow.player.LongSword.
+        -- Hierarchy lookup keeps the whitelist valid when the runtime object is a subclass.
+        long_sword_gauge = primitive_value(read_exact_field(player_type, player, "_LongSwordGauge"))
+        long_sword_spirit_level = primitive_value(call_exact_getter(player_type, player, "get_LongSwordGaugeLv"))
+        if long_sword_spirit_level == nil then
+            long_sword_spirit_level = primitive_value(read_exact_field(player_type, player, "_LongSwordGaugeLv"))
+        end
     end
     local state = {
         schema_version = 1,
@@ -176,14 +185,18 @@ function M.capture(self, player, player_data)
         usable_wirebugs = primitive_value(call_exact_getter(player_type, player, "getUsableHunterWireNum")),
         weapon_drawn = primitive_value(call_exact_getter(player_type, player, "isWeaponOn")),
         unavailable = {
-            "active_scroll", "switch_skills_red", "switch_skills_blue",
-            "long_sword_gauge", "long_sword_spirit_level", "quick_sheathe_level",
+            "active_scroll", "switch_skills_red", "switch_skills_blue", "quick_sheathe_level",
         },
     }
-    state.resources = { usable_wirebugs = state.usable_wirebugs }
+    state.resources = {
+        usable_wirebugs = state.usable_wirebugs,
+        spirit_gauge = long_sword_gauge,
+        spirit_level = long_sword_spirit_level,
+    }
     state.action_state = { weapon_drawn = state.weapon_drawn, cancelable = nil }
     local state_key = table.concat({
         tostring(state.weapon_type_raw), tostring(state.usable_wirebugs), tostring(state.weapon_drawn),
+        tostring(long_sword_gauge), tostring(long_sword_spirit_level),
     }, "|")
     if state_key ~= self.last_state_key then
         safe(function() json.dump_file(STATE_PATH, state) end)
