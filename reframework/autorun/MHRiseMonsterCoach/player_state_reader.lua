@@ -160,6 +160,15 @@ end
 primitive_value = function(value)
     local kind = type(value)
     if kind == "number" or kind == "string" or kind == "boolean" then return value end
+    if value ~= nil then
+        local value_type = safe(function() return value:get_type_definition() end)
+        local value_field = value_type and find_member(value_type, "get_field", "value__") or nil
+        local unboxed = value_field and safe(function() return value_field:get_data(value) end) or nil
+        local unboxed_kind = type(unboxed)
+        if unboxed_kind == "number" or unboxed_kind == "string" or unboxed_kind == "boolean" then
+            return unboxed
+        end
+    end
     return value ~= nil and tostring(value) or nil
 end
 

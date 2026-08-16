@@ -92,6 +92,13 @@ local array_value_method = {
 }
 system_array_type = type_def("System.Array", {}, { array_length_method, array_value_method })
 local replace_types_a = managed_array({ 10, 20, 30, 40, 50 })
+local boxed_value_field = {
+    get_name = function() return "value__" end,
+    get_type = function() return number_type end,
+    get_data = function(_, instance) return instance.raw end,
+}
+local boxed_enum_type = type_def("snow.player.PlayerBase.ReplaceAttackType", { boxed_value_field }, {})
+fallback_array_values[5] = { raw = 52, get_type_definition = function() return boxed_enum_type end }
 local replace_types_b = fallback_array
 local replace_types_field = {
     get_name = function() return "_ReplaceAtkTypes" end,
