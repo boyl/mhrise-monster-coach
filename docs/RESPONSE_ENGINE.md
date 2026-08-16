@@ -42,6 +42,8 @@ TDB 71 当前实机证据：`_playerWeaponType = 2` 且武器控制器类型为 
 
 太刀资源白名单来自两个成熟开源实现：Bimmr 的 Buffer 在 `snow.player.LongSword.update` 中使用 `_LongSwordGauge` 与 `_LongSwordGaugeLv`；MHR Overlay 使用 `get_LongSwordGaugeLv()`。本项目只读这些成员，并优先使用 getter、字段作为兼容回退：<https://github.com/Bimmr/Monster-Hunter-Rise-Reframework-Scripts-/blob/main/Buffer/autorun/Buffer/Modules/LongSword.lua>、<https://github.com/GreenComfyTea/MHR-Overlay/blob/main/reframework/autorun/MHR_Overlay/Buffs/weapon_skills.lua>。
 
+纳刀术使用静态目录中的稳定 `PlEquipSkillId=39`；运行时只读取 `PlayerSkillList.get_PlayerSkillData()` 返回数组中 `PlayerSkillData.SkillId/SkillLv`。数组可读但不存在该 ID 时等级为 0，数组不可读时保持 unknown，二者不得混淆。名称与 ID 来源为 MHRice 数据集中的 `PlayerSkill_039_Name` 与 `equip_skill.param[id.Skill=39]`。
+
 完整 `rszmhrise.json` 将交换技运行时结构缩小为 `PlayerBase._ReplaceAtkMysetHolder`、`PlayerReplaceAtkMysetHolder`、`ReplaceAtkMysetData._ReplaceAtkTypes` 与 `PlayerData._OldReplaceAtkIndex`。诊断版只枚举两个紧凑目标类型的成员签名，用于确定精确白名单；不读取数组内容、不调用未知方法：<https://github.com/alphazolam/RE_RSZ/blob/master/rszmhrise.json>。
 
 当前候选映射读取每套书的六个 `ReplaceAttackType` 标记，再解析为 UI 的五个技能槽：A 对应踏步斩/拔刀二连斩，C 对应气刃大回旋连段/气刃无双连段，D 对应特殊纳刀/神威居合，B 与 E 共同决定飞翔踢/樱花铁虫气刃斩/刚·气刃斩，F 对应水月架势/圆月。`Default=0`、`Replace=1` 已由运行时枚举元数据确认；A-F 到技能槽的对应关系是根据 RSZ 条件类型与 MHRice 动作目录作出的静态推导，仍须通过最终一次红蓝书实机快照验收。未知值或不足六项时整体保持 unresolved，不猜默认配置。

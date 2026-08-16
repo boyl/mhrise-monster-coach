@@ -4,11 +4,13 @@ local dumped = {}
 json = { dump_file = function(path, value) dumped[path] = value end }
 local replace_data_type
 local replace_attack_type
+local player_skill_data_type
 local system_array_type
 sdk = { find_type_definition = function(name)
     if name == "snow.player.ReplaceAtkMysetData" then return replace_data_type end
     if name == "snow.player.PlayerBase.ReplaceAttackType" then return replace_attack_type end
     if name == "System.Array" then return system_array_type end
+    if name == "snow.player.PlayerSkillData" then return player_skill_data_type end
 end }
 
 local function type_def(name, fields, methods, parent)
@@ -128,10 +130,38 @@ local replace_holder_field = {
     get_type = function() return replace_holder_type end,
     get_data = function() return replace_holder end,
 }
+local skill_id_field = {
+    get_name = function() return "SkillId" end,
+    get_type = function() return number_type end,
+    get_data = function(_, instance) return instance.id end,
+}
+local skill_level_field = {
+    get_name = function() return "SkillLv" end,
+    get_type = function() return number_type end,
+    get_data = function(_, instance) return instance.level end,
+}
+player_skill_data_type = type_def("snow.player.PlayerSkillData", { skill_id_field, skill_level_field }, {})
+local function skill_data(id, level)
+    return { id = id, level = level, get_type_definition = function() return player_skill_data_type end }
+end
+local player_skill_array = managed_array({ skill_data(7, 1), skill_data(39, 3) })
+local player_skill_array_field = {
+    get_name = function() return "_PlayerSkillData" end,
+    get_type = function() return number_type end,
+    get_data = function() return player_skill_array end,
+}
+local skill_list_type = type_def("snow.player.PlayerSkillList", { player_skill_array_field }, {})
+local skill_list = { get_type_definition = function() return skill_list_type end }
+local skill_list_method = {
+    get_name = function() return "get_PlayerSkillList" end,
+    get_num_params = function() return 0 end,
+    get_return_type = function() return skill_list_type end,
+    call = function() return skill_list end,
+}
 local player_type = type_def("snow.player.LongSwordPlayer", {
     weapon_field, spirit_gauge_field, spirit_level_field, replace_holder_field, unrelated_field,
 }, {
-    gauge_method, wirebug_method, weapon_drawn_method, weapon_ctrl_method, unsafe_method,
+    gauge_method, wirebug_method, weapon_drawn_method, weapon_ctrl_method, skill_list_method, unsafe_method,
 })
 local data_type = type_def("snow.player.PlayerData", {}, {})
 local player = { get_type_definition = function() return player_type end }
@@ -144,7 +174,7 @@ assert(not reader:capture(player, player_data), "same object types do not rewrit
 local probe = dumped["MHRiseMonsterCoach/runtime_player_state_probe.json"]
 assert(probe.policy == "metadata_only_plus_exact_whitelisted_getters")
 assert(#probe.objects.player.fields == 3, "general probe remains keyword-bounded")
-assert(#probe.objects.player.methods == 4)
+assert(#probe.objects.player.methods == 5)
 assert(probe.objects.replace_attack_holder.root_type == "snow.player.PlayerReplaceAtkMysetHolder")
 assert(probe.objects.replace_attack_data.root_type == "snow.player.ReplaceAtkMysetData")
 local state = dumped["MHRiseMonsterCoach/runtime_player_combat_state.json"]
@@ -162,6 +192,8 @@ assert(state.switch_skills.red[1] == "step_slash")
 assert(state.switch_skills.red[5] == "harvest_moon")
 assert(state.switch_skills.blue[3] == "sacred_sheathe_combo")
 assert(state.switch_skills.blue[4] == "tempered_spirit_blade", "boxed enum is unboxed and mapped")
+assert(state.equipment_skills.quick_sheathe == 3, "Quick Sheathe uses stable skill id 39")
+assert(#state.unavailable == 0)
 assert(state.action_state.weapon_drawn == true, "action state retains the verified draw state")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)

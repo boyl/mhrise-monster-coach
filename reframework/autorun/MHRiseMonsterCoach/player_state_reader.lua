@@ -262,6 +262,23 @@ function M.capture(self, player, player_data)
             "switch_skills_red", "switch_skills_blue", "quick_sheathe_level",
         },
     }
+    local quick_sheathe_level = nil
+    if skill_list_type and skill_list then
+        local skill_data_array = call_exact_getter(skill_list_type, skill_list, "get_PlayerSkillData")
+            or read_exact_field(skill_list_type, skill_list, "_PlayerSkillData")
+        if skill_data_array ~= nil then
+            quick_sheathe_level = 0
+            local skill_data_type = safe(function() return sdk.find_type_definition("snow.player.PlayerSkillData") end)
+            for _, skill_data in ipairs(managed_array_values(skill_data_array, 256) or {}) do
+                local item_type = safe(function() return skill_data:get_type_definition() end) or skill_data_type
+                local skill_id = primitive_value(read_exact_field(item_type, skill_data, "SkillId"))
+                if tonumber(skill_id) == 39 then
+                    quick_sheathe_level = tonumber(primitive_value(read_exact_field(item_type, skill_data, "SkillLv"))) or 0
+                    break
+                end
+            end
+        end
+    end
     local selected_replace_index = replace_holder_type and replace_holder
         and primitive_value(call_exact_getter(replace_holder_type, replace_holder, "getSelectedIndex")) or nil
     local replace_sets = {}
@@ -284,8 +301,9 @@ function M.capture(self, player, player_data)
     local blue_skills = LongSwordSwitchSkills.resolve(replace_sets[2])
     if red_skills and blue_skills then
         state.switch_skills = { red = red_skills, blue = blue_skills }
-        state.unavailable = { "quick_sheathe_level" }
+        state.unavailable = quick_sheathe_level == nil and { "quick_sheathe_level" } or {}
     end
+    state.equipment_skills = { quick_sheathe = quick_sheathe_level }
     state.resources = {
         usable_wirebugs = state.usable_wirebugs,
         spirit_gauge = long_sword_gauge,
@@ -296,6 +314,7 @@ function M.capture(self, player, player_data)
         tostring(state.weapon_type_raw), tostring(state.usable_wirebugs), tostring(state.weapon_drawn),
         tostring(long_sword_gauge), tostring(long_sword_spirit_level),
         tostring(selected_replace_index),
+        tostring(quick_sheathe_level),
         table.concat(replace_sets[1] or {}, ","), table.concat(replace_sets[2] or {}, ","),
     }, "|")
     if state_key ~= self.last_state_key then
