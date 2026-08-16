@@ -26,6 +26,10 @@ local DEFAULTS = {
         quick_reset = 0x76, -- F7
         capture_anchor = 0x77, -- F8
     },
+    controller_input = {
+        enabled = true,
+        long_hold_seconds = 0.75,
+    },
     action_reader = {
         kind = "auto",
         name = "",

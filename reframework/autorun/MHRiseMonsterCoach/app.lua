@@ -3,6 +3,7 @@ local Model = require("MHRiseMonsterCoach.model")
 local Runtime = require("MHRiseMonsterCoach.runtime")
 local View = require("MHRiseMonsterCoach.view")
 local Controller = require("MHRiseMonsterCoach.controller")
+local InputAdapter = require("MHRiseMonsterCoach.input_adapter")
 local Profile = require("MHRiseMonsterCoach.profile_tigrex")
 local Font = require("MHRiseMonsterCoach.font")
 
@@ -14,7 +15,8 @@ function M.start()
     local runtime = Runtime.new(config, Profile)
     local font = Font.new()
     local view = View.new(config, font)
-    local controller = Controller.new(model, runtime, view, config, Config, font)
+    local input_adapter = InputAdapter.new(config.controller_input)
+    local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
 
     local order_hooked, order_error = runtime:install_quest_list_order_hook({ Profile.training_quest.id })
     if not order_hooked then
@@ -34,7 +36,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.7.1-passive-hit-timing-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.8.0-controller-input-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

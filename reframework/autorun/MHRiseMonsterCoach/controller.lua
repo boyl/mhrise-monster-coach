@@ -8,7 +8,7 @@ local function key_down(code)
     return reframework:is_key_down(code) == true
 end
 
-function M.new(model, runtime, view, config, config_module, font)
+function M.new(model, runtime, view, config, config_module, font, input_adapter)
     return setmetatable({
         model = model,
         runtime = runtime,
@@ -21,6 +21,8 @@ function M.new(model, runtime, view, config, config_module, font)
         last_health = nil,
         last_error = nil,
         frame_counter = 0,
+        input = input_adapter,
+        input_state = { available = false, device = "keyboard" },
     }, { __index = M })
 end
 
@@ -85,7 +87,10 @@ function M.update_health(self)
 end
 
 function M.update_slowmo(self)
-    local _, held = pressed(self, "slowmo", self.config.keys.slowmo_hold)
+    local _, keyboard_held = pressed(self, "slowmo", self.config.keys.slowmo_hold)
+    local gamepad_held = self.input_state and self.input_state.slowmo_down == true
+    if keyboard_held and not gamepad_held and self.input then self.input:mark_keyboard() end
+    local held = keyboard_held or gamepad_held
     local allowed = self.config.enabled
         and not self.config.diagnostic_safe_mode
         and self.model.context.in_quest
@@ -108,16 +113,24 @@ function M.update_slowmo(self)
 end
 
 function M.capture_anchors(self)
-    local edge = pressed(self, "capture", self.config.keys.capture_anchor)
+    local keyboard_edge = pressed(self, "capture", self.config.keys.capture_anchor)
+    local gamepad_edge = self.input_state and self.input_state.capture_pressed == true
+    if keyboard_edge and not gamepad_edge and self.input then self.input:mark_keyboard() end
+    local edge = keyboard_edge or gamepad_edge
     if not edge then return end
+    if reframework:is_drawing_ui() then return end
     if not writes_allowed(self) then return end
     local ok, reason = self.runtime:capture_anchors()
     self.model:reset_round(ok and "Reset anchors captured" or reason)
 end
 
 function M.quick_reset(self)
-    local edge = pressed(self, "reset", self.config.keys.quick_reset)
+    local keyboard_edge = pressed(self, "reset", self.config.keys.quick_reset)
+    local gamepad_edge = self.input_state and self.input_state.reset_pressed == true
+    if keyboard_edge and not gamepad_edge and self.input then self.input:mark_keyboard() end
+    local edge = keyboard_edge or gamepad_edge
     if not edge then return end
+    if reframework:is_drawing_ui() then return end
     if not writes_allowed(self) then return end
     local ok, reason = self.runtime:quick_reset()
     self.slowmo_active = false
@@ -125,6 +138,7 @@ function M.quick_reset(self)
 end
 
 function M.update(self)
+    if self.input then self.input_state = self.input:poll(now()) end
     M.update_context(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.observe_enemy(self) end
@@ -136,7 +150,7 @@ function M.update(self)
 end
 
 function M.draw_overlay(self)
-    self.view:draw(self.model, self.runtime, self.slowmo_active)
+    self.view:draw(self.model, self.runtime, self.slowmo_active, self.input_state)
 end
 
 local function checkbox(label, config, key)
@@ -188,6 +202,11 @@ function M.draw_menu_content(self)
     local player_probe = self.runtime:player_state_probe()
     ui_text_wrapped("Player state probe: " .. tostring(player_probe.status))
     if player_probe.player_type then ui_text_wrapped("Player type: " .. tostring(player_probe.player_type)) end
+    if self.input then
+        local input = self.input:description()
+        ui_text_wrapped(string.format("Controller input: %s | active %s",
+            input.available and "ready" or "unavailable", tostring(input.device)))
+    end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
     if self.model.context.outcome_tracking then
         imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))

@@ -1,9 +1,10 @@
 package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. package.path
 
 local keys = {}
+local drawing_ui = false
 reframework = {
     is_key_down = function(_, key) return keys[key] == true end,
-    is_drawing_ui = function() return false end,
+    is_drawing_ui = function() return drawing_ui end,
 }
 imgui = {}
 local logged_errors = 0
@@ -58,6 +59,24 @@ local function same_failure() error("boom") end
 controller:guard("same_failure", same_failure)
 controller:guard("same_failure", same_failure)
 assert(logged_errors == 1, "identical callback errors are logged once")
+
+local captures, resets = 0, 0
+runtime.capture_anchors = function() captures = captures + 1 return true end
+runtime.quick_reset = function() resets = resets + 1 return true end
+model.reset_round = function() end
+config.diagnostic_safe_mode = false
+controller.input_state = { capture_pressed = true, reset_pressed = false }
+controller:capture_anchors()
+assert(captures == 1, "gamepad short chord reaches capture use case")
+controller.input_state = { capture_pressed = false, reset_pressed = true }
+controller:quick_reset()
+assert(resets == 1, "gamepad long chord reaches reset use case")
+drawing_ui = true
+controller.input_state = { capture_pressed = true, reset_pressed = true }
+controller:capture_anchors()
+controller:quick_reset()
+assert(captures == 1 and resets == 1, "open REFramework menu consumes controller events without execution")
+drawing_ui = false
 
 local writes = 0
 local health_values = { 100, 80 }

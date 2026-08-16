@@ -67,7 +67,7 @@ function M.new(config, font)
     return setmetatable({ config = config, font = font }, { __index = M })
 end
 
-function M.draw(self, model, runtime, slowmo_active)
+function M.draw(self, model, runtime, slowmo_active, input_state)
     if not self.config.overlay_enabled then return end
     if not model.context.in_quest and model.state ~= "error" then return end
 
@@ -123,7 +123,11 @@ function M.draw(self, model, runtime, slowmo_active)
     elseif model.context.is_online then
         controls = "Multiplayer detected: all gameplay controls disabled"
     elseif slowmo_active then
-        controls = string.format("F6 release: 1.00x  |  ACTIVE %.2fx", self.config.slowmo_scale)
+        controls = input_state and input_state.device == "gamepad"
+            and string.format("Release shoulder buttons: 1.00x | ACTIVE %.2fx", self.config.slowmo_scale)
+            or string.format("F6 release: 1.00x  |  ACTIVE %.2fx", self.config.slowmo_scale)
+    elseif input_state and input_state.available and input_state.device == "gamepad" then
+        controls = "Hold LB+RB/L1+R1: slow | L3+R3 tap: anchors | hold: reset"
     else
         controls = "Hold F6: slow time  |  F7: reset round  |  F8: capture anchors"
     end
