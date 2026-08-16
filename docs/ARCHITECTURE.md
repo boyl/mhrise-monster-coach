@@ -31,7 +31,7 @@ app (composition root)
 
 怪物阶段由纯函数 `monster_phase.lua` 解析。它只消费怪物数据包中状态为 `confirmed` 的有效判定窗口，并可校验 Motion 名称；当前帧早于首个窗口为前摇，首个至最后一个窗口之间为攻击阶段，最后窗口之后为收招。多段攻击的窗口间隙仍视为攻击阶段，避免过早提示高承诺反击。缺少数据、Motion 不匹配或窗口非法时统一返回 `unknown`。
 
-安装兼容版本 HitboxViewer 时，`hitbox_provider.lua` 可提供更高优先级的实时物理判定阶段。该提供器是可选基础设施：Runtime 负责读取，Model 负责把判定边沿归入当前 Action，阶段解析与武器建议不直接依赖第三方模块。未安装或不兼容时仍回退到怪物数据包的已确认窗口。
+`hitbox_provider_native.lua` 是正式的实时物理判定来源；`hitbox_provider_hitboxviewer.lua` 仅为可选交叉验证后端，`hitbox_provider.lua` 负责选择和比较。Runtime 读取统一样本，Model 把判定边沿归入当前 Action，阶段解析与武器建议不依赖第三方模块。Native 不可用时可暂时回退到 Viewer 或怪物数据包的已确认窗口。
 
 ### MoveDefinition
 

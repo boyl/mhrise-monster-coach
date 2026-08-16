@@ -12,9 +12,11 @@
 - 每个角色的 `hitboxes` 表保存碰撞体及 `resource_idx`、`set_idx`、`collidable_idx`、Attack Log 元数据。
 - HitboxViewer 在 `EndPhysics` 更新碰撞体；`box.is_enabled` 是当前物理帧的真实启用状态。
 
-当前适配器只接受 HitboxViewer `2.2.0`。缺失、版本变化、Draw Hitboxes 关闭或缓存未就绪时显式降级，不安装重复 Hook。实时阶段规则为：首次启用前是前摇，任一判定启用时是攻击阶段，本 Action 已出现判定且全部关闭后是收招。没有攻击判定的 Action 不会被误当成已验证收招。
+`0.10.0` 起 Monster Coach 已内置独立 Provider：自行 Hook 上述已验证签名、延迟解析 RSC 请求，并通过 Collidable 的只读启用标志生成实时样本。Native Hook 只在 `mhrise / TDB 71` 安装；队列、碰撞体索引和对象读取均有限额及异常降级。
 
-兼容层只沉淀接口事实和独立实现，不分发 HitboxViewer 文件。未来版本必须重新核对模块结构与更新顺序后再加入允许列表。
+HitboxViewer 现在仅是可选校验后端，适配器只接受 `2.2.0`。安装时会同时比较 Native 与 Viewer 的活动状态；未安装、版本变化、Draw Hitboxes 关闭或缓存未就绪不影响 Native Provider。实时阶段规则为：首次启用前是前摇，任一判定启用时是攻击阶段，本 Action 已出现判定且全部关闭后是收招。没有攻击判定的 Action 不会被误当成已验证收招。
+
+兼容层只沉淀接口事实和独立实现，不分发 HitboxViewer 文件。未来 Viewer 版本必须重新核对模块结构与更新顺序后再加入允许列表；正式运行不要求安装 HitboxViewer。
 
 ## 结论
 

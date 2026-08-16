@@ -48,8 +48,15 @@ function M.new(config, profile)
         game_name = safe(function() return reframework:get_game_name() end),
         tdb_version = safe(function() return sdk.get_tdb_version() end),
         capabilities = {},
-        hitbox_provider = HitboxProvider.new(),
     }
+
+    local hitbox_runtime_supported = self.game_name == config.supported_game_name
+        and self.tdb_version == config.supported_tdb_version
+    self.hitbox_provider = HitboxProvider.new({
+        enabled = hitbox_runtime_supported,
+        disabled_reason = string.format("Native hitbox hook disabled for %s / TDB %s",
+            tostring(self.game_name), tostring(self.tdb_version)),
+    })
 
     self.methods = {
         enemy_type = find_method("snow.enemy.EnemyCharacterBase", "get_EnemyType"),

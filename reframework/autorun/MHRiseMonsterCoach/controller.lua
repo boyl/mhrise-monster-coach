@@ -207,6 +207,12 @@ function M.draw_menu_content(self)
     if player_probe.player_type then ui_text_wrapped("Player type: " .. tostring(player_probe.player_type)) end
     local hitbox_provider = self.runtime:hitbox_provider_description()
     ui_text_wrapped("Hitbox timing: " .. tostring(hitbox_provider.status))
+    if hitbox_provider.validation then
+        ui_text_wrapped(string.format("Hitbox cross-check: %s | native %d / viewer %d",
+            hitbox_provider.validation.matches and "match" or "mismatch",
+            hitbox_provider.validation.native_active_count,
+            hitbox_provider.validation.validator_active_count))
+    end
     if self.input then
         local input = self.input:description()
         ui_text_wrapped(string.format("Controller shortcuts: %s | runtime %s | active %s",
