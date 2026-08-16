@@ -42,6 +42,8 @@ TDB 71 当前实机证据：`_playerWeaponType = 2` 且武器控制器类型为 
 
 太刀资源白名单来自两个成熟开源实现：Bimmr 的 Buffer 在 `snow.player.LongSword.update` 中使用 `_LongSwordGauge` 与 `_LongSwordGaugeLv`；MHR Overlay 使用 `get_LongSwordGaugeLv()`。本项目只读这些成员，并优先使用 getter、字段作为兼容回退：<https://github.com/Bimmr/Monster-Hunter-Rise-Reframework-Scripts-/blob/main/Buffer/autorun/Buffer/Modules/LongSword.lua>、<https://github.com/GreenComfyTea/MHR-Overlay/blob/main/reframework/autorun/MHR_Overlay/Buffs/weapon_skills.lua>。
 
+完整 `rszmhrise.json` 将交换技运行时结构缩小为 `PlayerBase._ReplaceAtkMysetHolder`、`PlayerReplaceAtkMysetHolder`、`ReplaceAtkMysetData._ReplaceAtkTypes` 与 `PlayerData._OldReplaceAtkIndex`。诊断版只枚举两个紧凑目标类型的成员签名，用于确定精确白名单；不读取数组内容、不调用未知方法：<https://github.com/alphazolam/RE_RSZ/blob/master/rszmhrise.json>。
+
 ### `ResponseCandidate`
 
 - `action`：稳定语义，如 `foresight_slash`、`iai_spirit_slash`、`spirit_helmbreaker`、`evade`。

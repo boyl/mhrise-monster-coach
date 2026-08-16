@@ -76,6 +76,34 @@ local function inspect_hierarchy(root_type)
     return result
 end
 
+local function inspect_exact_type(root_type)
+    local result = { root_type = type_name(root_type), fields = {}, methods = {} }
+    if root_type == nil then return result end
+    for _, field in ipairs(safe(function() return root_type:get_fields() end) or {}) do
+        local name = safe(function() return field:get_name() end)
+        if name then
+            result.fields[#result.fields + 1] = {
+                name = name,
+                value_type = member_type_name(field, "get_type"),
+            }
+        end
+    end
+    for _, method in ipairs(safe(function() return root_type:get_methods() end) or {}) do
+        local name = safe(function() return method:get_name() end)
+        local params = safe(function() return method:get_num_params() end)
+        if name then
+            result.methods[#result.methods + 1] = {
+                name = name,
+                parameter_count = params,
+                return_type = member_type_name(method, "get_return_type"),
+            }
+        end
+    end
+    table.sort(result.fields, function(a, b) return a.name < b.name end)
+    table.sort(result.methods, function(a, b) return a.name < b.name end)
+    return result
+end
+
 local function find_member(root_type, accessor, name)
     local current = root_type
     local visited = {}
@@ -132,13 +160,18 @@ function M.capture(self, player, player_data)
     -- are now the only approved object traversal points.
     local skill_list = call_exact_getter(player_type, player, "get_PlayerSkillList")
     local weapon_ctrl = call_exact_getter(player_type, player, "get_WeaponMainCtrl")
+    local replace_holder = read_exact_field(player_type, player, "_ReplaceAtkMysetHolder")
     local skill_list_type = skill_list and safe(function() return skill_list:get_type_definition() end) or nil
     local weapon_ctrl_type = weapon_ctrl and safe(function() return weapon_ctrl:get_type_definition() end) or nil
+    local replace_holder_type = replace_holder and safe(function() return replace_holder:get_type_definition() end) or nil
+    local replace_data_type = safe(function() return sdk.find_type_definition("snow.player.ReplaceAtkMysetData") end)
     local fingerprint = table.concat({
         type_name(player_type) or "nil",
         type_name(player_data_type) or "nil",
         type_name(skill_list_type) or "nil",
         type_name(weapon_ctrl_type) or "nil",
+        type_name(replace_holder_type) or "nil",
+        type_name(replace_data_type) or "nil",
     }, "|")
 
     local metadata_changed = fingerprint ~= self.fingerprint
@@ -153,6 +186,8 @@ function M.capture(self, player, player_data)
                 player_data = inspect_hierarchy(player_data_type),
                 player_skill_list = inspect_hierarchy(skill_list_type),
                 weapon_main_ctrl = inspect_hierarchy(weapon_ctrl_type),
+                replace_attack_holder = inspect_exact_type(replace_holder_type),
+                replace_attack_data = inspect_exact_type(replace_data_type),
             },
         }
         local ok = safe(function() json.dump_file(PROBE_PATH, self.probe) return true end) == true
@@ -207,6 +242,8 @@ function M.capture(self, player, player_data)
     local player_count = #self.probe.objects.player.fields + #self.probe.objects.player.methods
     local nested_count = #self.probe.objects.player_skill_list.fields + #self.probe.objects.player_skill_list.methods
         + #self.probe.objects.weapon_main_ctrl.fields + #self.probe.objects.weapon_main_ctrl.methods
+        + #self.probe.objects.replace_attack_holder.fields + #self.probe.objects.replace_attack_holder.methods
+        + #self.probe.objects.replace_attack_data.fields + #self.probe.objects.replace_attack_data.methods
     self.status = string.format("weapon=%s; wirebugs=%s; nested candidates=%d",
         tostring(state.weapon_type_raw or "unknown"), tostring(state.usable_wirebugs or "unknown"), nested_count)
     return metadata_changed

@@ -2,7 +2,10 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 
 local dumped = {}
 json = { dump_file = function(path, value) dumped[path] = value end }
-sdk = { find_type_definition = function() return nil end }
+local replace_data_type
+sdk = { find_type_definition = function(name)
+    if name == "snow.player.ReplaceAtkMysetData" then return replace_data_type end
+end }
 
 local function type_def(name, fields, methods, parent)
     return {
@@ -70,7 +73,17 @@ local unsafe_method = {
     get_num_params = function() return 1 end,
     get_return_type = function() return number_type end,
 }
-local player_type = type_def("snow.player.LongSwordPlayer", { weapon_field, spirit_gauge_field, spirit_level_field, unrelated_field }, {
+replace_data_type = type_def("snow.player.ReplaceAtkMysetData", {}, {})
+local replace_holder_type = type_def("snow.player.PlayerReplaceAtkMysetHolder", {}, {})
+local replace_holder = { get_type_definition = function() return replace_holder_type end }
+local replace_holder_field = {
+    get_name = function() return "_ReplaceAtkMysetHolder" end,
+    get_type = function() return replace_holder_type end,
+    get_data = function() return replace_holder end,
+}
+local player_type = type_def("snow.player.LongSwordPlayer", {
+    weapon_field, spirit_gauge_field, spirit_level_field, replace_holder_field, unrelated_field,
+}, {
     gauge_method, wirebug_method, weapon_drawn_method, weapon_ctrl_method, unsafe_method,
 })
 local data_type = type_def("snow.player.PlayerData", {}, {})
@@ -83,8 +96,10 @@ assert(reader:capture(player, player_data), "first player capture writes metadat
 assert(not reader:capture(player, player_data), "same object types do not rewrite metadata")
 local probe = dumped["MHRiseMonsterCoach/runtime_player_state_probe.json"]
 assert(probe.policy == "metadata_only_plus_exact_whitelisted_getters")
-assert(#probe.objects.player.fields == 3)
+assert(#probe.objects.player.fields == 3, "general probe remains keyword-bounded")
 assert(#probe.objects.player.methods == 4)
+assert(probe.objects.replace_attack_holder.root_type == "snow.player.PlayerReplaceAtkMysetHolder")
+assert(probe.objects.replace_attack_data.root_type == "snow.player.ReplaceAtkMysetData")
 local state = dumped["MHRiseMonsterCoach/runtime_player_combat_state.json"]
 assert(state.weapon_type_raw == 2, "exact runtime weapon field is read")
 assert(state.weapon_type == "long_sword", "raw value plus LS controller resolves stable semantic")
