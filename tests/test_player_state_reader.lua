@@ -4,9 +4,11 @@ local dumped = {}
 json = { dump_file = function(path, value) dumped[path] = value end }
 local replace_data_type
 local replace_attack_type
+local system_array_type
 sdk = { find_type_definition = function(name)
     if name == "snow.player.ReplaceAtkMysetData" then return replace_data_type end
     if name == "snow.player.PlayerBase.ReplaceAttackType" then return replace_attack_type end
+    if name == "System.Array" then return system_array_type end
 end }
 
 local function type_def(name, fields, methods, parent)
@@ -78,8 +80,19 @@ local unsafe_method = {
 local function managed_array(values)
     return { get_elements = function() return values end }
 end
+local fallback_array_values = { 12, 22, 32, 42, 52 }
+local fallback_array = {}
+local array_length_method = {
+    get_name = function() return "get_Length" end,
+    call = function(_, instance) return #fallback_array_values end,
+}
+local array_value_method = {
+    get_name = function() return "GetValue(System.Int32)" end,
+    call = function(_, instance, index) return fallback_array_values[index + 1] end,
+}
+system_array_type = type_def("System.Array", {}, { array_length_method, array_value_method })
 local replace_types_a = managed_array({ 10, 20, 30, 40, 50 })
-local replace_types_b = managed_array({ 11, 21, 31, 41, 51 })
+local replace_types_b = fallback_array
 local replace_types_field = {
     get_name = function() return "_ReplaceAtkTypes" end,
     get_type = function() return number_type end,
@@ -136,7 +149,7 @@ assert(state.resources.spirit_level == 2, "verified long sword level field fallb
 assert(state.active_scroll_index == 1 and state.active_scroll == "blue")
 assert(#state.switch_skills_raw.red == 5 and state.switch_skills_raw.red[1] == 10,
     "red raw set count=" .. tostring(#state.switch_skills_raw.red))
-assert(#state.switch_skills_raw.blue == 5 and state.switch_skills_raw.blue[5] == 51,
+assert(#state.switch_skills_raw.blue == 5 and state.switch_skills_raw.blue[5] == 52,
     "blue raw set count=" .. tostring(#state.switch_skills_raw.blue))
 assert(state.action_state.weapon_drawn == true, "action state retains the verified draw state")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)

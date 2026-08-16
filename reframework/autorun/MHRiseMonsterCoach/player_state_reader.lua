@@ -111,11 +111,21 @@ end
 local function managed_array_values(array, limit)
     if array == nil then return nil end
     local elements = safe(function() return array:get_elements() end)
-    if type(elements) ~= "table" then return nil end
     local values = {}
-    for index, value in ipairs(elements) do
-        if index > limit then break end
-        values[#values + 1] = value
+    if type(elements) == "table" then
+        for index, value in ipairs(elements) do
+            if index > limit then break end
+            values[#values + 1] = value
+        end
+        return values
+    end
+    local array_type = safe(function() return sdk.find_type_definition("System.Array") end)
+    local length_method = array_type and safe(function() return array_type:get_method("get_Length") end) or nil
+    local value_method = array_type and safe(function() return array_type:get_method("GetValue(System.Int32)") end) or nil
+    local length = length_method and safe(function() return length_method:call(array) end) or nil
+    if type(length) ~= "number" or value_method == nil then return nil end
+    for index = 0, math.min(length, limit) - 1 do
+        values[#values + 1] = safe(function() return value_method:call(array, index) end)
     end
     return values
 end
