@@ -25,6 +25,7 @@ local runtime = {
 }
 local config = {
     enabled = true,
+    time_control_enabled = true,
     slowmo_scale = 0.25,
     keys = { slowmo_hold = 117, quick_reset = 118, capture_anchor = 119 },
 }
@@ -53,7 +54,10 @@ assert(#runtime.scales == 2, "unsupported build never reapplies slow motion")
 model.context.build_supported = true
 config.diagnostic_safe_mode = true
 controller:update_slowmo()
-assert(#runtime.scales == 2, "safe mode never applies slow motion")
+assert(#runtime.scales == 3, "guarded time control remains available in diagnostic safe mode")
+config.time_control_enabled = false
+controller:update_slowmo()
+assert(runtime.restores == 3, "disabling time control immediately restores normal speed")
 
 local function same_failure() error("boom") end
 controller:guard("same_failure", same_failure)
@@ -65,6 +69,7 @@ runtime.capture_anchors = function() captures = captures + 1 return true end
 runtime.quick_reset = function() resets = resets + 1 return true end
 model.reset_round = function() end
 config.diagnostic_safe_mode = false
+config.time_control_enabled = true
 controller.input_state = { capture_pressed = true, reset_pressed = false }
 controller:capture_anchors()
 assert(captures == 1, "gamepad short chord reaches capture use case")

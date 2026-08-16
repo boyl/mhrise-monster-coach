@@ -105,7 +105,7 @@ function M.update_slowmo(self)
     if keyboard_held and not gamepad_held and self.input then self.input:mark_keyboard() end
     local held = keyboard_held or gamepad_held
     local allowed = self.config.enabled
-        and not self.config.diagnostic_safe_mode
+        and self.config.time_control_enabled == true
         and self.model.context.in_quest
         and self.model.context.build_supported ~= false
         and not self.model.context.is_online
@@ -190,6 +190,7 @@ function M.draw_menu_content(self)
     changed = checkbox("Show move / 显示招式", self.config, "show_move") or changed
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("Show response / 显示应对", self.config, "show_advice") or changed
+    changed = checkbox("Manual slow motion / 手动子弹时间", self.config, "time_control_enabled") or changed
     local shapes_changed = checkbox("HitboxViewer debug shapes / 显示判定体",
         self.config, "show_hitboxviewer_debug_shapes")
     if shapes_changed then
@@ -208,7 +209,9 @@ function M.draw_menu_content(self)
     ui_text_wrapped("Status: " .. tostring(self.model.status))
     imgui.text(string.format("Runtime: %s / TDB %s", tostring(self.model.context.game_name or "unknown"), tostring(self.model.context.tdb_version or "unknown")))
     if self.config.diagnostic_safe_mode then
-        ui_text_wrapped("READ-ONLY MODE: polling can identify Tigrex and read whitelisted Action members; time, health and position writes remain disabled.")
+        ui_text_wrapped(self.config.time_control_enabled
+            and "SAFE MODE: Action/Hitbox polling and guarded TimeScale enabled; health, position and forced actions remain locked."
+            or "READ-ONLY MODE: Action/Hitbox polling enabled; all gameplay writes disabled.")
     end
     imgui.text("Target: " .. (self.model.context.target_found
         and ("Tigrex / " .. tostring(self.model.context.enemy_id or "unknown")) or "waiting"))

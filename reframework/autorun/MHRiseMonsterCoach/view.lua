@@ -116,9 +116,7 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     end
 
     local controls
-    if model.context.safe_mode then
-        controls = "READ-ONLY: Action polling on; time/health/position writes off"
-    elseif model.context.build_supported == false then
+    if model.context.build_supported == false then
         controls = string.format("Read-only runtime: %s / TDB %s", tostring(model.context.game_name), tostring(model.context.tdb_version))
     elseif model.context.is_online then
         controls = "Multiplayer detected: all gameplay controls disabled"
@@ -126,8 +124,14 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         controls = input_state and input_state.device == "gamepad"
             and string.format("Release shoulder buttons: 1.00x | ACTIVE %.2fx", self.config.slowmo_scale)
             or string.format("F6 release: 1.00x  |  ACTIVE %.2fx", self.config.slowmo_scale)
+    elseif not self.config.time_control_enabled then
+        controls = model.context.safe_mode
+            and "READ-ONLY: Action/Hitbox polling on; gameplay writes off"
+            or "Manual slow motion disabled in Monster Coach menu"
     elseif input_state and input_state.available and input_state.device == "gamepad" then
         controls = "Hold LB+RB/L1+R1: slow | L3+R3 tap: anchors | hold: reset"
+    elseif model.context.safe_mode then
+        controls = "Hold F6: slow time | health/position/forced actions locked"
     else
         controls = "Hold F6: slow time  |  F7: reset round  |  F8: capture anchors"
     end
