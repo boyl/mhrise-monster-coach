@@ -39,6 +39,7 @@ function M.new(profile, calibration, config, static_ai)
         static_ai = static_ai or { actions = {} },
         current_action = nil,
         current_move = nil,
+        current_metadata = nil,
         action_started_at = 0,
         prediction = nil,
         transitions = {},
@@ -65,6 +66,7 @@ function M.set_context(self, context)
     if was_in_quest and not context.in_quest then
         self.current_action = nil
         self.current_move = nil
+        self.current_metadata = nil
         self.prediction = nil
         self.round_damage = 0
     end
@@ -103,6 +105,8 @@ local function named_move(self, action, metadata)
     local key = tostring(action)
     local move = self.moves[key]
     if move then return move end
+    local static_move = self.static_ai and self.static_ai.moves and self.static_ai.moves[key]
+    if static_move then return static_move end
     metadata = metadata or self.state_metadata[key]
     if metadata and type(metadata.motion_name) == "string" and metadata.motion_name ~= "" then
         return {
@@ -203,6 +207,7 @@ function M.reload_static_ai(self, static_ai)
     self.static_ai = static_ai
     if self.current_action ~= nil then
         local metadata = self.state_metadata[self.current_action]
+        self.current_move = named_move(self, self.current_action, metadata)
         self.prediction = profile_prediction(self, self.current_move)
             or static_prediction(self, self.current_action, metadata)
             or learned_prediction(self, self.current_action)
@@ -246,6 +251,7 @@ function M.observe_action(self, action, now, metadata)
     if action == nil then return false end
     action = tostring(action)
     record_state_metadata(self, action, metadata)
+    self.current_metadata = metadata or self.current_metadata
     if action == self.current_action then
         if self.moves[action] == nil and metadata and metadata.motion_name then
             self.current_move = named_move(self, action, metadata)
@@ -267,6 +273,7 @@ function M.observe_action(self, action, now, metadata)
     local duration = previous and math.max(0, event_time - self.action_started_at) or nil
     self.current_action = action
     self.current_move = named_move(self, action, metadata)
+    self.current_metadata = metadata
     self.action_started_at = event_time
     self.prediction = profile_prediction(self, self.current_move)
         or static_prediction(self, action, metadata)

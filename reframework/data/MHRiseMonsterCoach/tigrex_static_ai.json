@@ -7,6 +7,68 @@
     "common/act_tbl_user_data/action/",
     "common/act_tbl_user_data/combo/"
   ],
+  "moves": {
+    "2": {
+      "name": "直线冲锋起步 / 连段过渡",
+      "short_name": "冲锋起步",
+      "advice": "观察头部朝向，保持侧向移动；该 ActionNo 在多个连段上下文复用。",
+      "certainty": "engine_motion_cluster"
+    },
+    "15": {
+      "name": "漂移转向连段",
+      "short_name": "漂移转向",
+      "advice": "不要追尾，等待转向完成后再确认下一次冲锋方向。",
+      "certainty": "engine_motion_cluster"
+    },
+    "18": {
+      "name": "怒后冲锋转向",
+      "short_name": "怒后转向",
+      "advice": "向转弯外侧拉开，下一固定 Action 为冲锋起步。",
+      "certainty": "engine_motion_cluster"
+    },
+    "19": {
+      "name": "咆哮",
+      "short_name": "咆哮",
+      "advice": "根据武器选择防御、无敌帧或反击；当前尚未标注精确判定帧。",
+      "certainty": "engine_motion_cluster"
+    },
+    "20": {
+      "name": "小咬",
+      "short_name": "小咬",
+      "advice": "短距离正面攻击，向头部侧面处理。",
+      "certainty": "engine_motion_cluster"
+    },
+    "21": {
+      "name": "大咬",
+      "short_name": "大咬",
+      "advice": "离开正面咬合范围，确认收招后再反击。",
+      "certainty": "engine_motion_cluster"
+    },
+    "22": {
+      "name": "左臂投石起手",
+      "short_name": "投石起手",
+      "advice": "观察前爪抬起和石块方向，侧移避开弹道。",
+      "certainty": "engine_motion_cluster"
+    },
+    "23": {
+      "name": "投石攻击",
+      "short_name": "投石",
+      "advice": "沿弹道横向移动，不要直线后退。",
+      "certainty": "engine_motion_cluster"
+    },
+    "24": {
+      "name": "飞扑",
+      "short_name": "飞扑",
+      "advice": "离开正前方落点；该 ActionNo 的后继依赖上下文。",
+      "certainty": "engine_motion_cluster"
+    },
+    "29": {
+      "name": "正面咬击",
+      "short_name": "正面咬击",
+      "advice": "向头侧回避，避免停留在正前方。",
+      "certainty": "engine_motion_cluster"
+    }
+  },
   "actions": {
     "15": {
       "kind": "fixed",

@@ -68,6 +68,14 @@ function M.draw(self, model, runtime, slowmo_active)
             and string.format("Round %d  |  Streak %d", model.rounds + 1, model.streak)
             or string.format("Observed changes %d", model.state_changes)
         lines[#lines + 1] = { string.format("State key: %s  |  %s", model.current_action, progress), COLORS.muted }
+        local metadata = model.current_metadata
+        if metadata and type(metadata.current_frame) == "number" and type(metadata.end_frame) == "number"
+            and metadata.end_frame > 0 then
+            lines[#lines + 1] = {
+                string.format("Animation: %.1f / %.1f  |  %.0f%%", metadata.current_frame, metadata.end_frame, (metadata.motion_progress or 0) * 100),
+                COLORS.muted,
+            }
+        end
     end
     if self.config.show_prediction and model.current_action then
         lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text }

@@ -1,6 +1,6 @@
 # 《怪物猎人崛起》怪物陪练 Mod
 
-版本：`0.4.1-hot-data-reload-candidate`
+版本：`0.5.0-readable-moves-candidate`
 
 > 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入只读诊断模式，不安装怪物 Update Hook，也不执行时间、生命或位置写入。只读模式仅通过 `EnemyManager` 轮询目标怪物，并尝试读取白名单中的 Action Getter/字段。
 
@@ -100,7 +100,7 @@ Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置�
 
 当前开发实测从 140 个轰龙入口文件收敛到 424 个引用闭包文件；424 个文件全部解析成功，得到 3,090 个状态、3,920 条条件边、48 个 ActionNo 和 14 条严格固定攻击边，诊断为 0。原始文件和约 3.7 MB 的研究图只保存在本地 `work` 目录，不进入 Mod 包。此结果属于静态结构证据，招式中文语义和运行时 ActionNo 对接仍需独立验证。
 
-TDB 71 实机已确认 `EnemyActionParam.get_ActionNo()` 与 `get_ActionCategory()` 可安全轮询，攻击 Category 为 4。运行时只在该 Category 下查询 `tigrex_static_ai.json`：15、16、18 的唯一后继显示为固定派生；2 和 24 的多后继保持条件候选。静态包由上述工具生成并与提交文件逐字段校验一致。
+TDB 71 实机已确认 `EnemyActionParam.get_ActionNo()` 与 `get_ActionCategory()` 可安全轮询，攻击 Category 为 4。运行时只在该 Category 下查询 `tigrex_static_ai.json`。15→2 与 18→2 已各获 3 次实机一致观测，16→2 保留静态唯一边但尚未在本轮遇到；2 和 24 因实机后继超出局部 FSM 边而被撤下，避免把缺少上下文的局部图冒充全局预测。运行包以工具输出为结构基线，再叠加实机验证计数和引擎 Motion 聚类得到的可读名称。
 
 校准文件中的 `moves` 以 Action 字符串为键：
 

@@ -113,10 +113,15 @@ local action_param_accessor = {
     get_num_params = function() return 0 end,
     call = function() return action_param end,
 }
+local motion_frame_method = {
+    get_num_params = function() return 1 end,
+    call = function() return 12.0 end,
+}
 local nested_enemy_parent_type = {
     get_full_name = function() return "snow.enemy.EnemyCharacterBase" end,
     get_method = function(_, name)
         if name == "get_ActionParam" then return action_param_accessor end
+        if name == "getMotionNowFrame_Layer" then return motion_frame_method end
         return nil
     end,
     get_field = function() return nil end,
@@ -178,6 +183,8 @@ local method_action, method_metadata = method_reader:read(nested_enemy)
 assert(method_action == "6", "reads ActionNo getter through EnemyActionParam")
 assert(method_metadata.action_no == 6 and method_metadata.action_category == 4, "captures Action category metadata")
 assert(method_metadata.motion_name == "em032_attack_41", "enriches ActionNo with simultaneous Motion metadata")
+assert(method_metadata.current_frame == 12.0, "captures current animation frame")
+assert(method_metadata.motion_progress == 0.25, "calculates bounded animation progress")
 assert(dumped["MHRiseMonsterCoach/runtime_action_state.json"].schema_version == 2, "writes versioned automatic evidence")
 assert(#dumped["MHRiseMonsterCoach/runtime_action_state.json"].history == 1, "automatic evidence starts bounded history")
 assert(method_reader:read(nested_enemy) == "10", "nested ActionNo getter observes transition")

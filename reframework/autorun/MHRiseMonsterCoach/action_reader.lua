@@ -290,6 +290,7 @@ local function add_motion_candidate(self, enemy)
         member = layer,
         motion = motion,
         motion_info = motion_info,
+        frame_method = find_method(enemy:get_type_definition(), "getMotionNowFrame_Layer"),
         metadata = {},
         priority = -1,
         values = {},
@@ -333,13 +334,12 @@ local function read_candidate(candidate, enemy, shared)
         local motion = safe_call(function() return candidate.member:call("get_MotionID") end)
         if bank == nil or motion == nil then return nil end
         local key = tostring(bank) .. ":" .. tostring(motion)
-        local cached = candidate.metadata[key]
-        if cached ~= nil and cached.motion_name ~= nil then return key, cached end
-        local metadata = {
-            bank_id = tonumber(bank),
-            motion_id = tonumber(motion),
-        }
-        if candidate.motion_info ~= nil then
+        local cached = candidate.metadata[key] or {}
+        local metadata = {}
+        for cached_key, cached_value in pairs(cached) do metadata[cached_key] = cached_value end
+        metadata.bank_id = tonumber(bank)
+        metadata.motion_id = tonumber(motion)
+        if metadata.motion_name == nil and candidate.motion_info ~= nil then
             local resolved, found = pcall(function()
                 return candidate.motion:call(
                     "getMotionInfo(System.UInt32, System.UInt32, via.motion.MotionInfo)",
@@ -354,6 +354,14 @@ local function read_candidate(candidate, enemy, shared)
                 if type(name) == "string" and name ~= "" then metadata.motion_name = name end
                 if type(end_frame) == "number" then metadata.end_frame = end_frame end
             end
+        end
+        if candidate.frame_method ~= nil then
+            local current_frame = safe_call(function() return candidate.frame_method:call(enemy, 0) end)
+            if type(current_frame) == "number" then metadata.current_frame = current_frame end
+        end
+        if type(metadata.current_frame) == "number" and type(metadata.end_frame) == "number"
+            and metadata.end_frame > 0 then
+            metadata.motion_progress = math.max(0, math.min(1, metadata.current_frame / metadata.end_frame))
         end
         return key, metadata
     end

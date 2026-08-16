@@ -72,6 +72,7 @@ model:observe_action("10", 1.75)
 local static_profile = { id = "static", name = "Static", moves = {}, scenarios = {} }
 local static_ai = {
     required_action_category = 4,
+    moves = { ["15"] = { name = "Drift turn", short_name = "Drift", advice = "Wait" } },
     actions = {
         ["15"] = { kind = "fixed", evidence_count = 3, next = { { action = "2" } } },
         ["2"] = { kind = "conditional", next = { { action = "6" }, { action = "10" } } },
@@ -80,6 +81,7 @@ local static_ai = {
 local static_model = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
 static_model:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
 static_model:observe_action("15", 1, { action_category = 4 })
+equal(static_model.current_move.name, "Drift turn", "static move labels current ActionNo")
 equal(static_model.prediction.kind, "fixed", "static unique ActionEnd edge is fixed")
 equal(static_model.prediction.candidates[1].action, "2", "static fixed target")
 static_model:observe_action("2", 2, { action_category = 4 })
