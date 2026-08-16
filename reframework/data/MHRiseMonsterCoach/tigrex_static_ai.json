@@ -2,6 +2,12 @@
   "schema_version": 1,
   "monster": "em032",
   "required_action_category": 4,
+  "move_name_source": {
+    "kind": "community_game_enum_catalog",
+    "url": "https://github.com/mhvuze/MonsterHunterRiseModding/wiki/Monster-Action-IDs-%28P-%E2%80%90-Z%29",
+    "section": "Tigrex / EmAttackNo",
+    "retrieved": "2026-08-16"
+  },
   "evidence_policy": "unique_enemy_action_end_edge",
   "allowed_scopes": [
     "common/act_tbl_user_data/action/",
@@ -11,62 +17,212 @@
     "2": {
       "name": "直线冲锋起步 / 连段过渡",
       "short_name": "冲锋起步",
+      "enum_name": "StraightRush",
       "advice": "观察头部朝向，保持侧向移动；该 ActionNo 在多个连段上下文复用。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
+    },
+    "6": {
+      "name": "冲锋后回旋攻击",
+      "short_name": "冲锋后回旋",
+      "enum_name": "AfterRushRotateAttack",
+      "advice": "离开身体与尾部回旋范围，等待武器上下文规则给出反击时机。",
+      "certainty": "community_action_enum"
+    },
+    "7": {
+      "name": "冲锋后咬击",
+      "short_name": "冲锋后咬击",
+      "enum_name": "AfterRushBite",
+      "advice": "避开头部正面，等待咬击结束后再反击。",
+      "certainty": "community_action_enum"
+    },
+    "9": {
+      "name": "冲锋后后撤",
+      "short_name": "冲锋后后撤",
+      "enum_name": "AfterRushBackStep",
+      "advice": "不要立即追近，先确认后撤后的条件派生。",
+      "certainty": "community_action_enum"
+    },
+    "10": {
+      "name": "冲锋急停",
+      "short_name": "冲锋急停",
+      "enum_name": "AfterRushStop",
+      "advice": "确认停止与下一派生后再进入攻击范围。",
+      "certainty": "community_action_enum"
+    },
+    "12": {
+      "name": "冲锋后飞扑",
+      "short_name": "冲锋后飞扑",
+      "enum_name": "AfterRushJumpAttack",
+      "advice": "离开正前方落点，保留对后续派生的观察。",
+      "certainty": "community_action_enum"
+    },
+    "13": {
+      "name": "冲锋后撞墙飞扑",
+      "short_name": "撞墙飞扑",
+      "enum_name": "AfterRushJumpAttackWall",
+      "advice": "避开墙边落点，等待动作结束。",
+      "certainty": "community_action_enum"
+    },
+    "14": {
+      "name": "冲锋后咆哮",
+      "short_name": "冲锋后咆哮",
+      "enum_name": "AfterRushRoar",
+      "advice": "根据武器能力处理咆哮，尚未标注精确判定帧。",
+      "certainty": "community_action_enum"
     },
     "15": {
       "name": "漂移转向连段",
       "short_name": "漂移转向",
+      "enum_name": "AfterRushDriftForAttack",
       "advice": "不要追尾，等待转向完成后再确认下一次冲锋方向。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
+    },
+    "16": {
+      "name": "再冲锋漂移",
+      "short_name": "再冲锋漂移",
+      "enum_name": "RerushDrift",
+      "advice": "向转弯外侧移动，准备处理下一次冲锋。",
+      "certainty": "community_action_enum"
+    },
+    "17": {
+      "name": "疲劳再冲锋漂移",
+      "short_name": "疲劳漂移",
+      "enum_name": "TiredRerushDrift",
+      "advice": "向转弯外侧移动，并观察疲劳状态下的较长收招。",
+      "certainty": "community_action_enum"
     },
     "18": {
       "name": "怒后冲锋转向",
       "short_name": "怒后转向",
+      "enum_name": "AngryRerushDrift",
       "advice": "向转弯外侧拉开，下一固定 Action 为冲锋起步。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
     },
     "19": {
       "name": "咆哮",
       "short_name": "咆哮",
+      "enum_name": "Roar",
       "advice": "根据武器选择防御、无敌帧或反击；当前尚未标注精确判定帧。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
     },
     "20": {
       "name": "小咬",
       "short_name": "小咬",
+      "enum_name": "BiteMin",
       "advice": "短距离正面攻击，向头部侧面处理。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
     },
     "21": {
       "name": "大咬",
       "short_name": "大咬",
+      "enum_name": "BiteMax",
       "advice": "离开正面咬合范围，确认收招后再反击。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
     },
     "22": {
-      "name": "左臂投石起手",
-      "short_name": "投石起手",
+      "name": "左投石",
+      "short_name": "左投石",
+      "enum_name": "RockLauncherL",
       "advice": "观察前爪抬起和石块方向，侧移避开弹道。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
     },
     "23": {
-      "name": "投石攻击",
-      "short_name": "投石",
+      "name": "右投石",
+      "short_name": "右投石",
+      "enum_name": "RockLauncherR",
       "advice": "沿弹道横向移动，不要直线后退。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
     },
     "24": {
       "name": "飞扑",
       "short_name": "飞扑",
+      "enum_name": "JumpAttack",
       "advice": "离开正前方落点；该 ActionNo 的后继依赖上下文。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
+    },
+    "25": {
+      "name": "撞墙飞扑",
+      "short_name": "撞墙飞扑",
+      "enum_name": "JumpAttackWall",
+      "advice": "避开墙边落点，等待动作结束。",
+      "certainty": "community_action_enum"
+    },
+    "26": {
+      "name": "右回旋攻击",
+      "short_name": "右回旋",
+      "enum_name": "RotateAttackR",
+      "advice": "离开身体与尾部回旋范围；武器专属反击时机尚待规则引擎判断。",
+      "certainty": "community_action_enum"
+    },
+    "27": {
+      "name": "左回身尾击",
+      "short_name": "左回身尾击",
+      "enum_name": "BackTailAttackL",
+      "advice": "观察回身方向并离开尾部扫击范围。",
+      "certainty": "community_action_enum"
+    },
+    "28": {
+      "name": "右回身尾击",
+      "short_name": "右回身尾击",
+      "enum_name": "BackTailAttackR",
+      "advice": "观察回身方向并离开尾部扫击范围。",
+      "certainty": "community_action_enum"
     },
     "29": {
       "name": "正面咬击",
       "short_name": "正面咬击",
+      "enum_name": "CheckBite",
       "advice": "向头侧回避，避免停留在正前方。",
-      "certainty": "engine_motion_cluster"
+      "certainty": "community_action_enum"
+    },
+    "51": {
+      "name": "冲锋獠牙突刺",
+      "short_name": "獠牙突刺",
+      "enum_name": "RushFangSting",
+      "advice": "离开冲锋正面路径，等待动作完成。",
+      "certainty": "community_action_enum"
+    },
+    "5000": {
+      "name": "短距离半回转钩咬起手",
+      "short_name": "短距钩咬起手",
+      "enum_name": "BiteHookHalfTurnStartShortRange",
+      "advice": "注意半回转方向，不要把起手误判为完整攻击结束。",
+      "certainty": "community_action_enum"
+    },
+    "5001": {
+      "name": "普通半回转钩咬",
+      "short_name": "半回转钩咬",
+      "enum_name": "BiteHookHalfTurnAttackNormal",
+      "advice": "离开头部钩咬路径，确认收招后反击。",
+      "certainty": "community_action_enum"
+    },
+    "5002": {
+      "name": "长距离半回转钩咬起手",
+      "short_name": "长距钩咬起手",
+      "enum_name": "BiteHookHalfTurnStartLongRange",
+      "advice": "保持侧向移动，准备处理后续钩咬。",
+      "certainty": "community_action_enum"
+    },
+    "5003": {
+      "name": "怒状态半回转钩咬",
+      "short_name": "怒态钩咬",
+      "enum_name": "BiteHookHalfTurnAttackAnger",
+      "advice": "离开头部钩咬路径，警惕怒状态后续。",
+      "certainty": "community_action_enum"
+    },
+    "5004": {
+      "name": "大师等级左投石",
+      "short_name": "MR左投石",
+      "enum_name": "MRRockLauncherL",
+      "advice": "沿投射路径横向移动。",
+      "certainty": "community_action_enum"
+    },
+    "5005": {
+      "name": "大师等级右投石",
+      "short_name": "MR右投石",
+      "enum_name": "MRRockLauncherR",
+      "advice": "沿投射路径横向移动。",
+      "certainty": "community_action_enum"
     }
   },
   "actions": {

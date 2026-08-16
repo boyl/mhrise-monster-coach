@@ -42,10 +42,14 @@ app (composition root)
 
 - 每帧只查询当前状态，不扫描 MotionBank，也不枚举类型成员。
 - `observed_state_metadata` 保存状态键到 Motion 名称、Bank/ID 和结束帧的映射；`observed_history` 保存有界的时序与持续时间；`observed_transitions` 保存聚合派生。
-- `EnemyActionParam.get_ActionNo()` 是 TDB 71 实机确认的主状态键；同时读取 `get_ActionCategory()` 作为元数据，后续只有攻击类别才能匹配静态攻击图。候选变化频率不得覆盖该语义优先级。
+- `EnemyActionParam.get_ActionNo()` 与 `get_ActionCategory()` 是 TDB 71 实机确认的联合主状态键，规范形式为 `ActionCategory:ActionNo`。ActionNo 只在所属 Category 内有意义；不同 Category 下的同号动作不得共享名称、元数据或转换学习。只有攻击 Category 4 才能匹配静态攻击图。
 - Motion 读取器在 ActionNo 可用后仍作为低优先级元数据源运行，把同一帧的 Motion 名称、Bank 和 ID 附加到 ActionNo；它永远不能反向取代 ActionNo 成为主键。只读诊断模式在 ActionNo 改变时更新单个本地状态快照，避免人工录屏和导出。
 - 首次实机采样用于验证引擎名称质量。确认有效后，再基于名称、连续时间线和重复派生自动聚类候选招式；玩家只确认少量中文语义，不采集视频证据。
 - 自动名称查询失败时退化为原始状态键和时间线，不中断实时观察。
+
+### 武器上下文应对
+
+静态 `MoveDefinition.advice` 只是无玩家上下文时的保底提示。武器专属建议采用 `MonsterMoveContext + PlayerCombatState → ResponseCandidate[]`，详细契约见 `RESPONSE_ENGINE.md`。Runtime 只负责把游戏字段转换为稳定语义，Model 保存状态并运行纯规则，View 不判断见切、居合或登龙是否可用。首个实现固定为太刀；第二种真实武器落地前不建立武器插件注册表。
 
 ### 离线怪物数据管线
 

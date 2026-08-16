@@ -1,6 +1,6 @@
 # 《怪物猎人崛起》怪物陪练 Mod
 
-版本：`0.5.0-readable-moves-candidate`
+版本：`0.5.3-action-catalog-candidate`
 
 > 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入只读诊断模式，不安装怪物 Update Hook，也不执行时间、生命或位置写入。只读模式仅通过 `EnemyManager` 轮询目标怪物，并尝试读取白名单中的 Action Getter/字段。
 
@@ -102,7 +102,9 @@ Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置�
 
 当前开发实测从 140 个轰龙入口文件收敛到 424 个引用闭包文件；424 个文件全部解析成功，得到 3,090 个状态、3,920 条条件边、48 个 ActionNo 和 14 条严格固定攻击边，诊断为 0。原始文件和约 3.7 MB 的研究图只保存在本地 `work` 目录，不进入 Mod 包。此结果属于静态结构证据，招式中文语义和运行时 ActionNo 对接仍需独立验证。
 
-TDB 71 实机已确认 `EnemyActionParam.get_ActionNo()` 与 `get_ActionCategory()` 可安全轮询，攻击 Category 为 4。运行时只在该 Category 下查询 `tigrex_static_ai.json`。15→2 与 18→2 已各获 3 次实机一致观测，16→2 保留静态唯一边但尚未在本轮遇到；2 和 24 因实机后继超出局部 FSM 边而被撤下，避免把缺少上下文的局部图冒充全局预测。运行包以工具输出为结构基线，再叠加实机验证计数和引擎 Motion 聚类得到的可读名称。
+TDB 71 实机已确认 `EnemyActionParam.get_ActionNo()` 与 `get_ActionCategory()` 可安全轮询，攻击 Category 为 4。领域状态键必须是 `(ActionCategory, ActionNo)`，显示为 `4:26`；不同 Category 下相同的 ActionNo 不得共享招式名称、派生学习或应对提示。运行时只在 Category 4 下查询 `tigrex_static_ai.json`。15→2 已累计 5 次、18→2 已累计 4 次实机一致观测，16→2 保留静态唯一边但尚未在实机遇到；2 和 24 因实机后继超出局部 FSM 边而被撤下，避免把缺少上下文的局部图冒充全局预测。
+
+轰龙攻击枚举名称优先采用社区从游戏数据整理的 [`Monster Action IDs (P–Z)`](https://github.com/mhvuze/MonsterHunterRiseModding/wiki/Monster-Action-IDs-%28P-%E2%80%90-Z%29)，不再通过 Motion 名人工猜测。该表解决 `EmAttackNo → 内部英文名`，但不证明攻击阶段、判定帧、条件派生或最佳应对；这些仍分别来自静态 AI 解析和实机验证。来源优先级为：社区/游戏枚举名 → 可读引擎 Motion → `未命名攻击 (Category:Action)`，任何降级都保留原始键。
 
 校准文件中的 `moves` 以 Action 字符串为键：
 
@@ -136,7 +138,7 @@ TDB 71 实机已确认 `EnemyActionParam.get_ActionNo()` 与 `get_ActionCategory
 - 已完成：模块边界、JSON、Lua 语法、纯 Model 状态机自动测试和包内容审计。
 - 未完成：真实游戏加载、轰龙 Action getter 确认、20 次原地重置、100 次动作转换、暂停菜单恢复、各种武器受击结果和强制出招。
 
-详细扩展契约与验收矩阵见 `docs/ARCHITECTURE.md` 和 `docs/REAL_GAME_ACCEPTANCE.md`。
+详细扩展契约与验收矩阵见 `docs/ARCHITECTURE.md`、`docs/RESPONSE_ENGINE.md` 和 `docs/REAL_GAME_ACCEPTANCE.md`。
 
 ## 风险提示
 
