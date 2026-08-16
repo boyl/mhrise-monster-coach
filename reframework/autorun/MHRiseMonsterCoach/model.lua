@@ -1,5 +1,6 @@
 local M = {}
 local LongSwordResponse = require("MHRiseMonsterCoach.response_long_sword")
+local MonsterPhase = require("MHRiseMonsterCoach.monster_phase")
 
 M.states = {
     INITIAL = "initial",
@@ -69,11 +70,7 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
 end
 
 local function monster_phase(self)
-    local move = self.current_move
-    if move and (move.phase == "startup" or move.phase == "active" or move.phase == "recovery") then
-        return move.phase
-    end
-    return "unknown"
+    return MonsterPhase.resolve(self.current_move, self.current_metadata)
 end
 
 function M.update_player_combat_state(self, state)

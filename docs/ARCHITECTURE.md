@@ -29,6 +29,8 @@ app (composition root)
 
 当前 MVP 输出 `enemy_id`、`action`、任务/联机状态、玩家生命与动作开始时间。距离、朝向、形态和怒气待相应 Getter 获得真实运行时证据后加入 Runtime 输出；不得由 Model 猜测。
 
+怪物阶段由纯函数 `monster_phase.lua` 解析。它只消费怪物数据包中状态为 `confirmed` 的有效判定窗口，并可校验 Motion 名称；当前帧早于首个窗口为前摇，首个至最后一个窗口之间为攻击阶段，最后窗口之后为收招。多段攻击的窗口间隙仍视为攻击阶段，避免过早提示高承诺反击。缺少数据、Motion 不匹配或窗口非法时统一返回 `unknown`。
+
 ### MoveDefinition
 
 - 输入：Action 字符串键、名称、短名称、应对建议、派生类型和候选列表。
