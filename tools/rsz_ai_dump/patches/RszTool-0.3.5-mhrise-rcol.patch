@@ -1,0 +1,43 @@
+diff --git a/RszTool/RszFile/RcolFile.cs b/RszTool/RszFile/RcolFile.cs
+--- a/RszTool/RszFile/RcolFile.cs
++++ b/RszTool/RszFile/RcolFile.cs
+@@ -86,7 +86,10 @@ namespace RszTool.Rcol
+             {
+                 handler.Read(ref ignoreTagOffset);
+                 handler.Read(ref autoGenerateJointDescOffset);
+-                handler.Read(ref uOffset);  // same as autoGenerateJointDescOffset?
+-                handler.Read(ref vOffset);  // same as autoGenerateJointDescOffset?
+-                handler.ReadUInt64();  // always zero?
++                if (Version != GameVersion.mhrise)
++                {
++                    handler.Read(ref uOffset);  // same as autoGenerateJointDescOffset?
++                    handler.Read(ref vOffset);  // same as autoGenerateJointDescOffset?
++                    handler.ReadUInt64();  // always zero?
++                }
+             }
+@@ -140,7 +143,10 @@ namespace RszTool.Rcol
+             {
+                 handler.Write(ref ignoreTagOffset);
+                 handler.Write(ref autoGenerateJointDescOffset);
+-                handler.Write(ref uOffset);  // same as autoGenerateJointDescOffset?
+-                handler.Write(ref vOffset);  // same as autoGenerateJointDescOffset?
+-                handler.WriteUInt64(0);
++                if (Version != GameVersion.mhrise)
++                {
++                    handler.Write(ref uOffset);  // same as autoGenerateJointDescOffset?
++                    handler.Write(ref vOffset);  // same as autoGenerateJointDescOffset?
++                    handler.WriteUInt64(0);
++                }
+             }
+@@ -430,4 +436,5 @@ namespace RszTool.Rcol
+                 handler.Skip(4);
+                 handler.ReadOffsetWString(out KeyName);
+                 handler.Read(ref KeyHash);
++                handler.Skip(4);
+             }
+@@ -458,4 +465,5 @@ namespace RszTool.Rcol
+                 handler.Skip(4);
+                 handler.WriteOffsetWString(KeyName);
+                 handler.Write(ref KeyHash);
++                handler.Skip(4);
+             }

@@ -57,6 +57,7 @@ app (composition root)
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。
 - `rsz_ai_dump` 是第三方 RszTool 的薄适配器，只输出实例类型、字段、值和引用 ID；领域层不依赖 RszTool 对象。
+- `rsz_ai_dump --include-timing-assets` 额外导出 RCOL 的分组、碰撞形状、RequestSet 和内嵌 RSZ。RszTool 0.3.5 解析 MHR `.rcol.20` 前必须应用 `tools/rsz_ai_dump/patches/RszTool-0.3.5-mhrise-rcol.patch`；适配器会自行纠正该版本库对多位扩展名的误读。
 - `build_monster_behavior_graph.py` 只消费结构化 RSZ JSON，输出稳定的 ThinkState、Action、Condition 和 Transition 契约。`fixed_action_edges` 采用保守证明规则：当前状态只有一条 `EnemyActionEnd` 边，且两端各有一个该怪物的编号攻击 Action。这样更换 REasy、RszTool 或新版 RSZ dump 时，不影响 Mod 的 Model/View/Controller。
 - 原始 PAK、解出的 `.user.2` 和完整 RSZ dump 仅留在本地研究目录，不提交、不打包、不发布。
 

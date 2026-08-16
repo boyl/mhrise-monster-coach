@@ -98,6 +98,8 @@ Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置�
 
 `tools/rsz_ai_dump` 通过外部 RszTool 项目和 `rszmhrise.json`，把已提取文件批量转换为结构化 RSZ JSON。构建时必须显式传入 `-p:RszToolProject=...`；项目不内置或分发第三方解析器、Capcom 文件和 RSZ dump。
 
+需要离线分析攻击碰撞体时，先为 RszTool 0.3.5 应用 `tools/rsz_ai_dump/patches/RszTool-0.3.5-mhrise-rcol.patch`，再向导出命令追加 `--include-timing-assets`。该模式会导出 RCOL 分组、形状、RequestSet 和内嵌 RSZ；导出失败会写入带异常类型、RCOL 头和调用栈的 manifest，不会静默跳过。
+
 `tools/build_monster_behavior_graph.py` 再把结构化 RSZ JSON 转为与解析器无关的行为图，保留 ThinkState、动作实例、条件、下一状态与资源来源。它只把“唯一 `EnemyActionEnd` 边，且起点和终点都各有一个轰龙攻击 Action”的关系列入 `fixed_action_edges`；距离、角度、随机或多边状态不会被误报成固定派生。传入 `--runtime-pack-output` 和实机确认的攻击 Category 后，可自动生成 Mod 使用的紧凑静态派生包。
 
 当前开发实测从 140 个轰龙入口文件收敛到 424 个引用闭包文件；424 个文件全部解析成功，得到 3,090 个状态、3,920 条条件边、48 个 ActionNo 和 14 条严格固定攻击边，诊断为 0。原始文件和约 3.7 MB 的研究图只保存在本地 `work` 目录，不进入 Mod 包。此结果属于静态结构证据，招式中文语义和运行时 ActionNo 对接仍需独立验证。
