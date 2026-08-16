@@ -1,6 +1,6 @@
 # 《怪物猎人崛起》怪物陪练 Mod
 
-版本：`0.3.1-motion-reader-candidate`
+版本：`0.3.2-timeline-candidate`
 
 > 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入只读诊断模式，不安装怪物 Update Hook，也不执行时间、生命或位置写入。只读模式仅通过 `EnemyManager` 轮询目标怪物，并尝试读取白名单中的 Action Getter/字段。
 
@@ -29,6 +29,7 @@ RiseQuestLoader 会先生成原版任务列表，再追加完全自定义任务�
 
 - 已实现：单人专用任务检测、通过 `EnemyManager` 轮询轰龙、白名单 Action 读取器、`via.motion.Motion` 状态键后备读取、未知动作记录、观测派生学习和提示 Overlay。时间倍率、生命与位置功能保留在代码中，但只读诊断模式下不会执行。
 - `MotionBankID:MotionID` 只表示当前播放动作的校准状态键，不冒充已经确认的 AI/FSM Action ID；它可用于首版招式名称、变化与应对提示映射。
+- 校准导出使用 schema v2，包含有界的按时间排列状态历史、前一状态持续时长和聚合转换图。只读模式不再生成虚假的“无伤、成功或连胜”结果。
 - 兼容门禁：当前包只允许 `mhrise / TDB 71` 执行时间、生命和位置写操作；其他运行时仍可显示诊断，但自动进入只读状态。
 - REFramework 未提供 `imgui.text_wrapped` 时，设置界面自动回退到普通文本，并对相同回调错误限流，避免逐帧刷日志。
 - 需要实机校准：当前游戏构建实际暴露的 Action getter/field、Action ID 对应的中文招式名、前摇阶段和应对说明。

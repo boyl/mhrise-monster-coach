@@ -275,6 +275,8 @@ function M.context(self)
         enemy_id = self.enemy_id,
         reader_ready = self.reader:ready(),
         player_found = self.player ~= nil,
+        outcome_tracking = self.config.diagnostic_safe_mode ~= true
+            and self.player_data ~= nil and self.fields.player_health ~= nil,
         safe_mode = self.config.diagnostic_safe_mode == true,
         build_supported = build_supported,
         game_name = self.game_name,

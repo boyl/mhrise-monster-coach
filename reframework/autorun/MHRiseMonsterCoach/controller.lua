@@ -174,7 +174,12 @@ function M.draw_menu(self)
     local reader = self.runtime.reader:description()
     imgui.text("Reader: " .. tostring(reader and reader.name or "not calibrated"))
     if reader then imgui.text("Observed Action changes: " .. tostring(reader.changes or 0)) end
-    imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
+    imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
+    if self.model.context.outcome_tracking then
+        imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
+    else
+        imgui.text("Outcome: unavailable in read-only mode")
+    end
 
     local training_quest = self.model.profile.training_quest
     if training_quest then

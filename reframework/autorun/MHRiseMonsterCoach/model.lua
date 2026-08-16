@@ -46,6 +46,7 @@ function M.new(profile, calibration, config)
         unknown_action_count = 0,
         learned_actions = 0,
         rounds = 0,
+        state_changes = 0,
         successes = 0,
         failures = 0,
         streak = 0,
@@ -189,13 +190,19 @@ function M.observe_action(self, action, now)
 
     local previous = self.current_action
     if previous ~= nil then
-        M.finish_round(self)
+        if self.context.outcome_tracking == true then
+            M.finish_round(self)
+        else
+            self.state_changes = self.state_changes + 1
+        end
         record_transition(self, previous, action)
     end
 
+    local event_time = now or 0
+    local duration = previous and math.max(0, event_time - self.action_started_at) or nil
     self.current_action = action
     self.current_move = named_move(self, action)
-    self.action_started_at = now or 0
+    self.action_started_at = event_time
     self.prediction = profile_prediction(self, self.current_move) or learned_prediction(self, action)
     if self.context.safe_mode then
         self.state = M.states.DISABLED
@@ -219,7 +226,12 @@ function M.observe_action(self, action, now)
         self.unknown_actions[action] = true
         self.unknown_action_count = self.unknown_action_count + 1
     end
-    bounded_append(self.history, { from = previous, to = action, at = now or 0 }, self.config.transition_history_limit)
+    bounded_append(self.history, {
+        from = previous,
+        to = action,
+        at = event_time,
+        previous_duration = duration,
+    }, self.config.transition_history_limit)
     return true
 end
 
@@ -246,13 +258,16 @@ function M.export_calibration(self, reader)
     for action in pairs(self.unknown_actions) do unknown[#unknown + 1] = action end
     table.sort(unknown)
     return {
-        schema_version = 1,
+        schema_version = 2,
         profile = self.profile.id,
         reader = reader,
         moves = self.moves,
         scenarios = self.scenarios,
         observed_unknown_actions = unknown,
         observed_transitions = self.transitions,
+        observed_history = self.history,
+        state_changes = self.state_changes,
+        outcome_tracking = self.context.outcome_tracking == true,
     }
 end
 

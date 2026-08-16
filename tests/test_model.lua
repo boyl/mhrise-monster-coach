@@ -58,7 +58,7 @@ model:set_context({ in_quest = true, is_online = false, target_found = true, rea
 equal(model.state, Model.states.DISABLED, "diagnostic safe mode is disabled for gameplay")
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 
-model:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true })
+model:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, outcome_tracking = true })
 equal(model.state, Model.states.READY, "offline ready")
 
 truthy(model:observe_action("10", 1), "first action changes state")
@@ -93,6 +93,27 @@ equal(model.prediction.kind, "observed_candidates", "multiple observed targets r
 -- History is bounded.
 for index = 1, 20 do model:observe_action(tostring(100 + index), 100 + index) end
 truthy(#model.history <= config.transition_history_limit, "history stays bounded")
+truthy(model.history[#model.history].previous_duration >= 0, "history records non-negative state duration")
+
+local readonly = Model.new(profile, { moves = {}, scenarios = {} }, config)
+readonly:set_context({
+    in_quest = true,
+    is_online = false,
+    target_found = true,
+    reader_ready = true,
+    safe_mode = true,
+    outcome_tracking = false,
+})
+readonly:observe_action("10", 1.0)
+readonly:observe_action("11", 1.5)
+equal(readonly.state_changes, 1, "read-only transitions are counted")
+equal(readonly.rounds, 0, "read-only transitions do not invent completed rounds")
+equal(readonly.successes, 0, "read-only transitions do not invent successful outcomes")
+equal(readonly.history[2].previous_duration, 0.5, "read-only timeline records state duration")
+local evidence = readonly:export_calibration({ kind = "motion", name = "test" })
+equal(evidence.schema_version, 2, "timeline export uses schema version 2")
+equal(#evidence.observed_history, 2, "timeline export includes chronological history")
+equal(evidence.outcome_tracking, false, "timeline export declares unavailable outcomes")
 
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.current_action, nil, "leaving quest clears current action")
