@@ -1,0 +1,91 @@
+local M = {}
+
+local CONFIG_PATH = "MHRiseMonsterCoach/config.json"
+local CALIBRATION_PATH = "MHRiseMonsterCoach/tigrex_calibration.json"
+
+local DEFAULTS = {
+    schema_version = 1,
+    supported_game_name = "mhrise",
+    supported_tdb_version = 71,
+    diagnostic_safe_mode = true,
+    enabled = true,
+    overlay_enabled = true,
+    show_move = true,
+    show_prediction = true,
+    show_advice = true,
+    slowmo_scale = 0.25,
+    safety_health_lock = false,
+    protect_monster_health = false,
+    transition_history_limit = 256,
+    learned_action_limit = 128,
+    min_prediction_samples = 3,
+    keys = {
+        slowmo_hold = 0x75, -- F6
+        quick_reset = 0x76, -- F7
+        capture_anchor = 0x77, -- F8
+    },
+    action_reader = {
+        kind = "auto",
+        name = "",
+    },
+}
+
+local function copy(value)
+    if type(value) ~= "table" then return value end
+    local result = {}
+    for key, child in pairs(value) do result[key] = copy(child) end
+    return result
+end
+
+local function merge_known(target, source)
+    if type(source) ~= "table" then return target end
+    for key, current in pairs(target) do
+        local incoming = source[key]
+        if incoming ~= nil then
+            if type(current) == "table" then
+                merge_known(current, incoming)
+            elseif type(incoming) == type(current) then
+                target[key] = incoming
+            end
+        end
+    end
+    return target
+end
+
+local function clamp(value, low, high)
+    if value < low then return low end
+    if value > high then return high end
+    return value
+end
+
+function M.load()
+    local config = copy(DEFAULTS)
+    local loaded = json.load_file(CONFIG_PATH)
+    merge_known(config, loaded)
+
+    config.slowmo_scale = clamp(config.slowmo_scale, 0.05, 1.0)
+    config.transition_history_limit = math.floor(clamp(config.transition_history_limit, 32, 512))
+    config.learned_action_limit = math.floor(clamp(config.learned_action_limit, 16, 256))
+    config.min_prediction_samples = math.floor(clamp(config.min_prediction_samples, 2, 20))
+
+    local calibration = json.load_file(CALIBRATION_PATH)
+    if type(calibration) ~= "table" then calibration = {} end
+    if type(calibration.moves) ~= "table" then calibration.moves = {} end
+    if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
+
+    return config, calibration
+end
+
+function M.save(config)
+    json.dump_file(CONFIG_PATH, config)
+end
+
+function M.calibration_path()
+    return CALIBRATION_PATH
+end
+
+function M.write_calibration(calibration)
+    json.dump_file(CALIBRATION_PATH, calibration)
+end
+
+return M

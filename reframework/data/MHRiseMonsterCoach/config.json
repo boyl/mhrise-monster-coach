@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "supported_game_name": "mhrise",
+  "supported_tdb_version": 71,
+  "diagnostic_safe_mode": true,
+  "enabled": true,
+  "overlay_enabled": true,
+  "show_move": true,
+  "show_prediction": true,
+  "show_advice": true,
+  "slowmo_scale": 0.25,
+  "safety_health_lock": false,
+  "protect_monster_health": false,
+  "transition_history_limit": 256,
+  "learned_action_limit": 128,
+  "min_prediction_samples": 3,
+  "keys": {
+    "slowmo_hold": 117,
+    "quick_reset": 118,
+    "capture_anchor": 119
+  },
+  "action_reader": {
+    "kind": "auto",
+    "name": ""
+  }
+}

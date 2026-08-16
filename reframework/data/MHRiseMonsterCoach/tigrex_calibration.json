@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "profile": "tigrex_mr_normal",
+  "reader": null,
+  "moves": {},
+  "scenarios": [],
+  "observed_unknown_actions": [],
+  "observed_transitions": {}
+}

@@ -1,0 +1,106 @@
+# 《怪物猎人崛起》怪物陪练 Mod
+
+版本：`0.1.2-safe`
+
+> 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入诊断安全模式，不安装怪物 Hook，也不执行时间、生命或位置写入。安全模式只用于确认脚本/UI/任务加载稳定，不提供训练功能。
+
+这是一个面向 Steam PC《怪物猎人崛起：曙光》的 REFramework Lua MVP。当前版本优先解决两个痛点：
+
+1. 在同一任务内恢复猎人与怪物生命、回到预设位置，减少结算、回大厅、接任务和重新加载地图的次数。
+2. 实时记录轰龙 Action 转换，显示当前动作、观测到的后续候选、按住减速和本轮是否受击。
+
+## 当前能力边界
+
+- 已实现：单人检测、轰龙筛选、Action 读取器自动探测、未知动作记录、观测派生学习、提示 Overlay、按住子弹时间、时间倍率恢复、玩家/怪物生命保护、位置锚点和原地重置。
+- 兼容门禁：当前包只允许 `mhrise / TDB 71` 执行时间、生命和位置写操作；其他运行时仍可显示诊断，但自动进入只读状态。
+- REFramework 未提供 `imgui.text_wrapped` 时，设置界面自动回退到普通文本，并对相同回调错误限流，避免逐帧刷日志。
+- 需要实机校准：当前游戏构建实际暴露的 Action getter/field、Action ID 对应的中文招式名、前摇阶段和应对说明。
+- 尚未开放：强制指定怪物招式。公开资料不足以证明当前 16.0.2.0 构建的安全请求入口；猜测入口或 ID 可能造成冻结、T-Pose 或崩溃。
+- 原地重置恢复生命与位置，但不会伪造“AI 已回到绝对初始节点”。怪物当前动作结束后再按 F7 最稳定。
+- 不包含自定义异常调查或奖励数据，也不写存档。
+
+这一区分很重要：代码、打包和自动测试通过，不等于已经在真实任务中验收。
+
+## 安装
+
+前置条件：
+
+- Steam 版《怪物猎人崛起：曙光》；
+- REFramework；
+- 建议备份存档；
+- 只在单人任务中使用。
+
+把本目录中的 `reframework` 文件夹复制到游戏根目录，与现有 `reframework` 文件夹合并。入口最终应位于：
+
+```text
+MonsterHunterRise/reframework/autorun/MHRiseMonsterCoach.lua
+```
+
+Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置等玩法写操作。
+
+## 首次校准流程
+
+1. 进入单人轰龙任务，靠近轰龙。
+2. Overlay 显示 `Calibrating the action reader` 后正常观察/应对若干招式。
+3. 在希望作为重置起点的位置按 F8，保存猎人与轰龙的位置锚点。
+4. 按住 F6 进入 `0.25x`，松开立即恢复 `1.00x`。
+5. 按 F7 原地恢复生命、耐力、怪物生命和双方位置。
+6. 打开 REFramework → `Script Generated UI` → `Monster Coach`，点击 `Export calibration evidence`。
+
+生成文件：
+
+- `reframework/data/MHRiseMonsterCoach/runtime_action_members.json`：当前怪物类型中与 Action、Motion、Think、FSM 有关的成员元数据。
+- `reframework/data/MHRiseMonsterCoach/tigrex_calibration.json`：实际观察到的未知 Action 和转换计数。
+
+如果自动读取器没有找到变化值，在 `config.json` 中把 `action_reader.kind` 改为 `method` 或 `field`，并把 `name` 设置为元数据中经 Object Explorer 确认的只读成员。不要填写动作执行函数。
+
+## 操作
+
+| 操作 | 默认按键 | 行为 |
+|---|---:|---|
+| 按住减速 | F6 | 单人任务内设置场景为配置倍率；松开恢复 1.0 |
+| 原地重置 | F7 | 恢复资源、怪物生命及双方位置 |
+| 捕获锚点 | F8 | 保存当前猎人与轰龙位置 |
+| 设置界面 | Insert | 打开 REFramework 的 Script Generated UI |
+
+生命保护默认开启。它会检测生命下降、记录本轮受击量，然后恢复生命；这能显著减少猫车和重新接任务，但“未受伤”结果目前只代表没有检测到生命下降，不代表识别了武器专属 GP、看破、居合或防御判定。
+
+## 为轰龙标注招式
+
+校准文件中的 `moves` 以 Action 字符串为键：
+
+```json
+{
+  "moves": {
+    "123": {
+      "name": "三连冲锋·起手",
+      "short_name": "冲锋起手",
+      "advice": "保持侧向移动，确认转向后再处理下一段。",
+      "next_kind": "fixed",
+      "next": [
+        { "action": "124" }
+      ]
+    }
+  }
+}
+```
+
+只有从 FSM/AI 文件或大量实测确认唯一下一段时才使用 `fixed`。距离、怒气或随机权重会改变结果时应使用 `conditional` 或 `random`，并写明条件。纯观测学习只会显示 `observed_single` 或候选概率，不会冒充固定派生。
+
+## 卸载与异常恢复
+
+- 删除 `reframework/autorun/MHRiseMonsterCoach.lua` 和同名子目录即可卸载。
+- 配置和校准记录位于 `reframework/data/MHRiseMonsterCoach`，可选择保留。
+- 脚本重载会主动恢复 `1.0x`。若游戏或 REFramework 本身异常退出，再次进入任务前确认速度正常。
+- 若启动异常，先移除本 Mod 并检查 `re2_framework_log.txt`；不要删除其他用户 Mod 或配置。
+
+## 验证状态
+
+- 已完成：模块边界、JSON、Lua 语法、纯 Model 状态机自动测试和包内容审计。
+- 未完成：真实游戏加载、轰龙 Action getter 确认、20 次原地重置、100 次动作转换、暂停菜单恢复、各种武器受击结果和强制出招。
+
+详细扩展契约与验收矩阵见 `docs/ARCHITECTURE.md` 和 `docs/REAL_GAME_ACCEPTANCE.md`。
+
+## 风险提示
+
+Capcom 不保证非官方 Mod 的兼容性，也不为修改数据造成的故障提供支持。请备份存档、限制单人使用，并在游戏更新后先关闭玩法写操作完成兼容验证。

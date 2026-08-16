@@ -1,0 +1,16 @@
+# Runtime-generated diagnostics and user calibration evidence
+reframework/data/MHRiseMonsterCoach/runtime_action_members.json
+reframework/data/MHRiseMonsterCoach/runtime_*.json
+
+# Local build/test artifacts
+*.zip
+*.dmp
+re2_framework_log.txt
+node_modules/
+work/
+
+# Editor and operating-system files
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
