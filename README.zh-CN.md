@@ -1,6 +1,6 @@
 # 《怪物猎人崛起》怪物陪练 Mod
 
-版本：`0.3.7-action-number-reader-candidate`
+版本：`0.3.8-automatic-action-evidence-candidate`
 
 > 2026-08-16 安全通告：实机出现原生访问冲突后，本版本默认进入只读诊断模式，不安装怪物 Update Hook，也不执行时间、生命或位置写入。只读模式仅通过 `EnemyManager` 轮询目标怪物，并尝试读取白名单中的 Action Getter/字段。
 
@@ -69,6 +69,7 @@ Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置�
 
 - `reframework/data/MHRiseMonsterCoach/tigrex_calibration.json`：实际观察到的状态、引擎名称、时间线和转换计数。
 - `reframework/data/MHRiseMonsterCoach/runtime_action_param_probe.json`：只包含 `EnemyActionParam` 类型成员名称与最终白名单选择，用于自动诊断 ActionNo 桥接；不包含游戏资产。
+- `reframework/data/MHRiseMonsterCoach/runtime_action_state.json`：只读诊断模式下在 ActionNo 改变时更新，记录 ActionNo、ActionCategory 和同时刻的 Motion 名称，开发侧可直接读取而无需玩家录屏或手工导出。
 
 不再要求玩家录屏、截图或人工对时。引擎名称通常是开发用标识符，并不保证能直接翻译为准确招式语义；后续工具只需让玩家从自动聚类出的少量候选中确认“冲锋/吼叫/甩尾”等中文名称和应对建议。
 

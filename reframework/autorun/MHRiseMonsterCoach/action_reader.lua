@@ -24,6 +24,7 @@ local SAFE_FIELD_NAMES = {
 
 local ACTION_PARAM_TYPE = "snow.enemy.EnemyActionParam"
 local ACTION_PARAM_PROBE_PATH = "MHRiseMonsterCoach/runtime_action_param_probe.json"
+local ACTION_STATE_PATH = "MHRiseMonsterCoach/runtime_action_state.json"
 local SAFE_ACTION_PARAM_METHOD_NAMES = {
     "get_ActionNo",
     "get_ActionID",
@@ -108,6 +109,8 @@ function M.new(config)
         candidates = {},
         active = nil,
         samples = 0,
+        last_metadata = nil,
+        last_snapshot_action = nil,
     }, { __index = M })
 end
 
@@ -305,6 +308,8 @@ function M.discover(self, enemy)
     self.candidates = {}
     self.active = nil
     self.samples = 0
+    self.last_metadata = nil
+    self.last_snapshot_action = nil
 
     local requested = self.config.action_reader
     if requested.kind == "method" and requested.name ~= "" then
@@ -315,7 +320,7 @@ function M.discover(self, enemy)
         for _, name in ipairs(SAFE_METHOD_NAMES) do add_method_candidate(self, type_def, name) end
         for _, name in ipairs(SAFE_FIELD_NAMES) do add_field_candidate(self, type_def, name) end
         if #self.candidates == 0 then add_action_param_candidates(self, type_def) end
-        if #self.candidates == 0 then add_motion_candidate(self, enemy) end
+        add_motion_candidate(self, enemy)
     end
 
     return #self.candidates > 0
@@ -419,7 +424,35 @@ function M.read(self, enemy)
     end
 
     if self.active == nil then return nil end
-    return self.active.last, self.active.metadata and self.active.metadata[self.active.last] or nil
+    local metadata = self.active.metadata and self.active.metadata[self.active.last] or nil
+    if self.active.kind ~= "motion" then
+        local merged = {}
+        for key, value in pairs(metadata or {}) do merged[key] = value end
+        for _, candidate in ipairs(self.candidates) do
+            if candidate.kind == "motion" and candidate.last ~= nil then
+                local motion_metadata = candidate.metadata and candidate.metadata[candidate.last] or nil
+                for key, value in pairs(motion_metadata or {}) do merged[key] = value end
+                break
+            end
+        end
+        metadata = merged
+    end
+    self.last_metadata = metadata
+    if self.config.diagnostic_safe_mode == true
+        and self.active.kind ~= "motion"
+        and self.last_snapshot_action ~= self.active.last then
+        self.last_snapshot_action = self.active.last
+        safe_call(function()
+            json.dump_file(ACTION_STATE_PATH, {
+                schema_version = 1,
+                reader = { kind = self.active.kind, name = self.active.name },
+                action = self.active.last,
+                metadata = metadata,
+                observed_changes = self.active.changes,
+            })
+        end)
+    end
+    return self.active.last, metadata
 end
 
 function M.ready(self)
@@ -428,7 +461,7 @@ end
 
 function M.description(self)
     if self.active == nil then return nil end
-    local metadata = self.active.metadata and self.active.metadata[self.active.last] or nil
+    local metadata = self.last_metadata or (self.active.metadata and self.active.metadata[self.active.last] or nil)
     return {
         kind = self.active.kind,
         name = self.active.name,
@@ -443,6 +476,7 @@ function M.shutdown(self)
     release_candidates(self.candidates)
     self.candidates = {}
     self.active = nil
+    self.last_metadata = nil
 end
 
 function M.diagnostics(self)

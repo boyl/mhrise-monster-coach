@@ -127,7 +127,10 @@ local nested_enemy_type = {
     get_field = function() return nil end,
     get_parent_type = function() return nested_enemy_parent_type end,
 }
-local nested_enemy = { get_type_definition = function() return nested_enemy_type end }
+local nested_enemy = {
+    get_type_definition = function() return nested_enemy_type end,
+    call = function(_, name) if name == "get_GameObject" then return game_object end end,
+}
 sdk.find_type_definition = function(name)
     if name == "snow.enemy.EnemyActionParam" then return action_param_type end
     return nil
@@ -173,6 +176,7 @@ local method_reader = ActionReader.new({ action_reader = { kind = "auto", name =
 local method_action, method_metadata = method_reader:read(nested_enemy)
 assert(method_action == "6", "reads ActionNo getter through EnemyActionParam")
 assert(method_metadata.action_no == 6 and method_metadata.action_category == 4, "captures Action category metadata")
+assert(method_metadata.motion_name == "em032_attack_41", "enriches ActionNo with simultaneous Motion metadata")
 assert(method_reader:read(nested_enemy) == "10", "nested ActionNo getter observes transition")
 assert(method_reader:description().kind == "action_param_method", "nested getter is identified")
 
