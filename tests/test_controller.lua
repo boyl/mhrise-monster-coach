@@ -31,6 +31,8 @@ local config = {
     slowmo_scale = 0.25,
     quick_reset_enabled = true,
     auto_capture_anchors = true,
+    quick_reset_safe_frames = 2,
+    quick_reset_cooldown_frames = 10,
     keys = { slowmo_hold = 117, quick_reset = 118, capture_anchor = 119 },
 }
 local controller = Controller.new(model, runtime, {}, config, {})
@@ -79,7 +81,8 @@ assert(logged_errors == 1, "identical callback errors are logged once")
 
 local captures, resets = 0, 0
 runtime.capture_anchors = function() captures = captures + 1 return true end
-runtime.quick_reset = function() resets = resets + 1 return true end
+runtime.quick_reset_safe = function() return true end
+runtime.quick_reset_step = function(_, stage) resets = resets + 1 return stage >= 1 end
 model.reset_round = function(self, reason) self.last_reset = reason end
 model.clear_round_runtime = function(self, reason) self.last_clear = reason end
 config.diagnostic_safe_mode = false
@@ -90,26 +93,33 @@ assert(captures == 1, "gamepad short chord reaches capture use case")
 controller.input_state = { capture_pressed = false, reset_pressed = true }
 controller:quick_reset()
 assert(resets == 0 and controller.reset_pending, "gamepad long chord queues reset use case")
-controller:execute_pending_reset()
-assert(resets == 1 and model.last_clear == "Round reset in place", "queued reset executes and clears runtime state")
+for _ = 1, 6 do controller:execute_pending_reset() end
+assert(resets == 5 and model.last_clear == "Round reset in place", "queued reset executes five stages and clears runtime state")
 drawing_ui = true
 controller.input_state = { capture_pressed = true, reset_pressed = true }
 controller:capture_anchors()
 controller:quick_reset()
-assert(captures == 1 and resets == 1, "open REFramework menu consumes controller events without execution")
+assert(captures == 1 and resets == 5, "open REFramework menu consumes controller events without execution")
 drawing_ui = false
 
 local attempts = 0
-runtime.quick_reset = function()
+runtime.quick_reset_safe = function()
     attempts = attempts + 1
-    if attempts == 1 then return false, "Waiting for active monster hitboxes to close", true end
+    if attempts == 1 then return false, "Waiting for active monster hitboxes to close" end
     return true
 end
+runtime.quick_reset_step = function(_, stage) return stage >= 1 end
+controller.frame_counter = controller.reset_cooldown_until
 controller:request_quick_reset()
 controller:execute_pending_reset()
 assert(controller.reset_pending and attempts == 1, "active hitbox keeps reset queued")
 controller:execute_pending_reset()
-assert(not controller.reset_pending and attempts == 2, "queued reset retries automatically at safe state")
+assert(controller.reset_pending and attempts == 2, "safe state must remain stable before writes")
+for _ = 1, 6 do controller:execute_pending_reset() end
+assert(not controller.reset_pending and attempts == 3, "queued reset retries automatically and executes by stages")
+local cooldown_until = controller.reset_cooldown_until
+assert(not controller:request_quick_reset(), "cooldown rejects rapid repeated reset")
+assert(controller.reset_cooldown_until == cooldown_until, "rejected repeat cannot mutate cooldown")
 
 runtime.anchors_ready = function() return false end
 captures = 0

@@ -85,7 +85,45 @@ function M.new(config, profile)
         player_stamina = find_field("snow.player.PlayerData", "_stamina"),
         player_max_stamina = find_field("snow.player.PlayerData", "_staminaMax"),
     }
+    M.dump_quest_restart_metadata(self)
     return setmetatable(self, { __index = M })
+end
+
+function M.dump_quest_restart_metadata(self)
+    local quest_type = safe(function() return sdk.find_type_definition("snow.QuestManager") end)
+    if quest_type == nil then return false end
+    local keywords = {
+        "restart", "reset", "retry", "reload", "return", "retire",
+        "abandon", "forfeit", "endquest", "startquest", "loadquest", "orderquest",
+    }
+    local methods = {}
+    for _, method in ipairs(safe(function() return quest_type:get_methods() end) or {}) do
+        local name = safe(function() return method:get_name() end)
+        local lower = string.lower(tostring(name or ""))
+        local matched = false
+        for _, keyword in ipairs(keywords) do
+            if string.find(lower, keyword, 1, true) then matched = true break end
+        end
+        if matched then
+            local return_type = safe(function() return method:get_return_type() end)
+            methods[#methods + 1] = {
+                name = name,
+                parameter_count = safe(function() return method:get_num_params() end),
+                return_type = return_type and safe(function() return return_type:get_full_name() end) or nil,
+            }
+        end
+    end
+    table.sort(methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    return safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_quest_restart_probe.json", {
+            schema_version = 1,
+            policy = "metadata_only_no_method_invocation",
+            runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
+            type_name = "snow.QuestManager",
+            methods = methods,
+        })
+        return true
+    end) == true
 end
 
 function M.get_scene(self)
@@ -374,6 +412,16 @@ local function get_rotation(transform)
     return transform and safe(function() return transform:call("get_Rotation") end) or nil
 end
 
+local function copy_position(value)
+    if value == nil then return nil end
+    return safe(function() return Vector3f.new(value.x, value.y, value.z) end)
+end
+
+local function copy_rotation(value)
+    if value == nil then return nil end
+    return safe(function() return Quaternion.new(value.w, value.x, value.y, value.z) end)
+end
+
 function M.capture_anchors(self)
     if self.player == nil or self.enemy == nil then return false, "Player or Tigrex unavailable" end
     local player_transform = get_transform(self.player)
@@ -381,8 +429,19 @@ function M.capture_anchors(self)
     local player_position = get_position(player_transform)
     local enemy_position = get_position(enemy_transform)
     if player_position == nil or enemy_position == nil then return false, "Transform position unavailable" end
-    self.player_anchor = { position = player_position, rotation = get_rotation(player_transform) }
-    self.enemy_anchor = { position = enemy_position, rotation = get_rotation(enemy_transform) }
+    self.player_anchor = {
+        position = copy_position(player_position),
+        rotation = copy_rotation(get_rotation(player_transform)),
+    }
+    self.enemy_anchor = {
+        position = copy_position(enemy_position),
+        rotation = copy_rotation(get_rotation(enemy_transform)),
+    }
+    if self.player_anchor.position == nil or self.enemy_anchor.position == nil then
+        self.player_anchor = nil
+        self.enemy_anchor = nil
+        return false, "Failed to copy reset anchor values"
+    end
     return true
 end
 
@@ -390,18 +449,29 @@ function M.anchors_ready(self)
     return self.player_anchor ~= nil and self.enemy_anchor ~= nil
 end
 
-function M.restore_anchors(self)
-    if self.player_anchor == nil or self.enemy_anchor == nil then return false, "Capture anchors with F8 first" end
-    local player_transform = get_transform(self.player)
-    local enemy_transform = get_transform(self.enemy)
-    if player_transform == nil or enemy_transform == nil then return false, "Transform unavailable" end
+local function restore_anchor(component, anchor, label)
+    if component == nil or anchor == nil then return false, label .. " anchor unavailable" end
+    local transform = get_transform(component)
+    if transform == nil or get_position(transform) == nil then return false, label .. " transform unavailable" end
     local ok = pcall(function()
-        player_transform:call("set_Position", self.player_anchor.position)
-        enemy_transform:call("set_Position", self.enemy_anchor.position)
-        if self.player_anchor.rotation then player_transform:call("set_Rotation", self.player_anchor.rotation) end
-        if self.enemy_anchor.rotation then enemy_transform:call("set_Rotation", self.enemy_anchor.rotation) end
+        transform:call("set_Position", anchor.position)
+        if anchor.rotation then transform:call("set_Rotation", anchor.rotation) end
     end)
-    return ok, ok and nil or "Position reset failed"
+    return ok, ok and nil or (label .. " position reset failed")
+end
+
+function M.restore_player_anchor(self)
+    return restore_anchor(self.player, self.player_anchor, "Player")
+end
+
+function M.restore_enemy_anchor(self)
+    return restore_anchor(self.enemy, self.enemy_anchor, "Tigrex")
+end
+
+function M.restore_anchors(self)
+    local player_ok, player_error = M.restore_player_anchor(self)
+    if not player_ok then return false, player_error end
+    return M.restore_enemy_anchor(self)
 end
 
 function M.restore_monster_health(self)
@@ -424,19 +494,21 @@ function M.restore_monster_health(self)
     return ok, ok and nil or "Monster health setter unavailable"
 end
 
-function M.quick_reset(self)
-    M.restore_time_scale(self)
+function M.quick_reset_safe(self)
     local hitboxes = self.hitbox_provider:poll(self.enemy)
     if hitboxes and hitboxes.active then
         return false, "Waiting for active monster hitboxes to close", true
     end
-    local player_ok, player_error = M.restore_player_resources(self)
-    local monster_ok, monster_error = M.restore_monster_health(self)
-    local anchor_ok, anchor_error = M.restore_anchors(self)
-    if not player_ok then return false, player_error end
-    if not monster_ok then return false, monster_error end
-    if not anchor_ok then return false, anchor_error end
     return true
+end
+
+function M.quick_reset_step(self, stage)
+    if stage == 1 then return M.restore_time_scale(self) end
+    if stage == 2 then return M.restore_player_resources(self) end
+    if stage == 3 then return M.restore_player_anchor(self) end
+    if stage == 4 then return M.restore_monster_health(self) end
+    if stage == 5 then return M.restore_enemy_anchor(self) end
+    return false, "Unknown quick reset stage"
 end
 
 function M.screen_size(self)

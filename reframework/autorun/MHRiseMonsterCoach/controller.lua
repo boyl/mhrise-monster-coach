@@ -28,6 +28,10 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         auto_anchor_stable_frames = 0,
         reset_pending = false,
         reset_status = "Waiting for training quest",
+        reset_stage = 0,
+        reset_safe_frames = 0,
+        reset_cooldown_until = 0,
+        reset_sequence = 0,
     }, { __index = M })
 end
 
@@ -177,9 +181,25 @@ function M.request_quick_reset(self)
         self.model:reset_round(self.reset_status)
         return false
     end
+    if self.frame_counter < self.reset_cooldown_until then
+        local remaining = self.reset_cooldown_until - self.frame_counter
+        self.reset_status = string.format("Reset cooling down (%d frames)", remaining)
+        self.model:reset_round(self.reset_status)
+        return false
+    end
+    if self.reset_pending then
+        self.reset_status = "Reset already queued"
+        return false
+    end
     self.reset_pending = true
+    self.reset_sequence = self.reset_sequence + 1
+    self.reset_stage = 0
+    self.reset_safe_frames = 0
     self.reset_status = "Reset queued; waiting for a safe monster state"
     self.model:reset_round(self.reset_status)
+    if log and type(log.info) == "function" then
+        log.info(string.format("[MHRiseMonsterCoach] quick reset %d queued", self.reset_sequence))
+    end
     return true
 end
 
@@ -187,25 +207,54 @@ function M.execute_pending_reset(self)
     if not self.reset_pending then return end
     if not quick_reset_allowed(self) then
         self.reset_pending = false
+        self.reset_stage = 0
         self.reset_status = "Queued reset cancelled: context changed"
         self.model:reset_round(self.reset_status)
         return
     end
-    local ok, reason, retryable = self.runtime:quick_reset()
-    if not ok and retryable then
-        self.reset_status = tostring(reason)
+    if self.reset_stage == 0 then
+        local safe, reason = self.runtime:quick_reset_safe()
+        if not safe then
+            self.reset_safe_frames = 0
+            self.reset_status = tostring(reason)
+            return
+        end
+        self.reset_safe_frames = self.reset_safe_frames + 1
+        local required = tonumber(self.config.quick_reset_safe_frames) or 15
+        if self.reset_safe_frames < required then
+            self.reset_status = string.format("Waiting for stable monster state (%d/%d)",
+                self.reset_safe_frames, required)
+            return
+        end
+        self.reset_stage = 1
+    end
+    local ok, reason = self.runtime:quick_reset_step(self.reset_stage)
+    if log and type(log.info) == "function" then
+        log.info(string.format("[MHRiseMonsterCoach] quick reset %d stage %d: %s",
+            self.reset_sequence, self.reset_stage, ok and "ok" or tostring(reason)))
+    end
+    if ok and self.reset_stage < 5 then
+        self.reset_status = string.format("Resetting round (%d/5)", self.reset_stage)
+        self.reset_stage = self.reset_stage + 1
         return
     end
     self.reset_pending = false
+    self.reset_stage = 0
     self.slowmo_active = false
     self.slowmo_toggled = false
     if ok then
+        self.reset_cooldown_until = self.frame_counter
+            + (tonumber(self.config.quick_reset_cooldown_frames) or 180)
         self.last_health = self.runtime:read_player_health()
         self.model:clear_round_runtime("Round reset in place")
         self.reset_status = "Round reset in place"
     else
         self.reset_status = "Reset failed: " .. tostring(reason)
         self.model:reset_round(self.reset_status)
+        if log and type(log.error) == "function" then
+            log.error(string.format("[MHRiseMonsterCoach] quick reset %d failed: %s",
+                self.reset_sequence, tostring(reason)))
+        end
     end
 end
 

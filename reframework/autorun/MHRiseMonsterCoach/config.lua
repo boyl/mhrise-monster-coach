@@ -19,6 +19,8 @@ local DEFAULTS = {
     time_control_enabled = true,
     quick_reset_enabled = true,
     auto_capture_anchors = true,
+    quick_reset_cooldown_frames = 180,
+    quick_reset_safe_frames = 15,
     slowmo_scale = 0.25,
     safety_health_lock = false,
     protect_monster_health = false,
@@ -77,6 +79,8 @@ function M.load()
     config.transition_history_limit = math.floor(clamp(config.transition_history_limit, 32, 512))
     config.learned_action_limit = math.floor(clamp(config.learned_action_limit, 16, 256))
     config.min_prediction_samples = math.floor(clamp(config.min_prediction_samples, 2, 20))
+    config.quick_reset_cooldown_frames = math.floor(clamp(config.quick_reset_cooldown_frames, 60, 600))
+    config.quick_reset_safe_frames = math.floor(clamp(config.quick_reset_safe_frames, 5, 60))
 
     local calibration = json.load_file(CALIBRATION_PATH)
     if type(calibration) ~= "table" then calibration = {} end

@@ -12,6 +12,8 @@
   "time_control_enabled": true,
   "quick_reset_enabled": true,
   "auto_capture_anchors": true,
+  "quick_reset_cooldown_frames": 180,
+  "quick_reset_safe_frames": 15,
   "slowmo_scale": 0.25,
   "safety_health_lock": false,
   "protect_monster_health": false,
