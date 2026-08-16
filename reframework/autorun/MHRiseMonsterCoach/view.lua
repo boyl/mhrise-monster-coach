@@ -44,7 +44,7 @@ end
 local function response_text(model)
     for _, item in ipairs(model.response_candidates or {}) do
         if item.availability == "available" then
-            return string.format("Weapon response: %s — %s", tostring(item.name), tostring(item.reason))
+            return string.format("Weapon response: %s", tostring(item.name))
         end
     end
     if model.response_error == "unsupported_weapon" then return nil end
