@@ -38,6 +38,7 @@ function M.new(profile, calibration, config, static_ai)
         scenarios = scenarios,
         static_ai = static_ai or { actions = {} },
         current_action = nil,
+        current_state_key = nil,
         current_move = nil,
         current_metadata = nil,
         action_started_at = 0,
@@ -65,6 +66,7 @@ function M.set_context(self, context)
     local was_in_quest = self.context.in_quest
     if was_in_quest and not context.in_quest then
         self.current_action = nil
+        self.current_state_key = nil
         self.current_move = nil
         self.current_metadata = nil
         self.prediction = nil
@@ -124,6 +126,29 @@ local function named_move(self, action, metadata)
     }
 end
 
+local function action_category(metadata)
+    return metadata and tonumber(metadata.action_category) or nil
+end
+
+local function required_action_category(self)
+    return self.static_ai and tonumber(self.static_ai.required_action_category) or nil
+end
+
+local function is_coaching_action(self, metadata)
+    local required = required_action_category(self)
+    return required == nil or action_category(metadata) == required
+end
+
+local function state_key(action, metadata)
+    local category = action_category(metadata)
+    if category == nil then return tostring(action) end
+    return tostring(category) .. ":" .. tostring(action)
+end
+
+local function action_from_state_key(key)
+    return tostring(key):match("^[^:]+:(.+)$") or tostring(key)
+end
+
 local function record_state_metadata(self, action, metadata)
     if metadata == nil then return end
     if self.state_metadata[action] == nil then
@@ -140,8 +165,8 @@ local function learned_prediction(self, action)
     local candidates = {}
     for next_action, count in pairs(row.next) do
         candidates[#candidates + 1] = {
-            action = next_action,
-            name = named_move(self, next_action).short_name,
+            action = action_from_state_key(next_action),
+            name = named_move(self, action_from_state_key(next_action)).short_name,
             count = count,
             probability = count / row.total,
         }
@@ -206,11 +231,11 @@ function M.reload_static_ai(self, static_ai)
     if type(static_ai) ~= "table" or type(static_ai.actions) ~= "table" then return false end
     self.static_ai = static_ai
     if self.current_action ~= nil then
-        local metadata = self.state_metadata[self.current_action]
-        self.current_move = named_move(self, self.current_action, metadata)
-        self.prediction = profile_prediction(self, self.current_move)
+        local metadata = self.current_metadata
+        self.current_move = is_coaching_action(self, metadata) and named_move(self, self.current_action, metadata) or nil
+        self.prediction = self.current_move and (profile_prediction(self, self.current_move)
             or static_prediction(self, self.current_action, metadata)
-            or learned_prediction(self, self.current_action)
+            or learned_prediction(self, self.current_state_key)) or nil
     end
     return true
 end
@@ -250,34 +275,40 @@ end
 function M.observe_action(self, action, now, metadata)
     if action == nil then return false end
     action = tostring(action)
-    record_state_metadata(self, action, metadata)
-    self.current_metadata = metadata or self.current_metadata
-    if action == self.current_action then
-        if self.moves[action] == nil and metadata and metadata.motion_name then
+    local next_state_key = state_key(action, metadata)
+    record_state_metadata(self, next_state_key, metadata)
+    if next_state_key == self.current_state_key then
+        self.current_metadata = metadata or self.current_metadata
+        if self.current_move and self.moves[action] == nil and metadata and metadata.motion_name then
             self.current_move = named_move(self, action, metadata)
         end
         return false
     end
 
     local previous = self.current_action
+    local previous_state_key = self.current_state_key
+    local previous_metadata = self.current_metadata
     if previous ~= nil then
         if self.context.outcome_tracking == true then
             M.finish_round(self)
         else
             self.state_changes = self.state_changes + 1
         end
-        record_transition(self, previous, action)
+        if is_coaching_action(self, previous_metadata) and is_coaching_action(self, metadata) then
+            record_transition(self, previous_state_key, next_state_key)
+        end
     end
 
     local event_time = now or 0
     local duration = previous and math.max(0, event_time - self.action_started_at) or nil
     self.current_action = action
-    self.current_move = named_move(self, action, metadata)
+    self.current_state_key = next_state_key
+    self.current_move = is_coaching_action(self, metadata) and named_move(self, action, metadata) or nil
     self.current_metadata = metadata
     self.action_started_at = event_time
-    self.prediction = profile_prediction(self, self.current_move)
+    self.prediction = self.current_move and (profile_prediction(self, self.current_move)
         or static_prediction(self, action, metadata)
-        or learned_prediction(self, action)
+        or learned_prediction(self, next_state_key)) or nil
     if self.context.safe_mode then
         self.state = M.states.DISABLED
         self.status = "Read-only mode: Action polling enabled; gameplay writes disabled"
@@ -295,14 +326,16 @@ function M.observe_action(self, action, now, metadata)
         self.status = "Training round active"
     end
 
-    if self.moves[action] == nil and self.unknown_actions[action] == nil
+    if self.current_move and self.moves[action] == nil and self.unknown_actions[next_state_key] == nil
         and self.unknown_action_count < self.config.learned_action_limit then
-        self.unknown_actions[action] = true
+        self.unknown_actions[next_state_key] = true
         self.unknown_action_count = self.unknown_action_count + 1
     end
     bounded_append(self.history, {
         from = previous,
         to = action,
+        from_state_key = previous_state_key,
+        to_state_key = next_state_key,
         at = event_time,
         previous_duration = duration,
     }, self.config.transition_history_limit)

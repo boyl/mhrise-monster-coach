@@ -69,7 +69,7 @@ function M.draw(self, model, runtime, slowmo_active)
         local progress = model.context.outcome_tracking
             and string.format("Round %d  |  Streak %d", model.rounds + 1, model.streak)
             or string.format("Observed changes %d", model.state_changes)
-        lines[#lines + 1] = { string.format("State key: %s  |  %s", model.current_action, progress), COLORS.muted }
+        lines[#lines + 1] = { string.format("State key: %s  |  %s", model.current_state_key or model.current_action, progress), COLORS.muted }
         local metadata = model.current_metadata
         if metadata and type(metadata.current_frame) == "number" and type(metadata.end_frame) == "number"
             and metadata.end_frame > 0 then

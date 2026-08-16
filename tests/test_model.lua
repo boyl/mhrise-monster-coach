@@ -90,6 +90,10 @@ local wrong_category = Model.new(static_profile, { moves = {}, scenarios = {} },
 wrong_category:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
 wrong_category:observe_action("15", 1, { action_category = 3 })
 equal(wrong_category.prediction, nil, "static attack graph is gated by ActionCategory")
+equal(wrong_category.current_move, nil, "non-attack category never reuses an attack label")
+wrong_category:observe_action("15", 2, { action_category = 4 })
+equal(wrong_category.current_move.name, "Drift turn", "same ActionNo in attack category is a distinct state")
+equal(wrong_category.current_state_key, "4:15", "state identity combines ActionCategory and ActionNo")
 truthy(static_model:reload_static_ai({ required_action_category = 4, actions = {} }), "static AI data reload succeeds")
 equal(static_model.prediction, nil, "static AI reload refreshes current prediction")
 
