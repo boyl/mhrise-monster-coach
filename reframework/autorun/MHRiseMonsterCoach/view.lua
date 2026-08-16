@@ -14,8 +14,10 @@ local COLORS = {
 
 local function truncate(text, max_chars)
     text = tostring(text or "")
-    if #text <= max_chars then return text end
-    return string.sub(text, 1, max_chars - 3) .. "..."
+    local offsets = {}
+    for offset in string.gmatch(text, "()[\0-\127\194-\244]") do offsets[#offsets + 1] = offset end
+    if #offsets <= max_chars then return text end
+    return string.sub(text, 1, offsets[max_chars - 2] - 1) .. "..."
 end
 
 local function result_color(state)
@@ -39,8 +41,8 @@ local function prediction_text(prediction)
     return prefix .. table.concat(pieces, " / ")
 end
 
-function M.new(config)
-    return setmetatable({ config = config }, { __index = M })
+function M.new(config, font)
+    return setmetatable({ config = config, font = font }, { __index = M })
 end
 
 function M.draw(self, model, runtime, slowmo_active)
@@ -101,7 +103,8 @@ function M.draw(self, model, runtime, slowmo_active)
     end
     lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
 
-    local line_height = 19
+    local font_pushed = self.font and self.font:push() or false
+    local line_height = self.font and self.font.line_height or 19
     local padding = 12
     local height = padding * 2 + line_height * #lines
     draw.filled_rect(x, y, width, height, COLORS.panel)
@@ -109,6 +112,7 @@ function M.draw(self, model, runtime, slowmo_active)
     for index, line in ipairs(lines) do
         draw.text(line[1], x + padding, y + padding + (index - 1) * line_height, line[2])
     end
+    if self.font then self.font:pop(font_pushed) end
 end
 
 return M

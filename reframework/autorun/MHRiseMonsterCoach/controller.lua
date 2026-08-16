@@ -8,13 +8,14 @@ local function key_down(code)
     return reframework:is_key_down(code) == true
 end
 
-function M.new(model, runtime, view, config, config_module)
+function M.new(model, runtime, view, config, config_module, font)
     return setmetatable({
         model = model,
         runtime = runtime,
         view = view,
         config = config,
         config_module = config_module,
+        font = font,
         previous_keys = {},
         slowmo_active = false,
         last_health = nil,
@@ -147,7 +148,7 @@ local function ui_text_wrapped(text)
     end
 end
 
-function M.draw_menu(self)
+function M.draw_menu_content(self)
     if not imgui.tree_node("Monster Coach / 怪物陪练") then return end
 
     local changed = false
@@ -171,6 +172,7 @@ function M.draw_menu(self)
     end
     imgui.text("Target: " .. (self.model.context.target_found
         and ("Tigrex / " .. tostring(self.model.context.enemy_id or "unknown")) or "waiting"))
+    if self.font then imgui.text(self.font:diagnostic()) end
     local reader = self.runtime.reader:description()
     imgui.text("Reader: " .. tostring(reader and reader.name or "not calibrated"))
     if reader then imgui.text("Observed Action changes: " .. tostring(reader.changes or 0)) end
@@ -237,6 +239,13 @@ function M.draw_menu(self)
 
     if changed then self.config_module.save(self.config) end
     imgui.tree_pop()
+end
+
+function M.draw_menu(self)
+    local font_pushed = self.font and self.font:push() or false
+    local ok, error_message = pcall(M.draw_menu_content, self)
+    if self.font then self.font:pop(font_pushed) end
+    if not ok then error(error_message) end
 end
 
 function M.shutdown(self)

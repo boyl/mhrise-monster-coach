@@ -70,6 +70,7 @@ Mod 检测到联机任务后会禁用时间控制、生命修改、位置重置�
 - `reframework/data/MHRiseMonsterCoach/tigrex_calibration.json`：实际观察到的状态、引擎名称、时间线和转换计数。
 - `reframework/data/MHRiseMonsterCoach/runtime_action_param_probe.json`：只包含 `EnemyActionParam` 类型成员名称与最终白名单选择，用于自动诊断 ActionNo 桥接；不包含游戏资产。
 - `reframework/data/MHRiseMonsterCoach/runtime_action_state.json`：只读诊断模式下在 ActionNo 或 Category 改变时更新，保存最近 256 个 ActionNo、ActionCategory 和同帧 Motion 名称，开发侧可直接读取而无需玩家录屏或手工导出。
+- `tools/analyze_runtime_evidence.py`：直接汇总上述自动证据中的攻击 Action、Motion 聚类和相邻攻击边；用于把每轮实机样本并入分析，不要求玩家逐条观察或手工导出。
 
 设置界面的 `Reload static AI data` 可在任务内重新载入 `tigrex_static_ai.json`。招式名称、提示和静态派生数据更新后不需要退出游戏；只有修改底层 Lua 读取器、生命周期或 Hook 时才要求完整重启。
 

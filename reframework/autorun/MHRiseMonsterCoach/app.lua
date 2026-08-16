@@ -4,6 +4,7 @@ local Runtime = require("MHRiseMonsterCoach.runtime")
 local View = require("MHRiseMonsterCoach.view")
 local Controller = require("MHRiseMonsterCoach.controller")
 local Profile = require("MHRiseMonsterCoach.profile_tigrex")
+local Font = require("MHRiseMonsterCoach.font")
 
 local M = {}
 
@@ -11,8 +12,9 @@ function M.start()
     local config, calibration, static_ai = Config.load()
     local model = Model.new(Profile, calibration, config, static_ai)
     local runtime = Runtime.new(config, Profile)
-    local view = View.new(config)
-    local controller = Controller.new(model, runtime, view, config, Config)
+    local font = Font.new()
+    local view = View.new(config, font)
+    local controller = Controller.new(model, runtime, view, config, Config, font)
 
     local order_hooked, order_error = runtime:install_quest_list_order_hook({ Profile.training_quest.id })
     if not order_hooked then
@@ -32,7 +34,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.5.0-readable-moves-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.5.1-cjk-font-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
