@@ -1,6 +1,7 @@
 package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. package.path
 
-json = { dump_file = function() end }
+local dumped = {}
+json = { dump_file = function(path, value) dumped[path] = value end }
 
 local ActionReader = require("MHRiseMonsterCoach.action_reader")
 
@@ -172,11 +173,13 @@ sdk.find_type_definition = function(name)
     if name == "snow.enemy.EnemyActionParam" then return method_param_type end
     return nil
 end
-local method_reader = ActionReader.new({ action_reader = { kind = "auto", name = "" } })
+local method_reader = ActionReader.new({ diagnostic_safe_mode = true, action_reader = { kind = "auto", name = "" } })
 local method_action, method_metadata = method_reader:read(nested_enemy)
 assert(method_action == "6", "reads ActionNo getter through EnemyActionParam")
 assert(method_metadata.action_no == 6 and method_metadata.action_category == 4, "captures Action category metadata")
 assert(method_metadata.motion_name == "em032_attack_41", "enriches ActionNo with simultaneous Motion metadata")
+assert(dumped["MHRiseMonsterCoach/runtime_action_state.json"].schema_version == 2, "writes versioned automatic evidence")
+assert(#dumped["MHRiseMonsterCoach/runtime_action_state.json"].history == 1, "automatic evidence starts bounded history")
 assert(method_reader:read(nested_enemy) == "10", "nested ActionNo getter observes transition")
 assert(method_reader:description().kind == "action_param_method", "nested getter is identified")
 

@@ -74,11 +74,16 @@ function M.load()
     if type(calibration.moves) ~= "table" then calibration.moves = {} end
     if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
 
+    local static_ai = M.load_static_ai()
+
+    return config, calibration, static_ai
+end
+
+function M.load_static_ai()
     local static_ai = json.load_file(STATIC_AI_PATH)
     if type(static_ai) ~= "table" then static_ai = { actions = {} } end
     if type(static_ai.actions) ~= "table" then static_ai.actions = {} end
-
-    return config, calibration, static_ai
+    return static_ai
 end
 
 function M.save(config)

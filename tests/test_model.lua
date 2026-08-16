@@ -88,6 +88,8 @@ local wrong_category = Model.new(static_profile, { moves = {}, scenarios = {} },
 wrong_category:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
 wrong_category:observe_action("15", 1, { action_category = 3 })
 equal(wrong_category.prediction, nil, "static attack graph is gated by ActionCategory")
+truthy(static_model:reload_static_ai({ required_action_category = 4, actions = {} }), "static AI data reload succeeds")
+equal(static_model.prediction, nil, "static AI reload refreshes current prediction")
 
 model:observe_damage(12.5)
 model:observe_action("11", 2)

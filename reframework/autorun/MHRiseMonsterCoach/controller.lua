@@ -221,6 +221,15 @@ function M.draw_menu(self)
         self.config_module.write_calibration(self.model:export_calibration(self.runtime.reader:description()))
         self.model:reset_round("Calibration evidence exported")
     end
+    imgui.same_line()
+    if imgui.button("Reload static AI data") then
+        local loaded = self.config_module.load_static_ai()
+        if self.model:reload_static_ai(loaded) then
+            self.model.status = "Static AI data reloaded"
+        else
+            self.model:fail("Static AI data is invalid")
+        end
+    end
 
     if #self.model.scenarios == 0 then
         ui_text_wrapped("Forced moves are locked until a verified Tigrex Action map and safe request method are captured on this game build.")

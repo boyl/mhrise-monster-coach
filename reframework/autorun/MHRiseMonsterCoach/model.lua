@@ -198,6 +198,18 @@ local function static_prediction(self, action, metadata)
     }
 end
 
+function M.reload_static_ai(self, static_ai)
+    if type(static_ai) ~= "table" or type(static_ai.actions) ~= "table" then return false end
+    self.static_ai = static_ai
+    if self.current_action ~= nil then
+        local metadata = self.state_metadata[self.current_action]
+        self.prediction = profile_prediction(self, self.current_move)
+            or static_prediction(self, self.current_action, metadata)
+            or learned_prediction(self, self.current_action)
+    end
+    return true
+end
+
 local function record_transition(self, from_action, to_action)
     if from_action == nil or to_action == nil or from_action == to_action then return end
     local key = tostring(from_action)

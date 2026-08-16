@@ -110,7 +110,8 @@ function M.new(config)
         active = nil,
         samples = 0,
         last_metadata = nil,
-        last_snapshot_action = nil,
+        last_snapshot_key = nil,
+        evidence_history = {},
     }, { __index = M })
 end
 
@@ -309,7 +310,7 @@ function M.discover(self, enemy)
     self.active = nil
     self.samples = 0
     self.last_metadata = nil
-    self.last_snapshot_action = nil
+    self.last_snapshot_key = nil
 
     local requested = self.config.action_reader
     if requested.kind == "method" and requested.name ~= "" then
@@ -438,17 +439,25 @@ function M.read(self, enemy)
         metadata = merged
     end
     self.last_metadata = metadata
+    local snapshot_key = tostring(metadata and metadata.action_category or "?") .. ":" .. tostring(self.active.last)
     if self.config.diagnostic_safe_mode == true
         and self.active.kind ~= "motion"
-        and self.last_snapshot_action ~= self.active.last then
-        self.last_snapshot_action = self.active.last
+        and self.last_snapshot_key ~= snapshot_key then
+        self.last_snapshot_key = snapshot_key
+        local entry = {
+            action = self.active.last,
+            metadata = metadata,
+            observed_changes = self.active.changes,
+            captured_at = safe_call(function() return os.clock() end),
+        }
+        self.evidence_history[#self.evidence_history + 1] = entry
+        if #self.evidence_history > 256 then table.remove(self.evidence_history, 1) end
         safe_call(function()
             json.dump_file(ACTION_STATE_PATH, {
-                schema_version = 1,
+                schema_version = 2,
                 reader = { kind = self.active.kind, name = self.active.name },
-                action = self.active.last,
-                metadata = metadata,
-                observed_changes = self.active.changes,
+                latest = entry,
+                history = self.evidence_history,
             })
         end)
     end
