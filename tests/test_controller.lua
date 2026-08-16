@@ -59,4 +59,21 @@ controller:guard("same_failure", same_failure)
 controller:guard("same_failure", same_failure)
 assert(logged_errors == 1, "identical callback errors are logged once")
 
+local writes = 0
+local health_values = { 100, 80 }
+local health_index = 0
+model.observe_damage = function(_, amount) assert(amount == 20) return true end
+model.export_calibration = function() return { observed_hit_timing = {} } end
+runtime.read_player_health = function()
+    health_index = health_index + 1
+    return health_values[health_index]
+end
+runtime.reader = { description = function() return { kind = "test" } end }
+local config_module = { write_calibration = function() writes = writes + 1 end }
+controller.config_module = config_module
+config.diagnostic_safe_mode = true
+controller:update_health()
+controller:update_health()
+assert(writes == 1, "safe mode passively persists hit timing evidence")
+
 print("test_controller.lua: PASS")

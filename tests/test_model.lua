@@ -144,17 +144,34 @@ readonly:set_context({
     outcome_tracking = false,
 })
 readonly:observe_action("10", 1.0)
-readonly:observe_action("99", 1.5, { motion_name = "em032_roar", end_frame = 60.0 })
+readonly:observe_action("99", 1.5, {
+    action_category = 4,
+    motion_name = "em032_roar",
+    bank_id = 91,
+    motion_id = 332,
+    current_frame = 30.0,
+    end_frame = 60.0,
+    motion_progress = 0.5,
+})
+truthy(readonly:observe_damage(18), "read-only damage observation records timing evidence")
+readonly.current_metadata.current_frame = 36.0
+readonly.current_metadata.motion_progress = 0.6
+truthy(readonly:observe_damage(12), "repeated hit expands the observed timing range")
 equal(readonly.current_move.name, "em032_roar", "engine motion name labels uncatalogued states")
 equal(readonly.state_changes, 1, "read-only transitions are counted")
 equal(readonly.rounds, 0, "read-only transitions do not invent completed rounds")
 equal(readonly.successes, 0, "read-only transitions do not invent successful outcomes")
 equal(readonly.history[2].previous_duration, 0.5, "read-only timeline records state duration")
 local evidence = readonly:export_calibration({ kind = "motion", name = "test" })
-equal(evidence.schema_version, 3, "named timeline export uses schema version 3")
+equal(evidence.schema_version, 4, "hit timing export uses schema version 4")
 equal(#evidence.observed_history, 2, "timeline export includes chronological history")
 equal(evidence.outcome_tracking, false, "timeline export declares unavailable outcomes")
-equal(evidence.observed_state_metadata["99"].motion_name, "em032_roar", "timeline exports engine motion metadata")
+equal(evidence.observed_state_metadata["4:99"].motion_name, "em032_roar", "timeline exports engine motion metadata")
+local hit_timing = evidence.observed_hit_timing["4:99"]
+equal(hit_timing.samples, 2, "hit timing aggregates samples without manual annotation")
+equal(hit_timing.min_hit_frame, 30, "hit timing keeps earliest observed frame")
+equal(hit_timing.max_hit_progress, 0.6, "hit timing keeps latest observed progress")
+equal(hit_timing.total_damage, 30, "hit timing retains total observed damage")
 
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.current_action, nil, "leaving quest clears current action")

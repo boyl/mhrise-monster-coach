@@ -68,14 +68,17 @@ end
 function M.update_health(self)
     local health = self.runtime:read_player_health()
     if type(health) == "number" and type(self.last_health) == "number" and health < self.last_health then
-        self.model:observe_damage(self.last_health - health)
+        if self.model:observe_damage(self.last_health - health) then
+            self.config_module.write_calibration(self.model:export_calibration(self.runtime.reader:description()))
+        end
     end
     self.last_health = health
 
-    if self.config.safety_health_lock and self.model.context.in_quest and not self.model.context.is_online then
+    if not self.config.diagnostic_safe_mode and self.config.safety_health_lock
+        and self.model.context.in_quest and not self.model.context.is_online then
         self.runtime:restore_player_resources()
     end
-    if self.config.protect_monster_health and self.frame_counter % 6 == 0
+    if not self.config.diagnostic_safe_mode and self.config.protect_monster_health and self.frame_counter % 6 == 0
         and self.model.context.in_quest and not self.model.context.is_online then
         self.runtime:restore_monster_health()
     end
@@ -128,7 +131,7 @@ function M.update(self)
     M.update_slowmo(self)
     M.capture_anchors(self)
     M.quick_reset(self)
-    if not self.config.diagnostic_safe_mode and self.model.context.in_quest and self.model.context.build_supported ~= false
+    if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.update_health(self) end
 end
 

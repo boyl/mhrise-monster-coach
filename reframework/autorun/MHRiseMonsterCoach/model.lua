@@ -52,6 +52,7 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         history = {},
         state_metadata = {},
         state_metadata_count = 0,
+        hit_timing_evidence = {},
         unknown_actions = {},
         unknown_action_count = 0,
         learned_actions = 0,
@@ -377,8 +378,43 @@ end
 
 function M.observe_damage(self, amount)
     if type(amount) == "number" and amount > 0 and self.current_action ~= nil then
-        self.round_damage = self.round_damage + amount
+        if self.context.outcome_tracking == true then
+            self.round_damage = self.round_damage + amount
+        end
+        local metadata = self.current_metadata or {}
+        local frame = tonumber(metadata.current_frame)
+        local end_frame = tonumber(metadata.end_frame)
+        local progress = tonumber(metadata.motion_progress)
+        if progress == nil and frame and end_frame and end_frame > 0 then
+            progress = math.max(0, math.min(1, frame / end_frame))
+        end
+        local key = tostring(self.current_state_key or self.current_action)
+        local row = self.hit_timing_evidence[key]
+        if row == nil then
+            row = {
+                action = tostring(self.current_action),
+                state_key = key,
+                motion_name = metadata.motion_name,
+                bank_id = metadata.bank_id,
+                motion_id = metadata.motion_id,
+                samples = 0,
+                total_damage = 0,
+            }
+            self.hit_timing_evidence[key] = row
+        end
+        row.samples = row.samples + 1
+        row.total_damage = row.total_damage + amount
+        if frame then
+            row.min_hit_frame = row.min_hit_frame and math.min(row.min_hit_frame, frame) or frame
+            row.max_hit_frame = row.max_hit_frame and math.max(row.max_hit_frame, frame) or frame
+        end
+        if progress then
+            row.min_hit_progress = row.min_hit_progress and math.min(row.min_hit_progress, progress) or progress
+            row.max_hit_progress = row.max_hit_progress and math.max(row.max_hit_progress, progress) or progress
+        end
+        return true
     end
+    return false
 end
 
 function M.reset_round(self, reason)
@@ -398,7 +434,7 @@ function M.export_calibration(self, reader)
     for action in pairs(self.unknown_actions) do unknown[#unknown + 1] = action end
     table.sort(unknown)
     return {
-        schema_version = 3,
+        schema_version = 4,
         profile = self.profile.id,
         reader = reader,
         moves = self.moves,
@@ -407,6 +443,7 @@ function M.export_calibration(self, reader)
         observed_transitions = self.transitions,
         observed_history = self.history,
         observed_state_metadata = self.state_metadata,
+        observed_hit_timing = self.hit_timing_evidence,
         state_changes = self.state_changes,
         outcome_tracking = self.context.outcome_tracking == true,
     }
