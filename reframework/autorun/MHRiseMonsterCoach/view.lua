@@ -64,7 +64,7 @@ function M.draw(self, model, runtime, slowmo_active)
 
     if self.config.show_move and model.current_move then
         lines[#lines + 1] = { "Move: " .. truncate(model.current_move.name, 74), COLORS.text }
-        lines[#lines + 1] = { string.format("Action: %s  |  Round %d  |  Streak %d", model.current_action, model.rounds + 1, model.streak), COLORS.muted }
+        lines[#lines + 1] = { string.format("State key: %s  |  Round %d  |  Streak %d", model.current_action, model.rounds + 1, model.streak), COLORS.muted }
     end
     if self.config.show_prediction and model.current_action then
         lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text }

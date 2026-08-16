@@ -76,6 +76,29 @@ local function add_field_candidate(self, type_def, name)
     }
 end
 
+local function add_motion_candidate(self, enemy)
+    local motion_type = safe_call(function() return sdk.typeof("via.motion.Motion") end)
+    if motion_type == nil then return end
+    local game_object = safe_call(function() return enemy:call("get_GameObject") end)
+    if game_object == nil then return end
+    local motion = safe_call(function()
+        return game_object:call("getComponent(System.Type)", motion_type)
+    end)
+    if motion == nil then return end
+    local layer = safe_call(function() return motion:call("getLayer(System.UInt32)", 0) end)
+    if layer == nil then layer = safe_call(function() return motion:call("getLayer", 0) end) end
+    if layer == nil then return end
+
+    self.candidates[#self.candidates + 1] = {
+        kind = "motion",
+        name = "via.motion.Motion layer 0",
+        member = layer,
+        values = {},
+        changes = 0,
+        last = nil,
+    }
+end
+
 function M.discover(self, enemy)
     if enemy == nil then return false end
     local type_def = enemy:get_type_definition()
@@ -95,12 +118,19 @@ function M.discover(self, enemy)
     else
         for _, name in ipairs(SAFE_METHOD_NAMES) do add_method_candidate(self, type_def, name) end
         for _, name in ipairs(SAFE_FIELD_NAMES) do add_field_candidate(self, type_def, name) end
+        if #self.candidates == 0 then add_motion_candidate(self, enemy) end
     end
 
     return #self.candidates > 0
 end
 
 local function read_candidate(candidate, enemy)
+    if candidate.kind == "motion" then
+        local bank = safe_call(function() return candidate.member:call("get_MotionBankID") end)
+        local motion = safe_call(function() return candidate.member:call("get_MotionID") end)
+        if bank == nil or motion == nil then return nil end
+        return tostring(bank) .. ":" .. tostring(motion)
+    end
     if candidate.kind == "method" then
         return safe_call(function() return candidate.member:call(enemy) end)
     end
