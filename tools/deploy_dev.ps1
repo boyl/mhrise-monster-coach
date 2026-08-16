@@ -68,11 +68,13 @@ $files = @(
     'autorun\MHRiseMonsterCoach\font.lua',
     'autorun\MHRiseMonsterCoach\model.lua',
     'autorun\MHRiseMonsterCoach\player_state_reader.lua',
+    'autorun\MHRiseMonsterCoach\response_long_sword.lua',
     'autorun\MHRiseMonsterCoach\profile_tigrex.lua',
     'autorun\MHRiseMonsterCoach\quest_list_order.lua',
     'autorun\MHRiseMonsterCoach\runtime.lua',
     'autorun\MHRiseMonsterCoach\view.lua',
     'data\MHRiseMonsterCoach\tigrex_static_ai.json',
+    'data\MHRiseMonsterCoach\long_sword_knowledge.json',
     'quests\q200032001.json'
 )
 

@@ -6,6 +6,8 @@ $script = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\tools\deploy_dev
 $required = @(
     "'autorun\MHRiseMonsterCoach\font.lua'",
     "'autorun\MHRiseMonsterCoach\player_state_reader.lua'",
+    "'autorun\MHRiseMonsterCoach\response_long_sword.lua'",
+    "'data\MHRiseMonsterCoach\long_sword_knowledge.json'",
     "'data\MHRiseMonsterCoach\tigrex_static_ai.json'",
     "'quests\q200032001.json'"
 )

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "weapon": "long_sword",
+  "language": "zh-CN",
+  "sources": [
+    {
+      "name": "Monster Hunter Rise: Sunbreak Official Web Manual",
+      "url": "https://game.capcom.com/manual/Multi-Platform/en/xone/page/10/2",
+      "scope": "交换技书规则"
+    },
+    {
+      "name": "Kiranico - Switch Skills",
+      "url": "https://mhrise.kiranico.com/data/switch-actions",
+      "scope": "太刀交换技名称、说明、输入与翔虫消耗"
+    },
+    {
+      "name": "MHRice extracted data",
+      "url": "https://d2d662ws3kt2jd.cloudfront.net/about.html",
+      "scope": "游戏提取数据及版本校验来源"
+    }
+  ],
+  "actions": {
+    "foresight_slash": { "name": "见切斩", "kind": "counter", "runtime_required": ["cancelable", "spirit_gauge"] },
+    "special_sheathe_combo": { "name": "特殊纳刀连段", "kind": "switch_skill" },
+    "iai_spirit_slash": { "name": "居合拔刀气刃斩", "kind": "counter", "requires_switch_skill": "special_sheathe_combo" },
+    "sacred_sheathe_combo": { "name": "神威居合连段", "kind": "switch_skill" },
+    "sacred_sheathe": { "name": "神威居合", "kind": "counter", "requires_switch_skill": "sacred_sheathe_combo" },
+    "soaring_kick": { "name": "飞翔踢", "kind": "switch_skill", "wirebug_cost": 1 },
+    "spirit_helmbreaker": { "name": "气刃兜割", "kind": "punish", "requires_switch_skill": "soaring_kick" },
+    "silkbind_sakura_slash": { "name": "樱花铁虫气刃斩", "kind": "switch_skill", "wirebug_cost": 1 },
+    "evade": { "name": "回避", "kind": "defense" }
+  }
+}
