@@ -175,6 +175,9 @@ function M.draw_menu(self)
     imgui.text("Reader: " .. tostring(reader and reader.name or "not calibrated"))
     if reader then imgui.text("Observed Action changes: " .. tostring(reader.changes or 0)) end
     if reader and reader.motion_name then ui_text_wrapped("Engine Motion: " .. reader.motion_name) end
+    if reader and reader.action_no then
+        ui_text_wrapped(string.format("Action parameter: category %s / no %s", tostring(reader.action_category), tostring(reader.action_no)))
+    end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
     if self.model.context.outcome_tracking then
         imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))

@@ -40,6 +40,7 @@ app (composition root)
 
 - 每帧只查询当前状态，不扫描 MotionBank，也不枚举类型成员。
 - `observed_state_metadata` 保存状态键到 Motion 名称、Bank/ID 和结束帧的映射；`observed_history` 保存有界的时序与持续时间；`observed_transitions` 保存聚合派生。
+- `EnemyActionParam.get_ActionNo()` 是 TDB 71 实机确认的主状态键；同时读取 `get_ActionCategory()` 作为元数据，后续只有攻击类别才能匹配静态攻击图。候选变化频率不得覆盖该语义优先级。
 - 首次实机采样用于验证引擎名称质量。确认有效后，再基于名称、连续时间线和重复派生自动聚类候选招式；玩家只确认少量中文语义，不采集视频证据。
 - 自动名称查询失败时退化为原始状态键和时间线，不中断实时观察。
 

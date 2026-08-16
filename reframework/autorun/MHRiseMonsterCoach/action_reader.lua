@@ -67,6 +67,16 @@ local function value_key(value)
     return tostring(value)
 end
 
+local function semantic_priority(name)
+    local lower = string.lower(name or "")
+    if string.find(lower, "actionno", 1, true) then return 100 end
+    if string.find(lower, "actionid", 1, true) then return 90 end
+    if string.find(lower, "actioncategory", 1, true) then return 50 end
+    if string.find(lower, "category", 1, true) then return 40 end
+    if string.find(lower, "actioncode", 1, true) then return 10 end
+    return 0
+end
+
 local function find_member_in_hierarchy(type_def, lookup, name)
     local current = type_def
     local visited = {}
@@ -118,7 +128,9 @@ local function add_method_candidate(self, type_def, name)
     self.candidates[#self.candidates + 1] = {
         kind = "method",
         name = name,
+        priority = semantic_priority(name),
         member = method,
+        metadata = {},
         values = {},
         changes = 0,
         last = nil,
@@ -131,7 +143,9 @@ local function add_field_candidate(self, type_def, name)
     self.candidates[#self.candidates + 1] = {
         kind = "field",
         name = name,
+        priority = semantic_priority(name),
         member = field,
+        metadata = {},
         values = {},
         changes = 0,
         last = nil,
@@ -182,8 +196,10 @@ local function add_action_param_candidates(self, enemy_type)
                     kind = "action_param_field",
                     name = "get_ActionParam()." .. name,
                     field_name = name,
+                    priority = semantic_priority(name),
                     accessor = accessor,
                     member = field,
+                    metadata = {},
                     values = {},
                     changes = 0,
                     last = nil,
@@ -209,8 +225,10 @@ local function add_action_param_candidates(self, enemy_type)
                         kind = "action_param_method",
                         name = "get_ActionParam()." .. name .. "()",
                         field_name = name,
+                        priority = semantic_priority(name),
                         accessor = accessor,
                         member = method,
+                        metadata = {},
                         values = {},
                         changes = 0,
                         last = nil,
@@ -222,12 +240,21 @@ local function add_action_param_candidates(self, enemy_type)
         depth = depth + 1
     end
     table.sort(discovered, function(a, b)
-        local a_category = string.find(string.lower(a.field_name), "category", 1, true) ~= nil
-        local b_category = string.find(string.lower(b.field_name), "category", 1, true) ~= nil
-        if a_category ~= b_category then return not a_category end
+        if a.priority ~= b.priority then return a.priority > b.priority end
         return a.field_name < b.field_name
     end)
+    local category_candidate = nil
     for _, candidate in ipairs(discovered) do
+        if candidate.priority == 50 or candidate.priority == 40 then
+            category_candidate = candidate
+            break
+        end
+    end
+    for _, candidate in ipairs(discovered) do
+        if candidate.priority == 100 and category_candidate ~= nil then
+            candidate.category_kind = category_candidate.kind
+            candidate.category_member = category_candidate.member
+        end
         self.candidates[#self.candidates + 1] = candidate
         probe.selected[#probe.selected + 1] = candidate.name
     end
@@ -260,6 +287,7 @@ local function add_motion_candidate(self, enemy)
         motion = motion,
         motion_info = motion_info,
         metadata = {},
+        priority = -1,
         values = {},
         changes = 0,
         last = nil,
@@ -332,10 +360,24 @@ local function read_candidate(candidate, enemy, shared)
             shared.action_param_unread = false
         end
         if shared.action_param == nil then return nil end
+        local raw_value = nil
         if candidate.kind == "action_param_method" then
-            return safe_call(function() return candidate.member:call(shared.action_param) end)
+            raw_value = safe_call(function() return candidate.member:call(shared.action_param) end)
+        else
+            raw_value = safe_call(function() return candidate.member:get_data(shared.action_param) end)
         end
-        return safe_call(function() return candidate.member:get_data(shared.action_param) end)
+        if candidate.category_member == nil then return raw_value end
+        local category = nil
+        if candidate.category_kind == "action_param_method" then
+            category = safe_call(function() return candidate.category_member:call(shared.action_param) end)
+        else
+            category = safe_call(function() return candidate.category_member:get_data(shared.action_param) end)
+        end
+        return raw_value, {
+            action_no = tonumber(raw_value),
+            action_category = tonumber(category),
+            source = "EnemyActionParam",
+        }
     end
     return safe_call(function() return candidate.member:get_data(enemy) end)
 end
@@ -352,7 +394,10 @@ function M.read(self, enemy)
             candidate.values[value] = true
             if candidate.last ~= nil and candidate.last ~= value then candidate.changes = candidate.changes + 1 end
             candidate.last = value
-            if metadata ~= nil then candidate.metadata[value] = metadata end
+            if metadata ~= nil then
+                candidate.metadata = candidate.metadata or {}
+                candidate.metadata[value] = metadata
+            end
         end
     end
 
@@ -363,7 +408,11 @@ function M.read(self, enemy)
     end
     if self.samples >= 30 then
         for _, candidate in ipairs(self.candidates) do
-            if candidate.changes > 0 and (self.active == nil or candidate.changes > self.active.changes) then
+            local priority = candidate.priority or 0
+            local active_priority = self.active and (self.active.priority or 0) or -1
+            if candidate.changes > 0 and (self.active == nil
+                or priority > active_priority
+                or (priority == active_priority and candidate.changes > self.active.changes)) then
                 self.active = candidate
             end
         end
@@ -385,6 +434,8 @@ function M.description(self)
         name = self.active.name,
         changes = self.active.changes,
         motion_name = metadata and metadata.motion_name or nil,
+        action_no = metadata and metadata.action_no or nil,
+        action_category = metadata and metadata.action_category or nil,
     }
 end
 

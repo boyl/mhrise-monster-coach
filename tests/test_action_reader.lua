@@ -150,11 +150,19 @@ local action_no_method = {
         return action_param_method_values[action_param_method_index]
     end,
 }
+local action_category_method = {
+    get_name = function() return "get_ActionCategory" end,
+    get_num_params = function() return 0 end,
+    call = function() return 4 end,
+}
 local method_param_type = {
     get_full_name = function() return "snow.enemy.EnemyActionParam" end,
     get_fields = function() return {} end,
-    get_methods = function() return { action_no_method } end,
-    get_method = function(_, name) if name == "get_ActionNo" then return action_no_method end end,
+    get_methods = function() return { action_no_method, action_category_method } end,
+    get_method = function(_, name)
+        if name == "get_ActionNo" then return action_no_method end
+        if name == "get_ActionCategory" then return action_category_method end
+    end,
     get_parent_type = function() return nil end,
 }
 sdk.find_type_definition = function(name)
@@ -162,7 +170,9 @@ sdk.find_type_definition = function(name)
     return nil
 end
 local method_reader = ActionReader.new({ action_reader = { kind = "auto", name = "" } })
-assert(method_reader:read(nested_enemy) == "6", "reads ActionNo getter through EnemyActionParam")
+local method_action, method_metadata = method_reader:read(nested_enemy)
+assert(method_action == "6", "reads ActionNo getter through EnemyActionParam")
+assert(method_metadata.action_no == 6 and method_metadata.action_category == 4, "captures Action category metadata")
 assert(method_reader:read(nested_enemy) == "10", "nested ActionNo getter observes transition")
 assert(method_reader:description().kind == "action_param_method", "nested getter is identified")
 
