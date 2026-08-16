@@ -9,6 +9,12 @@ local function type_def(name, fields, methods, parent)
         get_fields = function() return fields or {} end,
         get_methods = function() return methods or {} end,
         get_parent_type = function() return parent end,
+        get_field = function(_, wanted)
+            for _, field in ipairs(fields or {}) do if field:get_name() == wanted then return field end end
+        end,
+        get_method = function(_, wanted)
+            for _, method in ipairs(methods or {}) do if method:get_name() == wanted then return method end end
+        end,
     }
 end
 
@@ -16,6 +22,7 @@ local number_type = type_def("System.Single")
 local weapon_field = {
     get_name = function() return "_WeaponType" end,
     get_type = function() return number_type end,
+    get_data = function() return 3 end,
 }
 local unrelated_field = {
     get_name = function() return "_Health" end,
@@ -26,12 +33,26 @@ local gauge_method = {
     get_num_params = function() return 0 end,
     get_return_type = function() return number_type end,
 }
+local wirebug_method = {
+    get_name = function() return "getUsableHunterWireNum" end,
+    get_num_params = function() return 0 end,
+    get_return_type = function() return number_type end,
+    call = function() return 2 end,
+}
+local weapon_drawn_method = {
+    get_name = function() return "isWeaponOn" end,
+    get_num_params = function() return 0 end,
+    get_return_type = function() return number_type end,
+    call = function() return true end,
+}
 local unsafe_method = {
     get_name = function() return "set_SpiritGauge" end,
     get_num_params = function() return 1 end,
     get_return_type = function() return number_type end,
 }
-local player_type = type_def("snow.player.LongSwordPlayer", { weapon_field, unrelated_field }, { gauge_method, unsafe_method })
+local player_type = type_def("snow.player.LongSwordPlayer", { weapon_field, unrelated_field }, {
+    gauge_method, wirebug_method, weapon_drawn_method, unsafe_method,
+})
 local data_type = type_def("snow.player.PlayerData", {}, {})
 local player = { get_type_definition = function() return player_type end }
 local player_data = { get_type_definition = function() return data_type end }
@@ -39,11 +60,14 @@ local player_data = { get_type_definition = function() return data_type end }
 local Reader = require("MHRiseMonsterCoach.player_state_reader")
 local reader = Reader.new("mhrise", 71)
 assert(reader:capture(player, player_data), "first player capture writes metadata probe")
-assert(not reader:capture(player, player_data), "repeated capture is idempotent")
+assert(not reader:capture(player, player_data), "same object types do not rewrite metadata")
 local probe = dumped["MHRiseMonsterCoach/runtime_player_state_probe.json"]
-assert(probe.policy == "metadata_only_no_unknown_method_calls")
+assert(probe.policy == "metadata_only_plus_exact_whitelisted_getters")
 assert(#probe.objects.player.fields == 1 and probe.objects.player.fields[1].name == "_WeaponType")
-assert(#probe.objects.player.methods == 1 and probe.objects.player.methods[1].name == "get_SpiritGauge")
+assert(#probe.objects.player.methods == 3)
+local state = dumped["MHRiseMonsterCoach/runtime_player_combat_state.json"]
+assert(state.weapon_type_raw == nil, "only the exact runtime field name is read")
+assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)
 
 print("test_player_state_reader.lua: PASS")
