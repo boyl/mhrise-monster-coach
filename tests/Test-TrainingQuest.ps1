@@ -9,8 +9,10 @@ function Assert-Equal($Actual, $Expected, [string]$Message) {
 }
 
 Assert-Equal $quest.QuestID 200032001 'Quest ID 必须独立且稳定'
+Assert-Equal $quest.QuestData.QuestLevel 3 '任务必须保留在大师等级 4★'
 Assert-Equal $quest.QuestData.Map 14 '地图必须为塔之秘境'
 Assert-Equal $quest.QuestData.EnemyLevel 3 '怪物等级必须为大师等级'
+Assert-Equal $quest.QuestData.QuestConditions[0] 19 '接取条件必须保持大师等级 4★'
 Assert-Equal $quest.QuestData.TargetMonsters[0] 32 '目标必须为轰龙'
 Assert-Equal $quest.QuestData.Monsters[0].Id 32 '首个生成怪物必须为轰龙'
 Assert-Equal $quest.QuestData.ExtraMonsterCount 0 '不得生成额外大型怪物'
