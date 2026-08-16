@@ -176,6 +176,7 @@ function M.draw_menu_content(self)
     changed = checkbox("Show move / 显示招式", self.config, "show_move") or changed
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("Show response / 显示应对", self.config, "show_advice") or changed
+    changed = checkbox("Controller shortcuts (experimental, may conflict)", self.config.controller_input, "enabled") or changed
     changed = checkbox("Player safety lock (offline only)", self.config, "safety_health_lock") or changed
     changed = checkbox("Protect monster HP (offline only)", self.config, "protect_monster_health") or changed
 
@@ -204,7 +205,8 @@ function M.draw_menu_content(self)
     if player_probe.player_type then ui_text_wrapped("Player type: " .. tostring(player_probe.player_type)) end
     if self.input then
         local input = self.input:description()
-        ui_text_wrapped(string.format("Controller input: %s | active %s",
+        ui_text_wrapped(string.format("Controller shortcuts: %s | runtime %s | active %s",
+            input.enabled and "enabled" or "disabled",
             input.available and "ready" or "unavailable", tostring(input.device)))
     end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))

@@ -27,7 +27,7 @@ local DEFAULTS = {
         capture_anchor = 0x77, -- F8
     },
     controller_input = {
-        enabled = true,
+        enabled = false,
         long_hold_seconds = 0.75,
     },
     action_reader = {

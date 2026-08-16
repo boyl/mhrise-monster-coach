@@ -26,7 +26,7 @@ function M.new(config)
     local left_stick, left_stick_name = first_enum_value(button_type, { "LStickPush", "LStick", "LS" })
     local right_stick, right_stick_name = first_enum_value(button_type, { "RStickPush", "RStick", "RS" })
     return setmetatable({
-        enabled = config.enabled ~= false,
+        config = config,
         hold_seconds = tonumber(config.long_hold_seconds) or 0.75,
         singleton = gamepad,
         singleton_type = gamepad_type,
@@ -64,7 +64,8 @@ local function is_down(device, button)
 end
 
 function M.poll(self, current_time)
-    local available = self.enabled and self.singleton ~= nil and self.singleton_type ~= nil
+    local enabled = self.config.enabled == true
+    local available = enabled and self.singleton ~= nil and self.singleton_type ~= nil
         and self.buttons.left_shoulder ~= nil and self.buttons.right_shoulder ~= nil
         and self.buttons.left_stick ~= nil and self.buttons.right_stick ~= nil
     local state = {
@@ -109,6 +110,7 @@ end
 
 function M.description(self)
     return {
+        enabled = self.config.enabled == true,
         available = self.last_state and self.last_state.available or false,
         device = self.active_device,
         slowmo_chord = "LB+RB / L1+R1",

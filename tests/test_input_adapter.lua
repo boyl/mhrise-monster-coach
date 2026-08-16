@@ -27,7 +27,8 @@ sdk = {
 }
 
 local Input = require("MHRiseMonsterCoach.input_adapter")
-local input = Input.new({ enabled = true, long_hold_seconds = 0.75 })
+local adapter_config = { enabled = true, long_hold_seconds = 0.75 }
+local input = Input.new(adapter_config)
 local state = input:poll(0)
 assert(state.available and state.device == "keyboard")
 
@@ -57,5 +58,7 @@ assert(not state.capture_pressed, "long chord release never fires short action")
 
 input:mark_keyboard()
 assert(input:description().device == "keyboard")
+adapter_config.enabled = false
+assert(not input:poll(4.0).available, "controller shortcuts can be disabled without reloading")
 
 print("test_input_adapter.lua: PASS")
