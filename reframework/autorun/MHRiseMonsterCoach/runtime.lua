@@ -38,6 +38,11 @@ function M.new(config, profile)
         last_context = nil,
         last_player_health = nil,
         was_in_quest = false,
+        pending_quest_list = nil,
+        pending_quest_order_ids = nil,
+        pending_quest_order_attempts = 0,
+        pending_quest_order_logged = false,
+        quest_order_warned = false,
         game_name = safe(function() return reframework:get_game_name() end),
         tdb_version = safe(function() return sdk.get_tdb_version() end),
         capabilities = {},
@@ -155,29 +160,17 @@ function M.install_quest_list_order_hook(self, quest_ids)
     local make_list = find_method("snow.QuestManager", "makeQuestNoList")
     if make_list == nil then return false, "QuestManager.makeQuestNoList unavailable" end
 
-    local warned = false
     local installed, install_error = pcall(function()
         sdk.hook(make_list, function() end, function(retval)
-            local reordered, reorder_error = pcall(function()
-                local managed_list = sdk.to_managed_object(retval)
-                if managed_list == nil then error("Quest list return value unavailable") end
-                local adapter = {
-                    contains = function(_, id)
-                        return managed_list:call("Contains(System.Int32)", id) == true
-                    end,
-                    remove = function(_, id)
-                        return managed_list:call("Remove(System.Int32)", id) == true
-                    end,
-                    add = function(_, id)
-                        managed_list:call("Add(System.Int32)", id)
-                    end,
-                }
-                local _, order_error = QuestListOrder.move_registered_to_end(adapter, quest_ids)
-                if order_error then error(order_error) end
-            end)
-            if not reordered and not warned then
-                warned = true
-                log.warn("[MHRiseMonsterCoach] Quest list ordering unavailable: " .. tostring(reorder_error))
+            local managed_list = sdk.to_managed_object(retval)
+            if managed_list ~= nil then
+                self.pending_quest_list = managed_list
+                self.pending_quest_order_ids = quest_ids
+                self.pending_quest_order_attempts = 3
+                self.pending_quest_order_logged = false
+            elseif not self.quest_order_warned then
+                self.quest_order_warned = true
+                log.warn("[MHRiseMonsterCoach] Quest list return value unavailable")
             end
             return retval
         end)
@@ -186,6 +179,42 @@ function M.install_quest_list_order_hook(self, quest_ids)
         return false, "Failed to install quest list ordering: " .. tostring(install_error)
     end
     return true
+end
+
+function M.flush_quest_list_order(self)
+    if self.pending_quest_list == nil or self.pending_quest_order_attempts <= 0 then return end
+
+    local reordered, result = pcall(function()
+        local managed_list = self.pending_quest_list
+        local adapter = {
+            contains = function(_, id)
+                return managed_list:call("Contains(System.Int32)", id) == true
+            end,
+            remove = function(_, id)
+                return managed_list:call("Remove(System.Int32)", id) == true
+            end,
+            add = function(_, id)
+                managed_list:call("Add(System.Int32)", id)
+            end,
+        }
+        local moved, order_error = QuestListOrder.move_registered_to_end(adapter, self.pending_quest_order_ids)
+        if order_error then error(order_error) end
+        return moved
+    end)
+
+    self.pending_quest_order_attempts = self.pending_quest_order_attempts - 1
+    if reordered and result > 0 and not self.pending_quest_order_logged then
+        self.pending_quest_order_logged = true
+        log.info("[MHRiseMonsterCoach] Moved training quest block to the end of the custom quest list")
+    elseif not reordered and not self.quest_order_warned then
+        self.quest_order_warned = true
+        log.warn("[MHRiseMonsterCoach] Deferred quest list ordering unavailable: " .. tostring(result))
+    end
+
+    if self.pending_quest_order_attempts <= 0 then
+        self.pending_quest_list = nil
+        self.pending_quest_order_ids = nil
+    end
 end
 
 function M.refresh_player(self)

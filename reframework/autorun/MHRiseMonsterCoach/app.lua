@@ -27,6 +27,7 @@ function M.start()
     end
 
     re.on_pre_application_entry("UpdateBehavior", function()
+        runtime:flush_quest_list_order()
         controller:guard("update", function() controller:update() end)
     end)
     re.on_frame(function()
@@ -38,7 +39,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.2.1-order-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.2.2-order-deferred-candidate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
