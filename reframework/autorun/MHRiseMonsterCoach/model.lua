@@ -1,4 +1,5 @@
 local M = {}
+local LongSwordResponse = require("MHRiseMonsterCoach.response_long_sword")
 
 M.states = {
     INITIAL = "initial",
@@ -28,7 +29,7 @@ local function merge_profile(profile, calibration)
     return moves, scenarios
 end
 
-function M.new(profile, calibration, config, static_ai)
+function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
     local moves, scenarios = merge_profile(profile, calibration)
     return setmetatable({
         state = M.states.INITIAL,
@@ -37,6 +38,10 @@ function M.new(profile, calibration, config, static_ai)
         moves = moves,
         scenarios = scenarios,
         static_ai = static_ai or { actions = {} },
+        long_sword_knowledge = long_sword_knowledge or { actions = {} },
+        player_combat_state = nil,
+        response_candidates = {},
+        response_error = nil,
         current_action = nil,
         current_state_key = nil,
         current_move = nil,
@@ -60,6 +65,34 @@ function M.new(profile, calibration, config, static_ai)
         config = config,
         context = { in_quest = false, is_online = false, target_found = false },
     }, { __index = M })
+end
+
+local function monster_phase(self)
+    local move = self.current_move
+    if move and (move.phase == "startup" or move.phase == "active" or move.phase == "recovery") then
+        return move.phase
+    end
+    return "unknown"
+end
+
+function M.update_player_combat_state(self, state)
+    self.player_combat_state = state
+    if type(state) ~= "table" or self.current_action == nil then
+        self.response_candidates = {}
+        self.response_error = state == nil and "player_state_unavailable" or nil
+        return
+    end
+    local results, response_error = LongSwordResponse.evaluate({
+        state_key = self.current_state_key,
+        phase = monster_phase(self),
+    }, state)
+    local actions = self.long_sword_knowledge.actions or {}
+    for _, item in ipairs(results) do
+        local knowledge = actions[item.action]
+        item.name = knowledge and knowledge.name or item.action
+    end
+    self.response_candidates = results
+    self.response_error = response_error
 end
 
 function M.set_context(self, context)

@@ -78,6 +78,8 @@ assert(#probe.objects.player.methods == 4)
 local state = dumped["MHRiseMonsterCoach/runtime_player_combat_state.json"]
 assert(state.weapon_type_raw == 2, "exact runtime weapon field is read")
 assert(state.weapon_type == "long_sword", "raw value plus LS controller resolves stable semantic")
+assert(state.resources.usable_wirebugs == 2, "runtime resource is exposed through the semantic contract")
+assert(state.action_state.weapon_drawn == true, "action state retains the verified draw state")
 assert(state.usable_wirebugs == 2 and state.weapon_drawn == true)
 assert(reader:description().captured == true)
 

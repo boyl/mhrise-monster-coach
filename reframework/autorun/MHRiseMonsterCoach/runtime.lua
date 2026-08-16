@@ -246,6 +246,10 @@ function M.player_state_probe(self)
     return self.player_state_reader:description()
 end
 
+function M.player_combat_state(self)
+    return self.player_state_reader.state
+end
+
 function M.context(self)
     local quest = sdk.get_managed_singleton("snow.QuestManager")
     local lobby = sdk.get_managed_singleton("snow.LobbyManager")

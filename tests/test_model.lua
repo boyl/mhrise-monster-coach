@@ -42,6 +42,17 @@ local function truthy(value, message)
 end
 
 local model = Model.new(profile, { moves = {}, scenarios = {} }, config)
+model.current_action = "10"
+model.current_state_key = "0:10"
+model:update_player_combat_state({
+    weapon_type = "long_sword",
+    active_scroll = "unknown",
+    resources = { usable_wirebugs = 1 },
+    action_state = {},
+})
+assert(#model.response_candidates >= 1, "model evaluates weapon response candidates")
+assert(model.response_candidates[#model.response_candidates].action == "evade", "unknown loadout retains safe fallback")
+model.current_action = nil
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.state, Model.states.WAITING, "outside quest")
 

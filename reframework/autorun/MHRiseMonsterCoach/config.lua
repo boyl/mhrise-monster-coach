@@ -3,6 +3,7 @@ local M = {}
 local CONFIG_PATH = "MHRiseMonsterCoach/config.json"
 local CALIBRATION_PATH = "MHRiseMonsterCoach/tigrex_calibration.json"
 local STATIC_AI_PATH = "MHRiseMonsterCoach/tigrex_static_ai.json"
+local LONG_SWORD_KNOWLEDGE_PATH = "MHRiseMonsterCoach/long_sword_knowledge.json"
 
 local DEFAULTS = {
     schema_version = 1,
@@ -76,7 +77,11 @@ function M.load()
 
     local static_ai = M.load_static_ai()
 
-    return config, calibration, static_ai
+    local long_sword_knowledge = json.load_file(LONG_SWORD_KNOWLEDGE_PATH)
+    if type(long_sword_knowledge) ~= "table" then long_sword_knowledge = { actions = {} } end
+    if type(long_sword_knowledge.actions) ~= "table" then long_sword_knowledge.actions = {} end
+
+    return config, calibration, static_ai, long_sword_knowledge
 end
 
 function M.load_static_ai()

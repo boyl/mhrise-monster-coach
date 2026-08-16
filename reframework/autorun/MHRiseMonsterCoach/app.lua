@@ -9,8 +9,8 @@ local Font = require("MHRiseMonsterCoach.font")
 local M = {}
 
 function M.start()
-    local config, calibration, static_ai = Config.load()
-    local model = Model.new(Profile, calibration, config, static_ai)
+    local config, calibration, static_ai, long_sword_knowledge = Config.load()
+    local model = Model.new(Profile, calibration, config, static_ai, long_sword_knowledge)
     local runtime = Runtime.new(config, Profile)
     local font = Font.new()
     local view = View.new(config, font)

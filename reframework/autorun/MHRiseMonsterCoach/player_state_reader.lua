@@ -180,6 +180,8 @@ function M.capture(self, player, player_data)
             "long_sword_gauge", "long_sword_spirit_level", "quick_sheathe_level",
         },
     }
+    state.resources = { usable_wirebugs = state.usable_wirebugs }
+    state.action_state = { weapon_drawn = state.weapon_drawn, cancelable = nil }
     local state_key = table.concat({
         tostring(state.weapon_type_raw), tostring(state.usable_wirebugs), tostring(state.weapon_drawn),
     }, "|")

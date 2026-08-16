@@ -55,12 +55,14 @@ function M.update_context(self)
     self.frame_counter = self.frame_counter + 1
     if self.frame_counter % 15 == 1 then
         self.model:set_context(self.runtime:context())
+        self.model:update_player_combat_state(self.runtime:player_combat_state())
     end
 end
 
 function M.observe_enemy(self)
     local action, metadata = self.runtime:read_action()
     if action ~= nil then self.model:observe_action(action, now(), metadata) end
+    self.model:update_player_combat_state(self.runtime:player_combat_state())
 end
 
 function M.update_health(self)

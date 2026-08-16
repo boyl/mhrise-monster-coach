@@ -41,6 +41,16 @@ local function prediction_text(prediction)
     return prefix .. table.concat(pieces, " / ")
 end
 
+local function response_text(model)
+    for _, item in ipairs(model.response_candidates or {}) do
+        if item.availability == "available" then
+            return string.format("Weapon response: %s — %s", tostring(item.name), tostring(item.reason))
+        end
+    end
+    if model.response_error == "unsupported_weapon" then return nil end
+    return "Weapon response: current weapon state is incomplete"
+end
+
 function M.new(config, font)
     return setmetatable({ config = config, font = font }, { __index = M })
 end
@@ -84,6 +94,8 @@ function M.draw(self, model, runtime, slowmo_active)
     end
     if self.config.show_advice and model.current_move then
         lines[#lines + 1] = { "Response: " .. truncate(model.current_move.advice, 76), COLORS.text }
+        local weapon_response = response_text(model)
+        if weapon_response then lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text } end
     end
     if model.context.outcome_tracking and model.last_result then
         lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
