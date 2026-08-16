@@ -1,5 +1,21 @@
 # 攻击判定时间研究结论
 
+## HitboxViewer 共享运行时适配
+
+本地安装的 MHR HitboxViewer 2.2.0 已确认提供可复用的只读运行时状态。Monster Coach 不复制或修改第三方源码，而是在双方同时加载时通过 Lua `require` 缓存读取其模块表。
+
+已确认的 Rise 运行时链路：
+
+- Hook 为 `snow.hit.AttackWork.initialize(System.Single, System.Single, System.UInt32, System.UInt32, System.Int32, snow.hit.userdata.BaseHitAttackRSData)`。
+- Hook 参数包含 RCOL resource index 与 request-set index；由 `snow.RSCController` 解析对应 collidable。
+- 怪物对象按 GameObject 缓存在 `HitboxViewer.character.char_cache.by_gameobject`。
+- 每个角色的 `hitboxes` 表保存碰撞体及 `resource_idx`、`set_idx`、`collidable_idx`、Attack Log 元数据。
+- HitboxViewer 在 `EndPhysics` 更新碰撞体；`box.is_enabled` 是当前物理帧的真实启用状态。
+
+当前适配器只接受 HitboxViewer `2.2.0`。缺失、版本变化、Draw Hitboxes 关闭或缓存未就绪时显式降级，不安装重复 Hook。实时阶段规则为：首次启用前是前摇，任一判定启用时是攻击阶段，本 Action 已出现判定且全部关闭后是收招。没有攻击判定的 Action 不会被误当成已验证收招。
+
+兼容层只沉淀接口事实和独立实现，不分发 HitboxViewer 文件。未来版本必须重新核对模块结构与更新顺序后再加入允许列表。
+
 ## 结论
 
 轰龙攻击阶段优先从游戏运行时的活动 Hitbox 状态生成，不再把 MOTLIST 离线解析作为主路径。

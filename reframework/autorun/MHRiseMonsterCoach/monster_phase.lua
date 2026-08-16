@@ -7,6 +7,9 @@ local function finite_number(value)
 end
 
 function M.resolve(move, metadata)
+    if type(metadata) == "table" and metadata.runtime_hitbox_phase then
+        return metadata.runtime_hitbox_phase, "runtime_hitbox"
+    end
     if type(move) ~= "table" or type(metadata) ~= "table" then return "unknown", "missing_context" end
     local timing = move.timing
     if type(timing) ~= "table" or timing.status ~= "confirmed" then

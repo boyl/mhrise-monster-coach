@@ -18,6 +18,8 @@ assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 22 })
 assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 27 }) == "active",
     "multi-hit gaps remain active until the final confirmed hit window ends")
 assert(Phase.resolve(move, { motion_name = "em032_attack", current_frame = 40 }) == "recovery")
+local live_phase, live_reason = Phase.resolve(nil, { runtime_hitbox_phase = "active" })
+assert(live_phase == "active" and live_reason == "runtime_hitbox")
 
 local phase, reason = Phase.resolve({ timing = { status = "observed" } }, { current_frame = 20 })
 assert(phase == "unknown" and reason == "timing_unconfirmed")

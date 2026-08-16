@@ -64,6 +64,8 @@ end
 function M.observe_enemy(self)
     local action, metadata = self.runtime:read_action()
     if action ~= nil then self.model:observe_action(action, now(), metadata) end
+    local hitboxes = self.runtime:read_hitboxes()
+    if hitboxes ~= nil then self.model:observe_hitboxes(hitboxes) end
     self.model:update_player_combat_state(self.runtime:player_combat_state())
 end
 
@@ -203,6 +205,8 @@ function M.draw_menu_content(self)
     local player_probe = self.runtime:player_state_probe()
     ui_text_wrapped("Player state probe: " .. tostring(player_probe.status))
     if player_probe.player_type then ui_text_wrapped("Player type: " .. tostring(player_probe.player_type)) end
+    local hitbox_provider = self.runtime:hitbox_provider_description()
+    ui_text_wrapped("Hitbox timing: " .. tostring(hitbox_provider.status))
     if self.input then
         local input = self.input:description()
         ui_text_wrapped(string.format("Controller shortcuts: %s | runtime %s | active %s",

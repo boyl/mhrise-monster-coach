@@ -54,6 +54,8 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         state_metadata = {},
         state_metadata_count = 0,
         hit_timing_evidence = {},
+        live_hitbox_seen = false,
+        live_hitbox_state_key = nil,
         unknown_actions = {},
         unknown_action_count = 0,
         learned_actions = 0,
@@ -93,6 +95,22 @@ function M.update_player_combat_state(self, state)
     self.response_error = response_error
 end
 
+function M.observe_hitboxes(self, sample)
+    if self.current_action == nil or type(sample) ~= "table" then return false end
+    if self.live_hitbox_state_key ~= self.current_state_key then
+        self.live_hitbox_state_key = self.current_state_key
+        self.live_hitbox_seen = false
+    end
+    if sample.active == true then self.live_hitbox_seen = true end
+    self.current_metadata = self.current_metadata or {}
+    self.current_metadata.runtime_hitbox_phase = sample.active == true and "active"
+        or (self.live_hitbox_seen and "recovery" or "startup")
+    self.current_metadata.runtime_hitbox_count = tonumber(sample.active_count) or 0
+    self.current_metadata.runtime_hitbox_source = sample.source
+    self.current_metadata.runtime_hitbox_entries = sample.entries
+    return true
+end
+
 function M.set_context(self, context)
     local was_in_quest = self.context.in_quest
     if was_in_quest and not context.in_quest then
@@ -102,6 +120,8 @@ function M.set_context(self, context)
         self.current_metadata = nil
         self.prediction = nil
         self.round_damage = 0
+        self.live_hitbox_seen = false
+        self.live_hitbox_state_key = nil
     end
     self.context = context
     if context.error then
@@ -336,6 +356,8 @@ function M.observe_action(self, action, now, metadata)
     self.current_state_key = next_state_key
     self.current_move = is_coaching_action(self, metadata) and named_move(self, action, metadata) or nil
     self.current_metadata = metadata
+    self.live_hitbox_seen = false
+    self.live_hitbox_state_key = next_state_key
     self.action_started_at = event_time
     self.prediction = self.current_move and (profile_prediction(self, self.current_move)
         or static_prediction(self, action, metadata)

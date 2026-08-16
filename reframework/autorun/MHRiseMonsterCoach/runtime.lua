@@ -1,6 +1,7 @@
 local ActionReader = require("MHRiseMonsterCoach.action_reader")
 local QuestListOrder = require("MHRiseMonsterCoach.quest_list_order")
 local PlayerStateReader = require("MHRiseMonsterCoach.player_state_reader")
+local HitboxProvider = require("MHRiseMonsterCoach.hitbox_provider")
 
 local M = {}
 
@@ -47,6 +48,7 @@ function M.new(config, profile)
         game_name = safe(function() return reframework:get_game_name() end),
         tdb_version = safe(function() return sdk.get_tdb_version() end),
         capabilities = {},
+        hitbox_provider = HitboxProvider.new(),
     }
 
     self.methods = {
@@ -299,6 +301,14 @@ end
 function M.read_action(self)
     if self.enemy == nil then return nil end
     return self.reader:read(self.enemy)
+end
+
+function M.read_hitboxes(self)
+    return self.hitbox_provider:poll(self.enemy)
+end
+
+function M.hitbox_provider_description(self)
+    return self.hitbox_provider:description()
 end
 
 function M.shutdown(self)
