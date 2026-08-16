@@ -180,6 +180,9 @@ function M.draw_menu_content(self)
     if reader and reader.action_no then
         ui_text_wrapped(string.format("Action parameter: category %s / no %s", tostring(reader.action_category), tostring(reader.action_no)))
     end
+    local player_probe = self.runtime:player_state_probe()
+    ui_text_wrapped("Player state probe: " .. tostring(player_probe.status))
+    if player_probe.player_type then ui_text_wrapped("Player type: " .. tostring(player_probe.player_type)) end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
     if self.model.context.outcome_tracking then
         imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))

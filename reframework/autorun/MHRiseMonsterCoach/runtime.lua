@@ -1,5 +1,6 @@
 local ActionReader = require("MHRiseMonsterCoach.action_reader")
 local QuestListOrder = require("MHRiseMonsterCoach.quest_list_order")
+local PlayerStateReader = require("MHRiseMonsterCoach.player_state_reader")
 
 local M = {}
 
@@ -58,6 +59,7 @@ function M.new(config, profile)
         quest_playing = find_method("snow.QuestManager", "isPlayQuest"),
         quest_no = find_method("snow.QuestManager", "getQuestNo"),
     }
+    self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
         local physical_type = safe(function() return self.methods.enemy_physical:get_return_type() end)
         self.methods.physical_vital = physical_type and safe(function() return physical_type:get_method("getVital") end) or nil
@@ -236,7 +238,12 @@ function M.refresh_player(self)
     else
         self.player_data = nil
     end
+    self.player_state_reader:capture(self.player, self.player_data)
     return self.player
+end
+
+function M.player_state_probe(self)
+    return self.player_state_reader:description()
 end
 
 function M.context(self)
