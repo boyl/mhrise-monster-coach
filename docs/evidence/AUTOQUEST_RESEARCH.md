@@ -15,6 +15,8 @@ AutoQuest 不是在 `isPlayQuest=false` 后立刻打开柜台：它检测玩家�
 
 `GuiQuestCounterFsmCreateQuestSessionAction.start(ActionArg)` 必须通过 REFramework 的强类型代理调用（`action:start(arg)`），并以同样方式取得行为树和绑定 Owner。通用的 `managed_object:call("start", arg)` 在 TDB 71 会抛出 `Invoke threw an exception`。
 
+REFramework `sdk.hook` 的 post callback 必须返回原生指针。任务对象、布尔值和枚举等替换值统一经 `sdk.to_ptr(value)` 转换；AutoQuest 的 `util_ref.hook_ret` 正是这一 ABI 适配层。直接从 Hook 返回托管对象会在 `action:start()` 首次查询任务时触发 `Invoke threw an exception`。
+
 流程由有界状态机执行，重复 F7 被拒绝；多人、非目标任务或不支持运行时禁止启动；任一阶段失败或超时会关闭临时柜台 UI 并停止，不自动重试。
 
 ## 来源与边界

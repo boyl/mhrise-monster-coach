@@ -259,7 +259,7 @@ local function install_conditional_hook(self, type_name, method_name, pre, post)
         end, function(retval)
             if posting_active(self) and post then
                 local replacement = post(retval)
-                if replacement ~= nil then return replacement end
+                if replacement ~= nil then return sdk.to_ptr(replacement) end
             end
             return retval
         end)
@@ -474,7 +474,7 @@ function M.record_quest_restart_state(self, restart, context)
     safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_quest_restart_state.json", {
             schema_version = 1,
-            version = "0.18.3-one-key-restart-typed-action",
+            version = "0.18.4-one-key-restart-hook-abi",
             state = restart.state,
             status = restart.status,
             error = restart.error,
