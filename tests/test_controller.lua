@@ -33,7 +33,7 @@ local config = {
     auto_capture_anchors = true,
     quick_reset_safe_frames = 2,
     quick_reset_cooldown_frames = 10,
-    keys = { slowmo_hold = 117, quick_reset = 118, capture_anchor = 119 },
+    keys = { slowmo_hold = 117, quick_reset = 118, capture_anchor = 119, in_place_reset = 120 },
 }
 local controller = Controller.new(model, runtime, {}, config, {})
 
@@ -110,6 +110,23 @@ drawing_ui = false
 controller:update_quest_restart()
 assert(runtime.quest_restart.state == "complete" and model.last_reset == "Training quest restarted",
     "one-key restart completion is visible")
+
+local captures, in_place_resets = 0, 0
+runtime.capture_anchors = function() captures = captures + 1 return true end
+runtime.experimental_native_in_place_reset = function()
+    in_place_resets = in_place_resets + 1
+    return true
+end
+model.clear_round_runtime = function(self, reason) self.last_reset = reason end
+keys[119] = true
+controller:capture_reset_anchor()
+keys[119] = false
+controller:capture_reset_anchor()
+keys[120] = true
+controller:experimental_in_place_reset()
+assert(captures == 1 and in_place_resets == 1,
+    "F8 records a chosen point and F9 requests the native in-place candidate once")
+keys[120] = false
 
 local writes = 0
 local health_values = { 100, 80 }

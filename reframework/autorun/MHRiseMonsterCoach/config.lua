@@ -20,6 +20,7 @@ local DEFAULTS = {
     quick_reset_enabled = false,
     auto_capture_anchors = false,
     native_quest_reset_enabled = true,
+    experimental_in_place_reset_enabled = true,
     quick_reset_cooldown_frames = 180,
     quick_reset_safe_frames = 15,
     slowmo_scale = 0.25,
@@ -32,6 +33,7 @@ local DEFAULTS = {
         slowmo_hold = 0x75, -- F6
         quick_reset = 0x76, -- F7
         capture_anchor = 0x77, -- F8
+        in_place_reset = 0x78, -- F9
     },
     controller_input = {
         enabled = false,

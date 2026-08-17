@@ -90,6 +90,8 @@ function M.new(config, profile)
         quest_notify_reset = find_method("snow.QuestManager", "notifyReset"),
         quest_active = find_method("snow.QuestManager", "isActiveQuest"),
         quest_data = find_method("snow.QuestManager", "getQuestData(System.Int32)"),
+        player_native_warp = find_method("snow.player.PlayerBase", "setPosWarpConsiderDogRide(via.vec3)"),
+        enemy_native_warp_init = find_method("snow.enemy.EnemyCharacterBase", "warpEnemyInitPos"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -997,6 +999,45 @@ function M.restore_monster_health(self)
         ok = pcall(function() vital:call("set_Current", maximum) end)
     end
     return ok, ok and nil or "Monster health setter unavailable"
+end
+
+function M.experimental_native_in_place_reset(self)
+    local context = self.last_context or {}
+    if self.config.experimental_in_place_reset_enabled ~= true then
+        return false, "Experimental in-place reset is disabled"
+    end
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then
+        return false, "Unsupported runtime"
+    end
+    if not context.in_quest or context.is_online
+        or tonumber(context.quest_no) ~= self.profile.training_quest.id then
+        return false, "In-place reset is limited to the single-player training quest"
+    end
+    if self.player == nil or self.enemy == nil or self.player_anchor == nil then
+        return false, "Press F8 at the desired hunter reset position first"
+    end
+    if self.methods.player_native_warp == nil or self.methods.enemy_native_warp_init == nil then
+        return false, "Native character warp methods unavailable"
+    end
+    local safe_now, safe_reason, retry = M.quick_reset_safe(self)
+    if not safe_now then return false, safe_reason, retry end
+
+    M.restore_time_scale(self)
+    local player_ok = pcall(function()
+        self.methods.player_native_warp:call(self.player, self.player_anchor.position)
+    end)
+    if not player_ok then return false, "Native hunter warp failed" end
+
+    local resources_ok, resources_reason = M.restore_player_resources(self)
+    if not resources_ok then return false, resources_reason end
+
+    local enemy_ok = pcall(function() self.methods.enemy_native_warp_init:call(self.enemy) end)
+    if not enemy_ok then return false, "Native Tigrex initial-position warp failed" end
+
+    local health_ok, health_reason = M.restore_monster_health(self)
+    if not health_ok then return false, health_reason end
+    return true
 end
 
 function M.quick_reset_safe(self)

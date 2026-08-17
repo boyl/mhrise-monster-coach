@@ -192,12 +192,35 @@ function M.quick_reset(self)
     if self.model.context.in_quest then M.request_native_quest_reset(self) end
 end
 
+function M.capture_reset_anchor(self)
+    local keyboard_edge = pressed(self, "capture", self.config.keys.capture_anchor)
+    local gamepad_edge = self.input_state and self.input_state.capture_pressed == true
+    if not (keyboard_edge or gamepad_edge) or reframework:is_drawing_ui() then return end
+    if keyboard_edge and not gamepad_edge and self.input then self.input:mark_keyboard() end
+    local ok, reason = self.runtime:capture_anchors()
+    self.reset_status = ok and "Reset point recorded" or ("Reset point failed: " .. tostring(reason))
+    self.model:reset_round(self.reset_status)
+end
+
+function M.experimental_in_place_reset(self)
+    local keyboard_edge = pressed(self, "in_place_reset", self.config.keys.in_place_reset)
+    if not keyboard_edge or reframework:is_drawing_ui() then return end
+    if self.input then self.input:mark_keyboard() end
+    local ok, reason = self.runtime:experimental_native_in_place_reset()
+    self.reset_status = ok and "Experimental in-place reset completed"
+        or ("Experimental in-place reset failed: " .. tostring(reason))
+    if ok then self.model:clear_round_runtime(self.reset_status)
+    else self.model:reset_round(self.reset_status) end
+end
+
 function M.update(self)
     if self.input then self.input_state = self.input:poll(now()) end
     M.update_context(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.observe_enemy(self) end
     M.update_slowmo(self)
+    M.capture_reset_anchor(self)
+    M.experimental_in_place_reset(self)
     M.quick_reset(self)
     M.update_quest_restart(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
@@ -324,6 +347,19 @@ function M.draw_menu_content(self)
         and ("Restarting: " .. tostring(restart.status)) or "Restart training quest once (F7)"
     if imgui.button(f7_label) then
         if self.model.context.in_quest then M.request_native_quest_reset(self) end
+    end
+    if imgui.button("Record reset point (F8)") then
+        local ok, reason = self.runtime:capture_anchors()
+        self.reset_status = ok and "Reset point recorded" or ("Reset point failed: " .. tostring(reason))
+        self.model:reset_round(self.reset_status)
+    end
+    imgui.same_line()
+    if imgui.button("Experimental in-place reset (F9)") then
+        local ok, reason = self.runtime:experimental_native_in_place_reset()
+        self.reset_status = ok and "Experimental in-place reset completed"
+            or ("Experimental in-place reset failed: " .. tostring(reason))
+        if ok then self.model:clear_round_runtime(self.reset_status)
+        else self.model:reset_round(self.reset_status) end
     end
 
     if imgui.button("Export calibration evidence") then

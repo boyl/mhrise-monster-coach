@@ -22,3 +22,10 @@
 ## 当前探针
 
 启动时自动生成 `runtime_in_place_reset_probe.json`，只枚举目标类型及其父类中与 spawn、despawn、destroy、arrange、reset、restart、revive、warp 等相关的方法签名和字段；不调用任何候选方法。
+
+## 第一阶段候选
+
+- F8 记录用户选择的猎人位置；只复制坐标值，不保留临时 Transform 引用。
+- F9 等待怪物活动判定结束，然后调用 `PlayerBase.setPosWarpConsiderDogRide` 和 `EnemyCharacterBase.warpEnemyInitPos`，并恢复双方生命。
+- 本阶段不宣称清除部位破坏、异常、怒气、投射物或陷阱；目的仅是验证原生 Warp 连续调用是否安全。
+- F7 任务重开保持不变，作为完整且已验证的回退路径。
