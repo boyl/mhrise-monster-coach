@@ -28,3 +28,10 @@
 ## 已否决方案
 
 直接反复调用 `via.Transform.set_Position/set_Rotation` 恢复猎人位置，在第三次实机重置时触发原生 `c0000005`。该路径永久禁用，不作为回退。
+
+## 自动入口验收
+
+- 版本：`0.16.0-native-quest-reset`
+- 结果：在陪练任务中按 F7，直接调用 `notifyReset()`，成功安全返回据点。
+- 自动轨迹与菜单轨迹一致：`notifyReset()` → `onQuestReturn()` → `isPlayQuest=false` → `reqOpenDialogQuestReturn()`。
+- 日志未出现新的原生异常。
