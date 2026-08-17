@@ -48,6 +48,13 @@ function M.new(config, profile)
         game_name = safe(function() return reframework:get_game_name() end),
         tdb_version = safe(function() return sdk.get_tdb_version() end),
         capabilities = {},
+        quest_reset_trace = {
+            active = false,
+            dirty = false,
+            events = {},
+            next_sequence = 0,
+            hooks = {},
+        },
     }
 
     local hitbox_runtime_supported = self.game_name == config.supported_game_name
@@ -86,7 +93,92 @@ function M.new(config, profile)
         player_max_stamina = find_field("snow.player.PlayerData", "_staminaMax"),
     }
     M.dump_quest_restart_metadata(self)
+    M.install_quest_reset_trace_hooks(self)
     return setmetatable(self, { __index = M })
+end
+
+local RESET_TRACE_METHODS = {
+    "notifyReset", "notifyReturn", "onQuestReturn", "reqOpenDialogQuestReturn",
+    "requestQuestUI_EndQuestStart", "setupQuest_LoadQuest", "initSyncBeforeLoad",
+    "executeSyncBeforeLoad", "loadQuestStartTempData", "lotBeforeLoad",
+    "netSendQuestDoneResult",
+}
+
+local function append_reset_trace_event(self, kind, name, context)
+    local trace = self.quest_reset_trace
+    if not trace or not trace.active or #trace.events >= 256 then return end
+    trace.next_sequence = trace.next_sequence + 1
+    trace.events[#trace.events + 1] = {
+        sequence = trace.next_sequence,
+        kind = kind,
+        name = name,
+        clock = os.clock(),
+        in_quest = context and context.in_quest or nil,
+        quest_no = context and context.quest_no or nil,
+        target_found = context and context.target_found or nil,
+    }
+    trace.dirty = true
+end
+
+function M.install_quest_reset_trace_hooks(self)
+    local quest_type = safe(function() return sdk.find_type_definition("snow.QuestManager") end)
+    if quest_type == nil then return false, "QuestManager type unavailable" end
+    for _, name in ipairs(RESET_TRACE_METHODS) do
+        local method = safe(function() return quest_type:get_method(name) end)
+        if method and safe(function() return method:get_num_params() end) == 0 then
+            local method_name = name
+            local ok = pcall(function()
+                sdk.hook(method, function()
+                    append_reset_trace_event(self, "method_pre", method_name)
+                end, function(retval)
+                    append_reset_trace_event(self, "method_post", method_name)
+                    return retval
+                end)
+            end)
+            if ok then self.quest_reset_trace.hooks[#self.quest_reset_trace.hooks + 1] = name end
+        end
+    end
+    return #self.quest_reset_trace.hooks > 0,
+        #self.quest_reset_trace.hooks > 0 and nil or "No reset trace hooks installed"
+end
+
+function M.start_quest_reset_trace(self, context)
+    local trace = self.quest_reset_trace
+    trace.active = true
+    trace.dirty = true
+    trace.events = {}
+    trace.next_sequence = 0
+    trace.last_state_key = nil
+    append_reset_trace_event(self, "trace", "armed", context)
+    return true
+end
+
+function M.flush_quest_reset_trace(self, context, stop)
+    local trace = self.quest_reset_trace
+    if not trace or not trace.active then return false end
+    local state_key = table.concat({
+        tostring(context and context.in_quest), tostring(context and context.quest_no),
+        tostring(context and context.target_found),
+    }, "|")
+    if state_key ~= trace.last_state_key then
+        trace.last_state_key = state_key
+        append_reset_trace_event(self, "state", "context_changed", context)
+    end
+    if stop then append_reset_trace_event(self, "trace", "completed", context) end
+    if trace.dirty then
+        safe(function()
+            json.dump_file("MHRiseMonsterCoach/runtime_quest_reset_trace.json", {
+                schema_version = 1,
+                policy = "hook_observation_only_no_gameplay_method_invocation",
+                hooks = trace.hooks,
+                active = not stop,
+                events = trace.events,
+            })
+        end)
+        trace.dirty = false
+    end
+    if stop then trace.active = false end
+    return true
 end
 
 function M.dump_quest_restart_metadata(self)

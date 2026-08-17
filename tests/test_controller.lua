@@ -79,54 +79,36 @@ controller:guard("same_failure", same_failure)
 controller:guard("same_failure", same_failure)
 assert(logged_errors == 1, "identical callback errors are logged once")
 
-local captures, resets = 0, 0
-runtime.capture_anchors = function() captures = captures + 1 return true end
-runtime.quick_reset_safe = function() return true end
-runtime.quick_reset_step = function(_, stage) resets = resets + 1 return stage >= 1 end
-model.reset_round = function(self, reason) self.last_reset = reason end
-model.clear_round_runtime = function(self, reason) self.last_clear = reason end
-config.diagnostic_safe_mode = false
-config.time_control_enabled = true
-controller.input_state = { capture_pressed = true, reset_pressed = false }
-controller:capture_anchors()
-assert(captures == 1, "gamepad short chord reaches capture use case")
-controller.input_state = { capture_pressed = false, reset_pressed = true }
-controller:quick_reset()
-assert(resets == 0 and controller.reset_pending, "gamepad long chord queues reset use case")
-for _ = 1, 6 do controller:execute_pending_reset() end
-assert(resets == 5 and model.last_clear == "Round reset in place", "queued reset executes five stages and clears runtime state")
-drawing_ui = true
-controller.input_state = { capture_pressed = true, reset_pressed = true }
-controller:capture_anchors()
-controller:quick_reset()
-assert(captures == 1 and resets == 5, "open REFramework menu consumes controller events without execution")
-drawing_ui = false
-
-local attempts = 0
-runtime.quick_reset_safe = function()
-    attempts = attempts + 1
-    if attempts == 1 then return false, "Waiting for active monster hitboxes to close" end
+local traces_started, traces_flushed = 0, 0
+runtime.quest_reset_trace = { active = false }
+runtime.start_quest_reset_trace = function(self)
+    traces_started = traces_started + 1
+    self.quest_reset_trace.active = true
     return true
 end
-runtime.quick_reset_step = function(_, stage) return stage >= 1 end
-controller.frame_counter = controller.reset_cooldown_until
-controller:request_quick_reset()
-controller:execute_pending_reset()
-assert(controller.reset_pending and attempts == 1, "active hitbox keeps reset queued")
-controller:execute_pending_reset()
-assert(controller.reset_pending and attempts == 2, "safe state must remain stable before writes")
-for _ = 1, 6 do controller:execute_pending_reset() end
-assert(not controller.reset_pending and attempts == 3, "queued reset retries automatically and executes by stages")
-local cooldown_until = controller.reset_cooldown_until
-assert(not controller:request_quick_reset(), "cooldown rejects rapid repeated reset")
-assert(controller.reset_cooldown_until == cooldown_until, "rejected repeat cannot mutate cooldown")
+runtime.flush_quest_reset_trace = function(self, _, stop)
+    traces_flushed = traces_flushed + 1
+    if stop then self.quest_reset_trace.active = false end
+    return true
+end
+model.reset_round = function(self, reason) self.last_reset = reason end
+config.diagnostic_safe_mode = false
+config.time_control_enabled = true
+controller.input_state = { capture_pressed = false, reset_pressed = true }
+controller:quick_reset()
+assert(traces_started == 1 and runtime.quest_reset_trace.active,
+    "former reset shortcut only arms read-only tracing")
+drawing_ui = true
+controller.input_state = { capture_pressed = false, reset_pressed = true }
+controller:quick_reset()
+assert(traces_started == 1, "open REFramework menu consumes trace shortcut without execution")
+drawing_ui = false
 
-runtime.anchors_ready = function() return false end
-captures = 0
-controller.auto_anchor_stable_frames = 119
-controller:update_auto_anchors()
-assert(captures == 1, "automatic anchors capture after a stable startup window")
-runtime.anchors_ready = function() return true end
+model.context.in_quest = false
+for _ = 1, 120 do controller:update_quest_reset_trace() end
+assert(not runtime.quest_reset_trace.active and traces_flushed == 120,
+    "trace completes after the quest has exited for a stable window")
+assert(model.last_reset == "Quest reset trace captured", "trace completion is visible")
 
 local writes = 0
 local health_values = { 100, 80 }

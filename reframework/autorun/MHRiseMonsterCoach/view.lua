@@ -157,11 +157,11 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             and "READ-ONLY: Action/Hitbox polling on; gameplay writes off"
             or "Manual slow motion disabled in Monster Coach menu"
     elseif input_state and input_state.available and input_state.device == "gamepad" then
-        controls = "Hold LB+RB/L1+R1: slow | L3+R3 tap: anchors | hold: reset"
+        controls = "Hold LB+RB/L1+R1: slow | reset shortcut: arm read-only trace"
     elseif model.context.safe_mode then
-        controls = "Press F6: toggle slow time | health/position/forced actions locked"
+        controls = "F6: slow time | F7: arm reset trace | gameplay writes locked"
     else
-        controls = "Press F6: toggle slow time  |  F7: reset round  |  F8: capture anchors"
+        controls = "F6: slow time | F7: arm reset trace | direct position reset disabled"
     end
     lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
 

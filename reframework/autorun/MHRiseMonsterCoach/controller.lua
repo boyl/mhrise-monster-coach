@@ -32,6 +32,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         reset_safe_frames = 0,
         reset_cooldown_until = 0,
         reset_sequence = 0,
+        reset_trace_exit_frames = 0,
     }, { __index = M })
 end
 
@@ -54,15 +55,6 @@ local function pressed(self, name, code)
     local was_down = self.previous_keys[name] == true
     self.previous_keys[name] = down
     return down and not was_down, down
-end
-
-local function quick_reset_allowed(self)
-    return self.config.enabled
-        and self.config.quick_reset_enabled == true
-        and self.model.context.in_quest
-        and self.model.context.build_supported ~= false
-        and not self.model.context.is_online
-        and self.model.context.target_found
 end
 
 function M.update_context(self)
@@ -140,121 +132,33 @@ function M.update_slowmo(self)
     if not allowed then self.slowmo_toggled = false end
 end
 
-function M.capture_anchors(self)
-    local keyboard_edge = pressed(self, "capture", self.config.keys.capture_anchor)
-    local gamepad_edge = self.input_state and self.input_state.capture_pressed == true
-    if keyboard_edge and not gamepad_edge and self.input then self.input:mark_keyboard() end
-    local edge = keyboard_edge or gamepad_edge
-    if not edge then return end
-    if reframework:is_drawing_ui() then return end
-    if not quick_reset_allowed(self) then return end
-    local ok, reason = self.runtime:capture_anchors()
-    self.model:reset_round(ok and "Reset anchors captured" or reason)
-end
-
-function M.update_auto_anchors(self)
-    if not self.config.auto_capture_anchors or not quick_reset_allowed(self) then
-        self.auto_anchor_stable_frames = 0
-        if not self.model.context.in_quest then self.reset_pending = false end
-        return
+function M.arm_quest_reset_trace(self)
+    if not self.model.context.in_quest or self.model.context.is_online
+        or self.model.context.build_supported == false then
+        self.reset_status = "Trace unavailable: enter the single-player training quest"
+        self.model:reset_round(self.reset_status)
+        return false
     end
-    if self.runtime:anchors_ready() then return end
-    self.auto_anchor_stable_frames = self.auto_anchor_stable_frames + 1
-    if self.auto_anchor_stable_frames < 120 then
-        self.reset_status = "Preparing automatic reset anchors"
-        return
-    end
-    local ok, reason = self.runtime:capture_anchors()
-    self.auto_anchor_stable_frames = 0
-    self.reset_status = ok and "Automatic reset anchors captured" or tostring(reason)
+    self.runtime:start_quest_reset_trace(self.model.context)
+    self.reset_trace_exit_frames = 0
+    self.reset_status = "Trace armed: use the game menu to reset the quest once"
     self.model:reset_round(self.reset_status)
-end
-
-function M.request_quick_reset(self)
-    if not quick_reset_allowed(self) then
-        self.reset_status = "Reset unavailable in the current context"
-        self.model:reset_round(self.reset_status)
-        return false
-    end
-    if not self.runtime:anchors_ready() then
-        self.reset_status = "Waiting for automatic reset anchors"
-        self.model:reset_round(self.reset_status)
-        return false
-    end
-    if self.frame_counter < self.reset_cooldown_until then
-        local remaining = self.reset_cooldown_until - self.frame_counter
-        self.reset_status = string.format("Reset cooling down (%d frames)", remaining)
-        self.model:reset_round(self.reset_status)
-        return false
-    end
-    if self.reset_pending then
-        self.reset_status = "Reset already queued"
-        return false
-    end
-    self.reset_pending = true
-    self.reset_sequence = self.reset_sequence + 1
-    self.reset_stage = 0
-    self.reset_safe_frames = 0
-    self.reset_status = "Reset queued; waiting for a safe monster state"
-    self.model:reset_round(self.reset_status)
-    if log and type(log.info) == "function" then
-        log.info(string.format("[MHRiseMonsterCoach] quick reset %d queued", self.reset_sequence))
-    end
     return true
 end
 
-function M.execute_pending_reset(self)
-    if not self.reset_pending then return end
-    if not quick_reset_allowed(self) then
-        self.reset_pending = false
-        self.reset_stage = 0
-        self.reset_status = "Queued reset cancelled: context changed"
-        self.model:reset_round(self.reset_status)
-        return
-    end
-    if self.reset_stage == 0 then
-        local safe, reason = self.runtime:quick_reset_safe()
-        if not safe then
-            self.reset_safe_frames = 0
-            self.reset_status = tostring(reason)
-            return
-        end
-        self.reset_safe_frames = self.reset_safe_frames + 1
-        local required = tonumber(self.config.quick_reset_safe_frames) or 15
-        if self.reset_safe_frames < required then
-            self.reset_status = string.format("Waiting for stable monster state (%d/%d)",
-                self.reset_safe_frames, required)
-            return
-        end
-        self.reset_stage = 1
-    end
-    local ok, reason = self.runtime:quick_reset_step(self.reset_stage)
-    if log and type(log.info) == "function" then
-        log.info(string.format("[MHRiseMonsterCoach] quick reset %d stage %d: %s",
-            self.reset_sequence, self.reset_stage, ok and "ok" or tostring(reason)))
-    end
-    if ok and self.reset_stage < 5 then
-        self.reset_status = string.format("Resetting round (%d/5)", self.reset_stage)
-        self.reset_stage = self.reset_stage + 1
-        return
-    end
-    self.reset_pending = false
-    self.reset_stage = 0
-    self.slowmo_active = false
-    self.slowmo_toggled = false
-    if ok then
-        self.reset_cooldown_until = self.frame_counter
-            + (tonumber(self.config.quick_reset_cooldown_frames) or 180)
-        self.last_health = self.runtime:read_player_health()
-        self.model:clear_round_runtime("Round reset in place")
-        self.reset_status = "Round reset in place"
+function M.update_quest_reset_trace(self)
+    local trace = self.runtime.quest_reset_trace
+    if not trace or not trace.active then return end
+    if self.model.context.in_quest then
+        self.reset_trace_exit_frames = 0
     else
-        self.reset_status = "Reset failed: " .. tostring(reason)
+        self.reset_trace_exit_frames = self.reset_trace_exit_frames + 1
+    end
+    local completed = self.reset_trace_exit_frames >= 120
+    self.runtime:flush_quest_reset_trace(self.model.context, completed)
+    if completed then
+        self.reset_status = "Quest reset trace captured"
         self.model:reset_round(self.reset_status)
-        if log and type(log.error) == "function" then
-            log.error(string.format("[MHRiseMonsterCoach] quick reset %d failed: %s",
-                self.reset_sequence, tostring(reason)))
-        end
     end
 end
 
@@ -265,7 +169,7 @@ function M.quick_reset(self)
     local edge = keyboard_edge or gamepad_edge
     if not edge then return end
     if reframework:is_drawing_ui() then return end
-    M.request_quick_reset(self)
+    M.arm_quest_reset_trace(self)
 end
 
 function M.update(self)
@@ -274,10 +178,8 @@ function M.update(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.observe_enemy(self) end
     M.update_slowmo(self)
-    M.update_auto_anchors(self)
-    M.capture_anchors(self)
     M.quick_reset(self)
-    M.execute_pending_reset(self)
+    M.update_quest_reset_trace(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.update_health(self) end
     M.persist_runtime_evidence(self, not self.model.context.in_quest)
@@ -311,8 +213,6 @@ function M.draw_menu_content(self)
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("Show response / 显示应对", self.config, "show_advice") or changed
     changed = checkbox("Manual slow motion / 手动子弹时间", self.config, "time_control_enabled") or changed
-    changed = checkbox("Quick reset / 快速重试", self.config, "quick_reset_enabled") or changed
-    changed = checkbox("Automatic reset anchors / 自动记录重置点", self.config, "auto_capture_anchors") or changed
     local shapes_changed = checkbox("HitboxViewer debug shapes / 显示判定体",
         self.config, "show_hitboxviewer_debug_shapes")
     if shapes_changed then
@@ -378,7 +278,7 @@ function M.draw_menu_content(self)
             input.available and "ready" or "unavailable", tostring(input.device)))
     end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
-    ui_text_wrapped("Quick reset: " .. tostring(self.reset_status))
+    ui_text_wrapped("Quest reset trace: " .. tostring(self.reset_status))
     if self.model.context.outcome_tracking then
         imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
     else
@@ -399,17 +299,8 @@ function M.draw_menu_content(self)
         end
     end
 
-    if imgui.button("Capture reset anchors (F8)") then
-        if quick_reset_allowed(self) then
-            local ok, reason = self.runtime:capture_anchors()
-            self.model:reset_round(ok and "Reset anchors captured" or reason)
-        else
-            self.model:reset_round("Unavailable: requires a supported single-player quest")
-        end
-    end
-    imgui.same_line()
-    if imgui.button("Reset round now (F7)") then
-        M.request_quick_reset(self)
+    if imgui.button("Arm quest reset trace (F7)") then
+        M.arm_quest_reset_trace(self)
     end
 
     if imgui.button("Export calibration evidence") then
