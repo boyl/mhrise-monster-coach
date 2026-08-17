@@ -34,6 +34,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         reset_sequence = 0,
         reset_trace_exit_frames = 0,
         native_reset_requested = false,
+        reset_trace_mode = nil,
     }, { __index = M })
 end
 
@@ -142,10 +143,12 @@ function M.request_native_quest_reset(self)
     end
     if self.native_reset_requested then return false end
     self.runtime:start_quest_reset_trace(self.model.context)
+    self.reset_trace_mode = "native_reset"
     self.reset_trace_exit_frames = 0
     local ok, reason = self.runtime:request_native_quest_reset()
     if not ok then
         self.runtime:flush_quest_reset_trace(self.model.context, true)
+        self.reset_trace_mode = nil
         self.reset_status = "Native reset failed: " .. tostring(reason)
         self.model:reset_round(self.reset_status)
         return false
@@ -156,10 +159,31 @@ function M.request_native_quest_reset(self)
     return true
 end
 
+function M.arm_quest_launch_trace(self)
+    if self.model.context.in_quest or self.model.context.is_online
+        or self.model.context.build_supported == false then
+        self.reset_status = "Launch trace unavailable: return to a single-player hub"
+        self.model:reset_round(self.reset_status)
+        return false
+    end
+    self.runtime:start_quest_reset_trace(self.model.context)
+    self.reset_trace_mode = "hub_launch"
+    self.reset_trace_exit_frames = 0
+    self.reset_status = "Launch trace armed: accept the training quest and depart once"
+    self.model:reset_round(self.reset_status)
+    return true
+end
+
 function M.update_quest_reset_trace(self)
     local trace = self.runtime.quest_reset_trace
     if not trace or not trace.active then return end
-    if self.model.context.in_quest then
+    local reached_destination = self.reset_trace_mode == "hub_launch"
+        and self.model.context.in_quest
+    if reached_destination then
+        self.reset_trace_exit_frames = self.reset_trace_exit_frames + 1
+    elseif self.reset_trace_mode == "hub_launch" then
+        self.reset_trace_exit_frames = 0
+    elseif self.model.context.in_quest then
         self.reset_trace_exit_frames = 0
     else
         self.reset_trace_exit_frames = self.reset_trace_exit_frames + 1
@@ -168,7 +192,9 @@ function M.update_quest_reset_trace(self)
     self.runtime:flush_quest_reset_trace(self.model.context, completed)
     if completed then
         self.native_reset_requested = false
-        self.reset_status = "Quest reset trace captured"
+        self.reset_status = self.reset_trace_mode == "hub_launch"
+            and "Quest launch trace captured" or "Quest reset trace captured"
+        self.reset_trace_mode = nil
         self.model:reset_round(self.reset_status)
     end
 end
@@ -180,7 +206,11 @@ function M.quick_reset(self)
     local edge = keyboard_edge or gamepad_edge
     if not edge then return end
     if reframework:is_drawing_ui() then return end
-    M.request_native_quest_reset(self)
+    if self.model.context.in_quest then
+        M.request_native_quest_reset(self)
+    else
+        M.arm_quest_launch_trace(self)
+    end
 end
 
 function M.update(self)
@@ -310,8 +340,11 @@ function M.draw_menu_content(self)
         end
     end
 
-    if imgui.button("Native reset to hub (F7)") then
-        M.request_native_quest_reset(self)
+    local f7_label = self.model.context.in_quest
+        and "Native reset to hub (F7)" or "Arm quest launch trace (F7)"
+    if imgui.button(f7_label) then
+        if self.model.context.in_quest then M.request_native_quest_reset(self)
+        else M.arm_quest_launch_trace(self) end
     end
 
     if imgui.button("Export calibration evidence") then

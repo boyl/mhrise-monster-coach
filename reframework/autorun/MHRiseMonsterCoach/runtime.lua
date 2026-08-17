@@ -105,6 +105,20 @@ local RESET_TRACE_METHODS = {
     "netSendQuestDoneResult",
 }
 
+local QUEST_LAUNCH_KEYWORDS = {
+    "orderquest", "questorder", "startquest", "queststart", "loadquest", "questload",
+    "acceptquest", "questaccept", "requestquest", "questrequest", "depart", "departure",
+    "entryquest", "questentry", "decidequest", "questdecide", "questcounter",
+}
+
+local function is_quest_launch_candidate(name)
+    local lower = string.lower(tostring(name or ""))
+    for _, keyword in ipairs(QUEST_LAUNCH_KEYWORDS) do
+        if string.find(lower, keyword, 1, true) then return true end
+    end
+    return false
+end
+
 local function append_reset_trace_event(self, kind, name, context)
     local trace = self.quest_reset_trace
     if not trace or not trace.active or #trace.events >= 256 then return end
@@ -124,10 +138,23 @@ end
 function M.install_quest_reset_trace_hooks(self)
     local quest_type = safe(function() return sdk.find_type_definition("snow.QuestManager") end)
     if quest_type == nil then return false, "QuestManager type unavailable" end
+    local candidates = {}
+    local seen = {}
     for _, name in ipairs(RESET_TRACE_METHODS) do
         local method = safe(function() return quest_type:get_method(name) end)
-        if method and safe(function() return method:get_num_params() end) == 0 then
-            local method_name = name
+        if method then candidates[#candidates + 1] = { name = name, method = method } seen[name] = true end
+    end
+    for _, method in ipairs(safe(function() return quest_type:get_methods() end) or {}) do
+        local name = safe(function() return method:get_name() end)
+        if name and is_quest_launch_candidate(name) and not seen[name] and #candidates < 80 then
+            candidates[#candidates + 1] = { name = name, method = method }
+            seen[name] = true
+        end
+    end
+    for _, candidate in ipairs(candidates) do
+        local method_name = candidate.name
+        local method = candidate.method
+        if method then
             local ok = pcall(function()
                 sdk.hook(method, function()
                     append_reset_trace_event(self, "method_pre", method_name)
@@ -136,7 +163,7 @@ function M.install_quest_reset_trace_hooks(self)
                     return retval
                 end)
             end)
-            if ok then self.quest_reset_trace.hooks[#self.quest_reset_trace.hooks + 1] = name end
+            if ok then self.quest_reset_trace.hooks[#self.quest_reset_trace.hooks + 1] = method_name end
         end
     end
     return #self.quest_reset_trace.hooks > 0,

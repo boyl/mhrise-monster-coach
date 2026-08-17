@@ -115,6 +115,14 @@ assert(not runtime.quest_reset_trace.active and traces_flushed == 120,
     "trace completes after the quest has exited for a stable window")
 assert(model.last_reset == "Quest reset trace captured", "trace completion is visible")
 
+controller:arm_quest_launch_trace()
+assert(runtime.quest_reset_trace.active and controller.reset_trace_mode == "hub_launch",
+    "F7 at the hub arms launch tracing without gameplay writes")
+model.context.in_quest = true
+for _ = 1, 120 do controller:update_quest_reset_trace() end
+assert(not runtime.quest_reset_trace.active and model.last_reset == "Quest launch trace captured",
+    "launch trace completes after stable quest entry")
+
 local writes = 0
 local health_values = { 100, 80 }
 local health_index = 0
