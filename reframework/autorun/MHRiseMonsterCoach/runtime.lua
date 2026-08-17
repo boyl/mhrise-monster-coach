@@ -111,6 +111,7 @@ function M.new(config, profile)
     self.capabilities.quest_posting = posting_ready
     self.capabilities.quest_posting_reason = posting_reason
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
+    M.dump_in_place_reset_metadata(self)
     return setmetatable(self, { __index = M })
 end
 
@@ -540,6 +541,90 @@ function M.dump_quest_restart_metadata(self)
             runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
             type_name = "snow.QuestManager",
             methods = methods,
+        })
+        return true
+    end) == true
+end
+
+local IN_PLACE_RESET_TYPES = {
+    "snow.enemy.EnemyManager",
+    "snow.enemy.EnemyCharacterBase",
+    "snow.player.PlayerManager",
+    "snow.player.PlayerBase",
+    "snow.QuestManager",
+    "snow.stage.StageManager",
+    "snow.env.EnvironmentManager",
+}
+
+local IN_PLACE_RESET_KEYWORDS = {
+    "spawn", "despawn", "respawn", "create", "generate", "instantiate",
+    "arrange", "destroy", "delete", "erase", "remove", "reset", "restart",
+    "reload", "reentry", "revive", "warp", "teleport", "position",
+}
+
+local function matches_reset_keyword(name)
+    local lower = string.lower(tostring(name or ""))
+    for _, keyword in ipairs(IN_PLACE_RESET_KEYWORDS) do
+        if string.find(lower, keyword, 1, true) then return true end
+    end
+    return false
+end
+
+local function type_name(type_def)
+    return type_def and safe(function() return type_def:get_full_name() end) or nil
+end
+
+function M.dump_in_place_reset_metadata(self)
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then return false end
+    local types = {}
+    for _, requested_name in ipairs(IN_PLACE_RESET_TYPES) do
+        local type_def = safe(function() return sdk.find_type_definition(requested_name) end)
+        local entry = { requested_type = requested_name, found = type_def ~= nil, levels = {} }
+        local seen = {}
+        while type_def do
+            local current_name = type_name(type_def) or "unknown"
+            if seen[current_name] then break end
+            seen[current_name] = true
+            local level = { type = current_name, methods = {}, fields = {} }
+            for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+                local name = safe(function() return method:get_name() end)
+                if matches_reset_keyword(name) then
+                    local params = {}
+                    for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                        params[#params + 1] = type_name(param_type) or "unknown"
+                    end
+                    level.methods[#level.methods + 1] = {
+                        name = name,
+                        return_type = type_name(safe(function() return method:get_return_type() end)),
+                        param_types = params,
+                    }
+                end
+            end
+            for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+                local name = safe(function() return field:get_name() end)
+                if matches_reset_keyword(name) then
+                    level.fields[#level.fields + 1] = {
+                        name = name,
+                        type = type_name(safe(function() return field:get_type() end)),
+                        is_static = safe(function() return field:is_static() end) == true,
+                    }
+                end
+            end
+            table.sort(level.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
+            table.sort(level.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
+            entry.levels[#entry.levels + 1] = level
+            type_def = safe(function() return type_def:get_parent_type() end)
+        end
+        types[#types + 1] = entry
+    end
+    return safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_in_place_reset_probe.json", {
+            schema_version = 1,
+            policy = "metadata_only_no_candidate_method_invocation",
+            runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
+            keywords = IN_PLACE_RESET_KEYWORDS,
+            types = types,
         })
         return true
     end) == true
