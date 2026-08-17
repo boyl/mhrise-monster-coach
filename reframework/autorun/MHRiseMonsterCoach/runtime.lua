@@ -349,7 +349,7 @@ function M.quest_restart_api(self)
     function api:start_session()
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
-        if counter == nil then return false, "Quest counter did not initialize" end
+        if counter == nil then return nil end
         local ok, reason = pcall(function()
             local action = sdk.create_instance(
                 "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
@@ -452,7 +452,7 @@ function M.record_quest_restart_state(self, restart, context)
     safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_quest_restart_state.json", {
             schema_version = 1,
-            version = "0.18.1-one-key-restart-lobby-gate",
+            version = "0.18.2-one-key-restart-async-counter",
             state = restart.state,
             status = restart.status,
             error = restart.error,

@@ -43,4 +43,24 @@ failed:update(hub)
 assert(failed.state == "failed" and failed.error == "counter unavailable",
     "expected runtime failure stops automation")
 
+local delayed_calls = 0
+local delayed_api = {}
+for name, fn in pairs(api) do delayed_api[name] = fn end
+function delayed_api:start_session()
+    delayed_calls = delayed_calls + 1
+    if delayed_calls < 4 then return nil end
+    return true
+end
+local delayed = QuestRestart.new(delayed_api, 200032001,
+    { hub_stable_frames = 1, timeout_frames = 30 })
+assert(delayed:start(quest))
+delayed:update(hub)
+delayed:update(hub)
+for _ = 1, 3 do
+    delayed:update(hub)
+    assert(delayed.state == "start_session", "counter initialization remains pending")
+end
+delayed:update(hub)
+assert(delayed.state == "select_quest", "continues when the counter initializes later")
+
 print("test_quest_restart.lua: PASS")

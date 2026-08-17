@@ -114,7 +114,9 @@ function M:update(context)
     elseif self.state == M.states.OPEN_COUNTER then
         return advance(self, M.states.START_SESSION, self.api.open_counter)
     elseif self.state == M.states.START_SESSION then
-        return advance(self, M.states.SELECT_QUEST, self.api.start_session)
+        local result, reason = self.api:start_session()
+        if result == true then self:set_state(M.states.SELECT_QUEST)
+        elseif result == false then return self:fail(reason) end
     elseif self.state == M.states.SELECT_QUEST then
         local result, reason = self.api:select_quest()
         if result == true then self:set_state(M.states.WAIT_POSTED)
