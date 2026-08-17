@@ -350,17 +350,39 @@ function M.quest_restart_api(self)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
-        local ok, reason = pcall(function()
-            local action = sdk.create_instance(
+        local action = safe(function()
+            return sdk.create_instance(
                 "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
-            local arg = sdk.create_instance("via.behaviortree.ActionArg"):add_ref()
-            local tree = counter:call("get_refQuestCounterBehaviorTree")
-            arg:call("setOwnerComponentPtr", tree:get_address())
-            action:call("start", arg)
-            self.runtime.quest_posting.action = action
-            self.runtime.quest_posting.action_arg = arg
         end)
-        return ok, ok and nil or "Failed to start quest posting: " .. tostring(reason)
+        if action == nil then return false, "Failed to create quest session Action" end
+        local arg = safe(function()
+            return sdk.create_instance("via.behaviortree.ActionArg"):add_ref()
+        end)
+        if arg == nil then
+            safe(function() action:release() end)
+            return false, "Failed to create quest session ActionArg"
+        end
+        local tree = safe(function() return counter:get_refQuestCounterBehaviorTree() end)
+        if tree == nil then
+            safe(function() arg:release() end)
+            safe(function() action:release() end)
+            return false, "Quest counter behavior tree unavailable"
+        end
+        local owner_ok = pcall(function() arg:setOwnerComponentPtr(tree:get_address()) end)
+        if not owner_ok then
+            safe(function() arg:release() end)
+            safe(function() action:release() end)
+            return false, "Failed to bind quest session ActionArg owner"
+        end
+        local start_ok, start_error = pcall(function() action:start(arg) end)
+        if not start_ok then
+            safe(function() arg:release() end)
+            safe(function() action:release() end)
+            return false, "Failed to start quest session Action: " .. tostring(start_error)
+        end
+        self.runtime.quest_posting.action = action
+        self.runtime.quest_posting.action_arg = arg
+        return true
     end
 
     function api:select_quest()
@@ -381,10 +403,10 @@ function M.quest_restart_api(self)
         if selection == nil then return false, "Quest confirmation window unavailable" end
         local decided = enum_value("snow.gui.GuiCommonSelectWindow.Result", "Decide")
         local ok, reason = pcall(function()
-            local scroll = selection:get_field("_ScrollListCtrl")
-            local cursor = scroll:get_field("_Cursor")
-            scroll:set_field("_result", decided)
-            cursor:call("set_index", 0)
+            local scroll = selection._ScrollListCtrl
+            local cursor = scroll._Cursor
+            scroll._result = decided
+            cursor:set_index(0)
         end)
         return ok and true or false, ok and nil or "Failed to confirm quest: " .. tostring(reason)
     end
@@ -394,8 +416,8 @@ function M.quest_restart_api(self)
         local action = posting.action
         if action == nil then return false, "Quest posting action unavailable" end
         local ok, reason = pcall(function()
-            local routine = action:get_field("_RoutineCtrl")
-            if routine and routine:call("isExecute") == true then routine:call("execute") end
+            local routine = action._RoutineCtrl
+            if routine and routine:isExecute() then routine:execute() end
         end)
         return ok, ok and nil or "Quest posting routine failed: " .. tostring(reason)
     end
@@ -452,7 +474,7 @@ function M.record_quest_restart_state(self, restart, context)
     safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_quest_restart_state.json", {
             schema_version = 1,
-            version = "0.18.2-one-key-restart-async-counter",
+            version = "0.18.3-one-key-restart-typed-action",
             state = restart.state,
             status = restart.status,
             error = restart.error,
