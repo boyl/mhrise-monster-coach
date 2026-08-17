@@ -474,7 +474,7 @@ function M.record_quest_restart_state(self, restart, context)
     safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_quest_restart_state.json", {
             schema_version = 1,
-            version = "0.18.4-one-key-restart-hook-abi",
+            version = "0.18.5-fast-one-key-restart",
             state = restart.state,
             status = restart.status,
             error = restart.error,

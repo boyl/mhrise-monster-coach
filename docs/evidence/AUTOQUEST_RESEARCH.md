@@ -9,7 +9,9 @@ Monster Coach 的一键任务重开采用游戏高层流程，不写猎人或怪
 3. `GuiQuestCounterFsmCreateQuestSessionAction` 驱动游戏原生接取流程；选择 Hook 只返回 Profile 中固定的陪练 Quest ID。
 4. 接取成功后关闭柜台，并通过 `GuiManager.get_refQuestStartFlowHandler().requestGoQuest(true)` 自动出发。
 
-AutoQuest 不是在 `isPlayQuest=false` 后立刻打开柜台：它检测玩家状态从 `Quest` 进入 `Lobby`，再等待约 10 秒。Monster Coach 同样要求 `GameStatePlayer.Lobby`、柜台可调用且任务未激活连续稳定约 10 秒，避免在场景卸载/据点初始化期间过早创建柜台 FSM。
+AutoQuest 不是在 `isPlayQuest=false` 后立刻打开柜台：它检测玩家状态从 `Quest` 进入 `Lobby`，再等待约 10 秒。Monster Coach 保留其三个语义门禁：`GameStatePlayer.Lobby`、柜台可调用且任务未激活，避免在场景卸载期间启动。
+
+首次完整流程已于 2026-08-17 在 mhrise/TDB 71 实机通过。验证同时证明柜台 FSM 可以异步等待，因此不再需要照搬 10 秒保守延迟：`GameStatePlayer.Lobby + IsCanInvokeQuestBoard + !isActiveQuest` 全部成立后只保留 15 帧防抖。
 
 `activateOnly(QuestCounter)` 只发出激活请求，`GuiQuestCounterFsmManager` 会在后续帧异步创建。状态机必须保持在 `START_SESSION` 等待实例出现，不能把首帧的 `nil` 当作失败；只有阶段超时才终止。
 

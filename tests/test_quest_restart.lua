@@ -17,8 +17,8 @@ function api:finish_posting() called("finish") end
 function api:cancel_posting() called("cancel") end
 
 local restart = QuestRestart.new(api, 200032001, { hub_stable_frames = 2, timeout_frames = 30 })
-assert(QuestRestart.new(api, 200032001).hub_stable_required == 600,
-    "production waits for the proven lobby initialization interval")
+assert(QuestRestart.new(api, 200032001).hub_stable_required == 15,
+    "production uses only a short debounce after all lobby readiness gates pass")
 local quest = { in_quest = true, is_online = false, build_supported = true, quest_no = 200032001 }
 assert(restart:start(quest) == true and restart.state == "wait_hub", "starts with native reset")
 assert(restart:start(quest) == false, "duplicate start is rejected")
