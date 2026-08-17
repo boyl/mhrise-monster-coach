@@ -2,6 +2,7 @@ local ActionReader = require("MHRiseMonsterCoach.action_reader")
 local QuestListOrder = require("MHRiseMonsterCoach.quest_list_order")
 local PlayerStateReader = require("MHRiseMonsterCoach.player_state_reader")
 local HitboxProvider = require("MHRiseMonsterCoach.hitbox_provider")
+local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 
 local M = {}
 
@@ -23,6 +24,11 @@ local function find_field(type_name, field_name)
         local type_def = sdk.find_type_definition(type_name)
         return type_def and type_def:get_field(field_name) or nil
     end)
+end
+
+local function enum_value(type_name, field_name)
+    local field = find_field(type_name, field_name)
+    return field and safe(function() return field:get_data(nil) end) or nil
 end
 
 function M.new(config, profile)
@@ -48,6 +54,12 @@ function M.new(config, profile)
         game_name = safe(function() return reframework:get_game_name() end),
         tdb_version = safe(function() return sdk.get_tdb_version() end),
         capabilities = {},
+        quest_posting = {
+            active = false,
+            action = nil,
+            action_arg = nil,
+            hooks = {},
+        },
         quest_reset_trace = {
             active = false,
             dirty = false,
@@ -76,6 +88,8 @@ function M.new(config, profile)
         quest_playing = find_method("snow.QuestManager", "isPlayQuest"),
         quest_no = find_method("snow.QuestManager", "getQuestNo"),
         quest_notify_reset = find_method("snow.QuestManager", "notifyReset"),
+        quest_active = find_method("snow.QuestManager", "isActiveQuest"),
+        quest_data = find_method("snow.QuestManager", "getQuestData(System.Int32)"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -93,8 +107,10 @@ function M.new(config, profile)
         player_stamina = find_field("snow.player.PlayerData", "_stamina"),
         player_max_stamina = find_field("snow.player.PlayerData", "_staminaMax"),
     }
-    M.dump_quest_restart_metadata(self)
-    M.install_quest_reset_trace_hooks(self)
+    local posting_ready, posting_reason = M.install_quest_posting_hooks(self)
+    self.capabilities.quest_posting = posting_ready
+    self.capabilities.quest_posting_reason = posting_reason
+    self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
     return setmetatable(self, { __index = M })
 end
 
@@ -228,6 +244,217 @@ function M.request_native_quest_reset(self)
     M.restore_time_scale(self)
     local ok = pcall(function() self.methods.quest_notify_reset:call(manager) end)
     return ok, ok and nil or "QuestManager.notifyReset call failed"
+end
+
+local function posting_active(self)
+    return self.quest_posting and self.quest_posting.active == true
+end
+
+local function install_conditional_hook(self, type_name, method_name, pre, post)
+    local method = find_method(type_name, method_name)
+    if method == nil then return false, type_name .. "." .. method_name .. " unavailable" end
+    local ok, reason = pcall(function()
+        sdk.hook(method, function(args)
+            if posting_active(self) and pre then return pre(args) end
+        end, function(retval)
+            if posting_active(self) and post then
+                local replacement = post(retval)
+                if replacement ~= nil then return replacement end
+            end
+            return retval
+        end)
+    end)
+    if ok then self.quest_posting.hooks[#self.quest_posting.hooks + 1] = method_name end
+    return ok, ok and nil or tostring(reason)
+end
+
+function M.install_quest_posting_hooks(self)
+    local skip = function() return sdk.PreHookResult.SKIP_ORIGINAL end
+    local true_post = function() return true end
+    local hooks = {
+        { "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager",
+            "getQuestCounterSelectedQuest()", nil, function()
+                local manager = sdk.get_managed_singleton("snow.QuestManager")
+                if manager == nil or self.methods.quest_data == nil then return nil end
+                return safe(function()
+                    return self.methods.quest_data:call(manager, self.profile.training_quest.id)
+                end)
+            end },
+        { "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager", "awake()", function(args)
+            local counter = sdk.to_managed_object(args[2])
+            local access = enum_value(
+                "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterAccessType", "HallCounter")
+            if counter and access ~= nil then counter:call("set_QuestCounterType", access) end
+        end },
+        { "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
+            "start(via.behaviortree.ActionArg)", skip },
+        { "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
+            "update(via.behaviortree.ActionArg)", skip },
+        { "snow.gui.GuiManager", "IsPlayerAllInputDisable()", nil, true_post },
+        { "snow.gui.GuiManager", "IsCanFieldObjectAccessSub()", nil, true_post },
+        { "snow.gui.GuiManager", "isDisplayForHeadMessage(System.Boolean)", nil, true_post },
+        { "snow.SnowSessionManager", "reqOnlineWarning()", skip },
+        { "snow.gui.GuiManager", "updateYNInfoWindow(System.UInt32)", nil, function()
+            return enum_value("snow.gui.GuiCommonYNInfoWindow.YNInfoUIState", "Yes_on")
+        end },
+    }
+    local installed = 0
+    local failures = {}
+    for _, hook in ipairs(hooks) do
+        local ok, reason = install_conditional_hook(self, hook[1], hook[2], hook[3], hook[4])
+        if ok then installed = installed + 1 else failures[#failures + 1] = reason end
+    end
+    self.quest_posting.hook_failures = failures
+    return installed == #hooks, table.concat(failures, "; ")
+end
+
+function M.quest_restart_api(self)
+    local api = {}
+
+    function api:request_reset()
+        if self.runtime.capabilities.quest_posting ~= true then
+            return false, "Quest posting hooks unavailable: "
+                .. tostring(self.runtime.capabilities.quest_posting_reason)
+        end
+        return M.request_native_quest_reset(self.runtime)
+    end
+
+    function api:is_hub_ready()
+        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+        local quest = sdk.get_managed_singleton("snow.QuestManager")
+        if gui == nil or quest == nil then return false end
+        local can_invoke = safe(function() return gui:call("IsCanInvokeQuestBoard") end) == true
+        local active = self.runtime.methods.quest_active
+            and safe(function() return self.runtime.methods.quest_active:call(quest) end) == true
+        return can_invoke and not active
+    end
+
+    function api:open_counter()
+        local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
+        local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
+        if facility == nil or scene_id == nil then return false, "Quest counter API unavailable" end
+        self.runtime.quest_posting.active = true
+        local ok = pcall(function() facility:call("activateOnly", scene_id) end)
+        return ok, ok and nil or "Failed to open quest counter"
+    end
+
+    function api:start_session()
+        local counter = sdk.get_managed_singleton(
+            "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
+        if counter == nil then return false, "Quest counter did not initialize" end
+        local ok, reason = pcall(function()
+            local action = sdk.create_instance(
+                "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
+            local arg = sdk.create_instance("via.behaviortree.ActionArg"):add_ref()
+            local tree = counter:call("get_refQuestCounterBehaviorTree")
+            arg:call("setOwnerComponentPtr", tree:get_address())
+            action:call("start", arg)
+            self.runtime.quest_posting.action = action
+            self.runtime.quest_posting.action_arg = arg
+        end)
+        return ok, ok and nil or "Failed to start quest posting: " .. tostring(reason)
+    end
+
+    function api:select_quest()
+        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+        if gui == nil then return false, "GuiManager unavailable" end
+        if safe(function() return gui:call("isOpenYNInfo") end) == true then return true end
+        local selection
+        if safe(function() return gui:call("isOpenServantSelectInfoWindow") end) == true then
+            selection = safe(function() return gui:call("get_refGuiServantSelectInfoWindow") end)
+            local quest = sdk.get_managed_singleton("snow.QuestManager")
+            local save = quest and safe(function() return quest:call("get_SaveData") end)
+            if save then safe(function() save:set_field("_IsServantSelectCheck", false) end) end
+        elseif safe(function() return gui:call("isOpenSelectInfo") end) == true then
+            selection = safe(function() return gui:call("get_refGuiCommonSelectWindow") end)
+        else
+            return nil
+        end
+        if selection == nil then return false, "Quest confirmation window unavailable" end
+        local decided = enum_value("snow.gui.GuiCommonSelectWindow.Result", "Decide")
+        local ok, reason = pcall(function()
+            local scroll = selection:get_field("_ScrollListCtrl")
+            local cursor = scroll:get_field("_Cursor")
+            scroll:set_field("_result", decided)
+            cursor:call("set_index", 0)
+        end)
+        return ok and true or false, ok and nil or "Failed to confirm quest: " .. tostring(reason)
+    end
+
+    function api:tick_posting()
+        local posting = self.runtime.quest_posting
+        local action = posting.action
+        if action == nil then return false, "Quest posting action unavailable" end
+        local ok, reason = pcall(function()
+            local routine = action:get_field("_RoutineCtrl")
+            if routine and routine:call("isExecute") == true then routine:call("execute") end
+        end)
+        return ok, ok and nil or "Quest posting routine failed: " .. tostring(reason)
+    end
+
+    function api:update_posting()
+        local counter = sdk.get_managed_singleton(
+            "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
+        local success = enum_value("snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
+        if counter and success ~= nil
+            and safe(function() return counter:call("get_BaseBranchValue") end) == success then
+            local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+            local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
+            local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
+            safe(function() gui:call("set_IsActivateQuestCounterFromQuestBoard", false) end)
+            safe(function() facility:call("deactivateOnly", scene_id) end)
+            return true
+        end
+        return nil
+    end
+
+    function api:is_counter_closed()
+        return sdk.get_managed_singleton(
+            "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager") == nil
+    end
+
+    function api:depart()
+        local quest = sdk.get_managed_singleton("snow.QuestManager")
+        local active = quest and self.runtime.methods.quest_active
+            and safe(function() return self.runtime.methods.quest_active:call(quest) end) == true
+        if not active then return false, "Training quest was not posted" end
+        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+        local flow = gui and safe(function() return gui:call("get_refQuestStartFlowHandler") end)
+        if flow == nil then return false, "Quest departure flow unavailable" end
+        local ok = pcall(function() flow:call("requestGoQuest", true) end)
+        return ok, ok and nil or "Automatic departure failed"
+    end
+
+    function api:finish_posting()
+        self.runtime:clear_quest_posting(false)
+    end
+
+    function api:cancel_posting()
+        self.runtime:clear_quest_posting(true)
+    end
+
+    api.runtime = self
+    return api
+end
+
+function M.clear_quest_posting(self, close_windows)
+    local posting = self.quest_posting
+    posting.active = false
+    if close_windows then
+        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+        local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
+        local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
+        safe(function() gui:call("closeYNInfo") end)
+        safe(function() gui:call("closeServantSelectInfoWindow") end)
+        safe(function() gui:call("closeSelectWindow") end)
+        safe(function() gui:call("closeInfo") end)
+        safe(function() gui:call("set_IsActivateQuestCounterFromQuestBoard", false) end)
+        safe(function() facility:call("deactivateOnly", scene_id) end)
+    end
+    if posting.action_arg then safe(function() posting.action_arg:release() end) end
+    if posting.action then safe(function() posting.action:release() end) end
+    posting.action = nil
+    posting.action_arg = nil
 end
 
 function M.dump_quest_restart_metadata(self)
@@ -509,6 +736,7 @@ end
 
 function M.shutdown(self)
     M.restore_time_scale(self)
+    if self.quest_restart then self.quest_restart:shutdown() end
     self.reader:shutdown()
 end
 

@@ -77,6 +77,7 @@ $files = @(
     'autorun\MHRiseMonsterCoach\response_long_sword.lua',
     'autorun\MHRiseMonsterCoach\profile_tigrex.lua',
     'autorun\MHRiseMonsterCoach\quest_list_order.lua',
+    'autorun\MHRiseMonsterCoach\quest_restart.lua',
     'autorun\MHRiseMonsterCoach\runtime.lua',
     'autorun\MHRiseMonsterCoach\view.lua',
     'data\MHRiseMonsterCoach\tigrex_static_ai.json',

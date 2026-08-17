@@ -15,6 +15,8 @@ app (composition root)
  └─ monster profile (Tigrex)
 ```
 
+任务重开由 `quest_restart.lua` 保存跨场景状态，只依赖 Runtime 提供的语义操作：原生重置、据点就绪、柜台接取和出发。Controller 只启动用例并展示状态；任务 ID 来自怪物 Profile。运行时实现参考 AutoQuest 已验证的任务柜台 FSM 入口，但不依赖或复制其模块。
+
 - `model.lua` 只处理训练状态、动作转换、派生语义和有界历史，不调用游戏 API。
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
 - `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
@@ -104,6 +106,7 @@ app (composition root)
 | 执行 | Action 可读 | 当前动作、派生、F6/F7/F8 | 减速、重置 | 有界记录历史 |
 | 成功 | 动作切换且未掉血 | No damage 与 streak | 重试、继续 | 保留统计 |
 | 失败 | 检测到生命下降 | 本轮受击量 | F7、继续 | 清空本轮伤害 |
+| 重开中 | 任务内按一次 F7 | 返回据点/接取/出发/加载的当前阶段 | 等待；忽略重复 F7 | 成功进入同一任务后完成；失败时关闭柜台并停止 |
 | 禁用 | 联机任务或运行时指纹不匹配 | 明文说明写操作禁用 | 只读观察、退出 | 立即恢复 1.0x |
 | 错误 | 回调异常 | 显示带阶段的错误 | 查日志、重载 | 立即恢复 1.0x；保留配置 |
 

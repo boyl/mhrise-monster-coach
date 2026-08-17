@@ -79,49 +79,37 @@ controller:guard("same_failure", same_failure)
 controller:guard("same_failure", same_failure)
 assert(logged_errors == 1, "identical callback errors are logged once")
 
-local traces_started, traces_flushed, native_resets = 0, 0, 0
-runtime.quest_reset_trace = { active = false }
-runtime.start_quest_reset_trace = function(self)
-    traces_started = traces_started + 1
-    self.quest_reset_trace.active = true
-    return true
-end
-runtime.flush_quest_reset_trace = function(self, _, stop)
-    traces_flushed = traces_flushed + 1
-    if stop then self.quest_reset_trace.active = false end
-    return true
-end
-runtime.request_native_quest_reset = function()
-    native_resets = native_resets + 1
-    return true
-end
+local restart_starts = 0
+runtime.quest_restart = {
+    state = "idle", status = "Waiting",
+    is_active = function(self) return self.state == "wait_hub" end,
+    start = function(self)
+        restart_starts = restart_starts + 1
+        self.state = "wait_hub"
+        self.status = "Returning to hub"
+        return true
+    end,
+    update = function(self)
+        self.state = "complete"
+        self.status = "Training quest restarted"
+    end,
+}
 model.reset_round = function(self, reason) self.last_reset = reason end
 config.diagnostic_safe_mode = false
 config.time_control_enabled = true
 controller.input_state = { capture_pressed = false, reset_pressed = true }
 controller:quick_reset()
-assert(traces_started == 1 and native_resets == 1 and runtime.quest_reset_trace.active,
-    "F7 requests only the observed native reset entry and arms tracing")
+assert(restart_starts == 1 and runtime.quest_restart.state == "wait_hub",
+    "F7 starts the complete one-key restart workflow")
 drawing_ui = true
 controller.input_state = { capture_pressed = false, reset_pressed = true }
 controller:quick_reset()
-assert(traces_started == 1 and native_resets == 1,
+assert(restart_starts == 1,
     "open REFramework menu consumes reset shortcut without execution")
 drawing_ui = false
-
-model.context.in_quest = false
-for _ = 1, 120 do controller:update_quest_reset_trace() end
-assert(not runtime.quest_reset_trace.active and traces_flushed == 120,
-    "trace completes after the quest has exited for a stable window")
-assert(model.last_reset == "Quest reset trace captured", "trace completion is visible")
-
-controller:arm_quest_launch_trace()
-assert(runtime.quest_reset_trace.active and controller.reset_trace_mode == "hub_launch",
-    "F7 at the hub arms launch tracing without gameplay writes")
-model.context.in_quest = true
-for _ = 1, 120 do controller:update_quest_reset_trace() end
-assert(not runtime.quest_reset_trace.active and model.last_reset == "Quest launch trace captured",
-    "launch trace completes after stable quest entry")
+controller:update_quest_restart()
+assert(runtime.quest_restart.state == "complete" and model.last_reset == "Training quest restarted",
+    "one-key restart completion is visible")
 
 local writes = 0
 local health_values = { 100, 80 }

@@ -12,6 +12,7 @@ $required = @(
     "'autorun\MHRiseMonsterCoach\long_sword_switch_skills.lua'",
     "'autorun\MHRiseMonsterCoach\input_adapter.lua'",
     "'autorun\MHRiseMonsterCoach\monster_phase.lua'",
+    "'autorun\MHRiseMonsterCoach\quest_restart.lua'",
     "'autorun\MHRiseMonsterCoach\response_long_sword.lua'",
     "'data\MHRiseMonsterCoach\long_sword_knowledge.json'",
     "'data\MHRiseMonsterCoach\tigrex_static_ai.json'",

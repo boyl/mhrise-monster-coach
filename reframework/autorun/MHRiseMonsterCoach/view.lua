@@ -157,13 +157,13 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             and "READ-ONLY: Action/Hitbox polling on; gameplay writes off"
             or "Manual slow motion disabled in Monster Coach menu"
     elseif input_state and input_state.available and input_state.device == "gamepad" then
-        controls = "Hold LB+RB/L1+R1: slow | reset shortcut: arm read-only trace"
+        controls = "Hold LB+RB/L1+R1: slow | reset shortcut: restart training quest"
     elseif model.context.safe_mode then
         controls = model.context.in_quest
-            and "F6: slow time | F7: native reset to hub | direct position writes locked"
-            or "F7: arm launch trace | accept training quest and depart once"
+            and "F6: slow time | F7: one-key quest restart | direct position writes locked"
+            or "One-key restart continues automatically; no second F7 needed"
     else
-        controls = "F6: slow time | F7: native reset to hub | direct position reset disabled"
+        controls = "F6: slow time | F7: one-key quest restart | direct position reset disabled"
     end
     lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
 

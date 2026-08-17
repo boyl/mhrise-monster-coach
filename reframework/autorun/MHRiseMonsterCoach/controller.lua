@@ -35,6 +35,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         reset_trace_exit_frames = 0,
         native_reset_requested = false,
         reset_trace_mode = nil,
+        restart_state = "idle",
     }, { __index = M })
 end
 
@@ -141,61 +142,37 @@ function M.request_native_quest_reset(self)
         self.model:reset_round(self.reset_status)
         return false
     end
-    if self.native_reset_requested then return false end
-    self.runtime:start_quest_reset_trace(self.model.context)
-    self.reset_trace_mode = "native_reset"
-    self.reset_trace_exit_frames = 0
-    local ok, reason = self.runtime:request_native_quest_reset()
+    local restart = self.runtime.quest_restart
+    if restart == nil then
+        self.reset_status = "Automatic restart unavailable"
+        self.model:reset_round(self.reset_status)
+        return false
+    end
+    if restart:is_active() then return false end
+    local ok, reason = restart:start(self.model.context)
     if not ok then
-        self.runtime:flush_quest_reset_trace(self.model.context, true)
-        self.reset_trace_mode = nil
-        self.reset_status = "Native reset failed: " .. tostring(reason)
+        self.reset_status = "Automatic restart failed: " .. tostring(reason)
         self.model:reset_round(self.reset_status)
         return false
     end
     self.native_reset_requested = true
-    self.reset_status = "Native quest reset requested"
+    self.restart_state = restart.state
+    self.reset_status = restart.status
     self.model:reset_round(self.reset_status)
     return true
 end
 
-function M.arm_quest_launch_trace(self)
-    if self.model.context.in_quest or self.model.context.is_online
-        or self.model.context.build_supported == false then
-        self.reset_status = "Launch trace unavailable: return to a single-player hub"
+function M.update_quest_restart(self)
+    local restart = self.runtime.quest_restart
+    if restart == nil or not restart:is_active() then return end
+    restart:update(self.model.context)
+    if self.restart_state ~= restart.state then
+        self.restart_state = restart.state
+        self.reset_status = restart.status
         self.model:reset_round(self.reset_status)
-        return false
     end
-    self.runtime:start_quest_reset_trace(self.model.context)
-    self.reset_trace_mode = "hub_launch"
-    self.reset_trace_exit_frames = 0
-    self.reset_status = "Launch trace armed: accept the training quest and depart once"
-    self.model:reset_round(self.reset_status)
-    return true
-end
-
-function M.update_quest_reset_trace(self)
-    local trace = self.runtime.quest_reset_trace
-    if not trace or not trace.active then return end
-    local reached_destination = self.reset_trace_mode == "hub_launch"
-        and self.model.context.in_quest
-    if reached_destination then
-        self.reset_trace_exit_frames = self.reset_trace_exit_frames + 1
-    elseif self.reset_trace_mode == "hub_launch" then
-        self.reset_trace_exit_frames = 0
-    elseif self.model.context.in_quest then
-        self.reset_trace_exit_frames = 0
-    else
-        self.reset_trace_exit_frames = self.reset_trace_exit_frames + 1
-    end
-    local completed = self.reset_trace_exit_frames >= 120
-    self.runtime:flush_quest_reset_trace(self.model.context, completed)
-    if completed then
+    if restart.state == "complete" or restart.state == "failed" then
         self.native_reset_requested = false
-        self.reset_status = self.reset_trace_mode == "hub_launch"
-            and "Quest launch trace captured" or "Quest reset trace captured"
-        self.reset_trace_mode = nil
-        self.model:reset_round(self.reset_status)
     end
 end
 
@@ -206,11 +183,7 @@ function M.quick_reset(self)
     local edge = keyboard_edge or gamepad_edge
     if not edge then return end
     if reframework:is_drawing_ui() then return end
-    if self.model.context.in_quest then
-        M.request_native_quest_reset(self)
-    else
-        M.arm_quest_launch_trace(self)
-    end
+    if self.model.context.in_quest then M.request_native_quest_reset(self) end
 end
 
 function M.update(self)
@@ -220,7 +193,7 @@ function M.update(self)
         and not self.model.context.is_online then M.observe_enemy(self) end
     M.update_slowmo(self)
     M.quick_reset(self)
-    M.update_quest_reset_trace(self)
+    M.update_quest_restart(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.update_health(self) end
     M.persist_runtime_evidence(self, not self.model.context.in_quest)
@@ -319,7 +292,7 @@ function M.draw_menu_content(self)
             input.available and "ready" or "unavailable", tostring(input.device)))
     end
     imgui.text("Observed state changes: " .. tostring(self.model.state_changes))
-    ui_text_wrapped("Quest reset trace: " .. tostring(self.reset_status))
+    ui_text_wrapped("One-key restart: " .. tostring(self.reset_status))
     if self.model.context.outcome_tracking then
         imgui.text(string.format("Rounds %d | Success %d | Hit %d", self.model.rounds, self.model.successes, self.model.failures))
     else
@@ -340,11 +313,11 @@ function M.draw_menu_content(self)
         end
     end
 
-    local f7_label = self.model.context.in_quest
-        and "Native reset to hub (F7)" or "Arm quest launch trace (F7)"
+    local restart = self.runtime.quest_restart
+    local f7_label = restart and restart:is_active()
+        and ("Restarting: " .. tostring(restart.status)) or "Restart training quest once (F7)"
     if imgui.button(f7_label) then
-        if self.model.context.in_quest then M.request_native_quest_reset(self)
-        else M.arm_quest_launch_trace(self) end
+        if self.model.context.in_quest then M.request_native_quest_reset(self) end
     end
 
     if imgui.button("Export calibration evidence") then
