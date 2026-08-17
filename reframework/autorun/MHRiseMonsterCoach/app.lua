@@ -36,7 +36,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.18.0-one-key-restart loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.18.1-one-key-restart-lobby-gate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

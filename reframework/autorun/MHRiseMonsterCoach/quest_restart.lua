@@ -37,7 +37,9 @@ function M.new(api, quest_id, options)
         state_frames = 0,
         hub_stable_frames = 0,
         timeout_frames = options.timeout_frames or 3600,
-        hub_stable_required = options.hub_stable_frames or 30,
+        -- AutoQuest waits about ten seconds after Quest -> Lobby before opening
+        -- the counter. The lobby APIs can report available during scene teardown.
+        hub_stable_required = options.hub_stable_frames or 600,
         error = nil,
     }, { __index = M })
 end

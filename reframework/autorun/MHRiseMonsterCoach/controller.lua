@@ -159,6 +159,9 @@ function M.request_native_quest_reset(self)
     self.restart_state = restart.state
     self.reset_status = restart.status
     self.model:reset_round(self.reset_status)
+    if self.runtime.record_quest_restart_state then
+        self.runtime:record_quest_restart_state(restart, self.model.context)
+    end
     return true
 end
 
@@ -170,6 +173,9 @@ function M.update_quest_restart(self)
         self.restart_state = restart.state
         self.reset_status = restart.status
         self.model:reset_round(self.reset_status)
+        if self.runtime.record_quest_restart_state then
+            self.runtime:record_quest_restart_state(restart, self.model.context)
+        end
     end
     if restart.state == "complete" or restart.state == "failed" then
         self.native_reset_requested = false

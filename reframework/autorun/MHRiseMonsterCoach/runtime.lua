@@ -322,7 +322,15 @@ function M.quest_restart_api(self)
     function api:is_hub_ready()
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local quest = sdk.get_managed_singleton("snow.QuestManager")
-        if gui == nil or quest == nil then return false end
+        local player = sdk.get_managed_singleton("snow.player.PlayerManager")
+        if gui == nil or quest == nil or player == nil then return false end
+        local lobby_state = enum_value("snow.player.GameStatePlayer", "Lobby")
+        local current_state = safe(function()
+            local player_id = player:call("getMasterPlayerID")
+            local params = player:call("get_PlayerParam")
+            return params[player_id]:get_field("_gameStatePlayer")
+        end)
+        if lobby_state == nil or current_state ~= lobby_state then return false end
         local can_invoke = safe(function() return gui:call("IsCanInvokeQuestBoard") end) == true
         local active = self.runtime.methods.quest_active
             and safe(function() return self.runtime.methods.quest_active:call(quest) end) == true
@@ -435,6 +443,27 @@ function M.quest_restart_api(self)
 
     api.runtime = self
     return api
+end
+
+function M.record_quest_restart_state(self, restart, context)
+    local message = string.format("[MHRiseMonsterCoach] One-key restart: %s (%s)",
+        tostring(restart.state), tostring(restart.status))
+    if restart.state == "failed" then log.error(message) else log.info(message) end
+    safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_quest_restart_state.json", {
+            schema_version = 1,
+            version = "0.18.1-one-key-restart-lobby-gate",
+            state = restart.state,
+            status = restart.status,
+            error = restart.error,
+            state_frames = restart.state_frames,
+            hub_stable_frames = restart.hub_stable_frames,
+            quest_id = restart.quest_id,
+            context = context,
+            posting_hooks = self.quest_posting.hooks,
+            posting_hook_failures = self.quest_posting.hook_failures,
+        })
+    end)
 end
 
 function M.clear_quest_posting(self, close_windows)
