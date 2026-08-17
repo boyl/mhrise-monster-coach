@@ -159,9 +159,9 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     elseif input_state and input_state.available and input_state.device == "gamepad" then
         controls = "Hold LB+RB/L1+R1: slow | reset shortcut: arm read-only trace"
     elseif model.context.safe_mode then
-        controls = "F6: slow time | F7: arm reset trace | gameplay writes locked"
+        controls = "F6: slow time | F7: native reset to hub | direct position writes locked"
     else
-        controls = "F6: slow time | F7: arm reset trace | direct position reset disabled"
+        controls = "F6: slow time | F7: native reset to hub | direct position reset disabled"
     end
     lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
 

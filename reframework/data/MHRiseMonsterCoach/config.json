@@ -12,6 +12,7 @@
   "time_control_enabled": true,
   "quick_reset_enabled": false,
   "auto_capture_anchors": false,
+  "native_quest_reset_enabled": true,
   "quick_reset_cooldown_frames": 180,
   "quick_reset_safe_frames": 15,
   "slowmo_scale": 0.25,

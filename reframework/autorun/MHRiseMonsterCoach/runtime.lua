@@ -75,6 +75,7 @@ function M.new(config, profile)
         lobby_online = find_method("snow.LobbyManager", "IsQuestOnline"),
         quest_playing = find_method("snow.QuestManager", "isPlayQuest"),
         quest_no = find_method("snow.QuestManager", "getQuestNo"),
+        quest_notify_reset = find_method("snow.QuestManager", "notifyReset"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -179,6 +180,27 @@ function M.flush_quest_reset_trace(self, context, stop)
     end
     if stop then trace.active = false end
     return true
+end
+
+function M.request_native_quest_reset(self)
+    local context = self.last_context or {}
+    if self.config.native_quest_reset_enabled ~= true then
+        return false, "Native quest reset is disabled"
+    end
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then
+        return false, "Unsupported runtime"
+    end
+    if not context.in_quest or context.is_online
+        or tonumber(context.quest_no) ~= self.profile.training_quest.id then
+        return false, "Native reset is limited to the single-player training quest"
+    end
+    if self.methods.quest_notify_reset == nil then return false, "QuestManager.notifyReset unavailable" end
+    local manager = sdk.get_managed_singleton("snow.QuestManager")
+    if manager == nil then return false, "QuestManager unavailable" end
+    M.restore_time_scale(self)
+    local ok = pcall(function() self.methods.quest_notify_reset:call(manager) end)
+    return ok, ok and nil or "QuestManager.notifyReset call failed"
 end
 
 function M.dump_quest_restart_metadata(self)

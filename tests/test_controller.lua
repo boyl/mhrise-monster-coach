@@ -79,7 +79,7 @@ controller:guard("same_failure", same_failure)
 controller:guard("same_failure", same_failure)
 assert(logged_errors == 1, "identical callback errors are logged once")
 
-local traces_started, traces_flushed = 0, 0
+local traces_started, traces_flushed, native_resets = 0, 0, 0
 runtime.quest_reset_trace = { active = false }
 runtime.start_quest_reset_trace = function(self)
     traces_started = traces_started + 1
@@ -91,17 +91,22 @@ runtime.flush_quest_reset_trace = function(self, _, stop)
     if stop then self.quest_reset_trace.active = false end
     return true
 end
+runtime.request_native_quest_reset = function()
+    native_resets = native_resets + 1
+    return true
+end
 model.reset_round = function(self, reason) self.last_reset = reason end
 config.diagnostic_safe_mode = false
 config.time_control_enabled = true
 controller.input_state = { capture_pressed = false, reset_pressed = true }
 controller:quick_reset()
-assert(traces_started == 1 and runtime.quest_reset_trace.active,
-    "former reset shortcut only arms read-only tracing")
+assert(traces_started == 1 and native_resets == 1 and runtime.quest_reset_trace.active,
+    "F7 requests only the observed native reset entry and arms tracing")
 drawing_ui = true
 controller.input_state = { capture_pressed = false, reset_pressed = true }
 controller:quick_reset()
-assert(traces_started == 1, "open REFramework menu consumes trace shortcut without execution")
+assert(traces_started == 1 and native_resets == 1,
+    "open REFramework menu consumes reset shortcut without execution")
 drawing_ui = false
 
 model.context.in_quest = false
