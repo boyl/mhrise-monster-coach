@@ -114,6 +114,7 @@ function M.new(config, profile)
     self.capabilities.quest_posting_reason = posting_reason
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
     M.dump_in_place_reset_metadata(self)
+    M.dump_in_place_type_candidates(self)
     return setmetatable(self, { __index = M })
 end
 
@@ -562,6 +563,7 @@ local IN_PLACE_RESET_KEYWORDS = {
     "spawn", "despawn", "respawn", "create", "generate", "instantiate",
     "arrange", "destroy", "delete", "erase", "remove", "reset", "restart",
     "reload", "reentry", "revive", "warp", "teleport", "position",
+    "area", "block", "stage", "map",
 }
 
 local function matches_reset_keyword(name)
@@ -627,6 +629,59 @@ function M.dump_in_place_reset_metadata(self)
             runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
             keywords = IN_PLACE_RESET_KEYWORDS,
             types = types,
+        })
+        return true
+    end) == true
+end
+
+local IN_PLACE_TYPE_KEYWORDS = {
+    "endemic", "creature", "ecology", "ecologic", "environment",
+    "envcreature", "fieldgimmick",
+}
+
+function M.dump_in_place_type_candidates(self)
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then return false end
+    local existing = safe(function()
+        return json.load_file("MHRiseMonsterCoach/runtime_in_place_type_candidates.json")
+    end)
+    if type(existing) == "table" and existing.schema_version == 2 then return true end
+    local matches = {}
+    local seen = {}
+    local ok, reason = pcall(function()
+        local app_domain_type = sdk.find_type_definition("System.AppDomain")
+        local get_current = app_domain_type and app_domain_type:get_method("get_CurrentDomain")
+        local domain = get_current and get_current:call(nil)
+        local assemblies = domain and domain:call("GetAssemblies")
+        if assemblies == nil then error("loaded assemblies unavailable") end
+        for assembly_index = 0, assemblies:get_size() - 1 do
+            local assembly = assemblies:get_element(assembly_index)
+            local types = assembly and safe(function() return assembly:call("GetTypes") end)
+            if types then
+                for type_index = 0, types:get_size() - 1 do
+                    local system_type = types:get_element(type_index)
+                    local name = system_type and safe(function()
+                        return system_type:call("get_FullName")
+                    end)
+                    local lower = string.lower(tostring(name or ""))
+                    for _, keyword in ipairs(IN_PLACE_TYPE_KEYWORDS) do
+                        if string.find(lower, keyword, 1, true) then
+                            if not seen[name] then matches[#matches + 1] = name seen[name] = true end
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    table.sort(matches)
+    return safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_in_place_type_candidates.json", {
+            schema_version = 2,
+            policy = "type_names_only_no_instance_access_or_method_invocation",
+            error = ok and nil or tostring(reason),
+            keywords = IN_PLACE_TYPE_KEYWORDS,
+            matches = matches,
         })
         return true
     end) == true
@@ -939,6 +994,7 @@ function M.capture_anchors(self)
     self.player_anchor = {
         position = copy_position(player_position),
         rotation = copy_rotation(get_rotation(player_transform)),
+        quest_no = self.last_context and self.last_context.quest_no or nil,
     }
     self.enemy_anchor = {
         position = copy_position(enemy_position),
@@ -1019,6 +1075,23 @@ function M.experimental_native_in_place_reset(self)
     end
     if self.methods.player_native_warp == nil or self.methods.enemy_native_warp_init == nil then
         return false, "Native character warp methods unavailable"
+    end
+    local current_position = get_position(get_transform(self.player))
+    if current_position == nil then return false, "Current hunter position unavailable" end
+    local current_x, current_y, current_z = tonumber(current_position.x), tonumber(current_position.y), tonumber(current_position.z)
+    local anchor_x = tonumber(self.player_anchor.position.x)
+    local anchor_y = tonumber(self.player_anchor.position.y)
+    local anchor_z = tonumber(self.player_anchor.position.z)
+    if current_x == nil or current_y == nil or current_z == nil
+        or anchor_x == nil or anchor_y == nil or anchor_z == nil then
+        return false, "Hunter reset point components unavailable"
+    end
+    local dx = current_x - anchor_x
+    local dy = current_y - anchor_y
+    local dz = current_z - anchor_z
+    local distance_squared = dx * dx + dy * dy + dz * dz
+    if distance_squared > 2500 then
+        return false, "Reset point is over 50m away and may belong to another area; press F8 in the current area"
     end
     local safe_now, safe_reason, retry = M.quick_reset_safe(self)
     if not safe_now then return false, safe_reason, retry end

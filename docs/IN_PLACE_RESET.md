@@ -29,3 +29,7 @@
 - F9 等待怪物活动判定结束，然后调用 `PlayerBase.setPosWarpConsiderDogRide` 和 `EnemyCharacterBase.warpEnemyInitPos`，并恢复双方生命。
 - 本阶段不宣称清除部位破坏、异常、怒气、投射物或陷阱；目的仅是验证原生 Warp 连续调用是否安全。
 - F7 任务重开保持不变，作为完整且已验证的回退路径。
+
+### 已知跨区域风险
+
+准备区锚点在战斗区直接交给 `PlayerBase.setPosWarpConsiderDogRide` 会绕过 StageManager 区域切换并导致原生崩溃。区域字段完成解析前，F9 对超过 50 米的锚点执行硬拒绝；这只是临时安全门，不是最终跨区设计。开发探针同时枚举 Player/Stage 的 Area、Block、Map 成员以及环境生物相关类型，后续改为保存 Area ID 并调用原生切区流程。
