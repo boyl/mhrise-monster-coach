@@ -759,6 +759,21 @@ function M.advance_startup_to_press_any(self)
     return true
 end
 
+function M.advance_startup_to_title_menu(self)
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    if title == nil then return false, "Title menu manager unavailable" end
+    local state = safe(function() return title:get_TitleMenuState() end)
+    if tonumber(state) == 2 then return true end
+    if tonumber(state) ~= 1 then
+        return false, "Title menu advance refused from state " .. tostring(state)
+    end
+    local ok, reason = pcall(function() title:setState(2) end)
+    if not ok then return false, "Failed to enter TitleMenu: " .. tostring(reason) end
+    local selected = safe(function() return title:get_TitleMenuState() end)
+    if tonumber(selected) ~= 2 then return false, "TitleMenu transition did not persist" end
+    return true
+end
+
 function M.select_startup_save_slot(self, index)
     if tonumber(index) ~= 0 then return false, "Only the first save slot (index 0) is permitted" end
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")

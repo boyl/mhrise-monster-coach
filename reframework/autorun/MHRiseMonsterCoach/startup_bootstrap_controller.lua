@@ -16,9 +16,6 @@ function M.new(api, options)
         request = nil,
         frame = 0,
         state_frames = 0,
-        started_at = nil,
-        now = options.now or os.time,
-        timeout_seconds = options.timeout_seconds or 180,
         completed_sessions = {},
     }, { __index = M })
 end
@@ -70,7 +67,6 @@ function M:accept_request(request)
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     self.request = request
-    self.started_at = self.now()
     self:set_state("observing")
     self:write_status("running")
     return true
@@ -83,10 +79,6 @@ function M:update()
         return
     end
     self.state_frames = self.state_frames + 1
-    if self.started_at and self.now() - self.started_at > self.timeout_seconds then
-        return self:fail("Title/save bootstrap timed out")
-    end
-
     local view = self.api:observe() or {}
     if view.in_hub == true then return self:complete() end
     if view.build_supported == false then return self:fail("Unsupported game build") end
@@ -119,8 +111,10 @@ function M:update()
     end
 
     if view.title_state == TITLE_STATE_PRESS_ANY then
+        local ok, reason = self.api:advance_to_title_menu()
+        if not ok then return self:fail(reason or "Unable to advance to the title menu") end
         self:set_state("wait_title_menu")
-        self:request_key("press_any")
+        self:write_status("running")
         return
     end
 

@@ -68,6 +68,9 @@ function M.start()
     function bootstrap_api:advance_to_press_any()
         return runtime:advance_startup_to_press_any()
     end
+    function bootstrap_api:advance_to_title_menu()
+        return runtime:advance_startup_to_title_menu()
+    end
     function bootstrap_api:select_save_slot(index)
         return runtime:select_startup_save_slot(index)
     end
@@ -96,7 +99,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.25.0-title-init-transition loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.26.0-native-title-transition loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
