@@ -594,6 +594,11 @@ local TITLE_FLOW_TYPES = {
     "snow.gui.fsm.title.GuiTitleFsmManager",
     "snow.gui.fsm.title.GuiTitleMenuFsmManager",
     "snow.gui.fsm.title.GuiTitleMenuFsmManager.TitleMenu",
+    "snow.gui.fsm.title.GuiTitleMenuFsmManager.TitleMenuStateType",
+    "snow.gui.SnowGuiCommonUtility.MenuListCursor",
+    "snow.gui.GuiSaveDataSelectMenu",
+    "snow.gui.GuiSaveDataSelectMenu.PnlSlot",
+    "snow.gui.GuiSaveDataSelectMenu.CheckDlcRefundRno",
     "snow.gui.fsm.title.GuiTitleFsm_PressAnyButton_Action",
     "snow.gui.fsm.title.GuiTitleFsm_TitleMenu_Action",
     "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuStart",
@@ -644,7 +649,7 @@ function M.dump_title_flow_metadata(self)
     end
     return safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_title_flow_probe.json", {
-            schema_version = 1,
+            schema_version = 2,
             policy = "exact_type_metadata_only_no_title_action_invocation",
             runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
             types = types,
