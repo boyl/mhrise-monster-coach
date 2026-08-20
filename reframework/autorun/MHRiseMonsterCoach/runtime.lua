@@ -845,6 +845,7 @@ function M.dismiss_startup_autosave_notice(self)
     local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
     if gui == nil then return false, "GuiManager unavailable" end
     local ok, reason = pcall(function() gui:call("closeInfo") end)
+    if ok then M.dump_title_flow_metadata(self) end
     return ok, ok and nil or "Failed to close autosave notice: " .. tostring(reason)
 end
 
