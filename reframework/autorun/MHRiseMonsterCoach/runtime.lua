@@ -775,6 +775,16 @@ function M.advance_startup_to_title_menu(self)
     return true
 end
 
+function M.dismiss_startup_autosave_notice(self)
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    local state = title and safe(function() return title:get_TitleMenuState() end) or nil
+    if tonumber(state) ~= 2 then return false, "Autosave notice dismissal requires TitleMenu state" end
+    local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+    if gui == nil then return false, "GuiManager unavailable" end
+    local ok, reason = pcall(function() gui:call("closeInfo") end)
+    return ok, ok and nil or "Failed to close autosave notice: " .. tostring(reason)
+end
+
 function M.select_startup_save_slot(self, index)
     if tonumber(index) ~= 0 then return false, "Only the first save slot (index 0) is permitted" end
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")

@@ -12,6 +12,7 @@ function api:write_status(status) statuses[#statuses + 1] = status end
 function api:read_ack() return ack end
 function api:advance_to_press_any() view.title_state = 1 return true end
 function api:advance_to_title_menu() view.title_state = 2 return true end
+function api:dismiss_autosave_notice() return true end
 function api:select_title_menu(index)
     assert(index == 1, "only Continue may be selected")
     view.title_cursor_index = index
@@ -28,11 +29,6 @@ bootstrap.frame = 30
 bootstrap:update()
 bootstrap:update()
 bootstrap:update()
-assert(statuses[#statuses].action.id == "bootstrap-1:dismiss_autosave_notice")
-assert(statuses[#statuses].action.virtual_key == 0x46, "autosave notice uses the visible F confirm key")
-ack = { session_id = "bootstrap-1", action_id = statuses[#statuses].action.id }
-bootstrap:update()
-ack = nil
 bootstrap:update()
 assert(statuses[#statuses].action.id == "bootstrap-1:choose_continue")
 assert(view.title_cursor_index == 1, "Continue is selected and verified before F")

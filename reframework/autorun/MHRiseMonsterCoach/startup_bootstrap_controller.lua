@@ -99,7 +99,6 @@ function M:update()
             and ack.action_id == self.pending_action.id then
             local name = self.pending_action.name
             self.pending_action = nil
-            if name == "dismiss_autosave_notice" then self:set_state("wait_title_menu_ready") end
             if name == "choose_continue" then self:set_state("wait_save_menu") end
             if name == "choose_first_save" then self:set_state("wait_hub") end
             self:write_status("running")
@@ -135,8 +134,10 @@ function M:update()
     if self.state == "observing" and view.title_state == TITLE_STATE_PRESS_ANY then
         local ok, reason = self.api:advance_to_title_menu()
         if not ok then return self:fail(reason or "Unable to advance to the title menu") end
-        self:set_state("dismiss_autosave_notice")
-        self:request_key("dismiss_autosave_notice", 0x46)
+        ok, reason = self.api:dismiss_autosave_notice()
+        if not ok then return self:fail(reason or "Unable to dismiss the autosave notice") end
+        self:set_state("wait_title_menu_ready")
+        self:write_status("running")
         return
     end
 

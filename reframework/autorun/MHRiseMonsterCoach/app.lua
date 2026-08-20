@@ -21,6 +21,11 @@ function M.start()
     local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
     local probe_api = { quest_api = runtime:quest_restart_api() }
     local function load_data_file(name)
+        local handle = io.open("reframework/data/MHRiseMonsterCoach/" .. name, "r")
+        if handle == nil then return nil end
+        local first_byte = handle:read(1)
+        handle:close()
+        if first_byte == nil then return nil end
         local ok, value = pcall(function()
             return json.load_file("MHRiseMonsterCoach/" .. name)
         end)
@@ -74,6 +79,9 @@ function M.start()
     function bootstrap_api:advance_to_title_menu()
         return runtime:advance_startup_to_title_menu()
     end
+    function bootstrap_api:dismiss_autosave_notice()
+        return runtime:dismiss_startup_autosave_notice()
+    end
     function bootstrap_api:select_save_slot(index)
         return runtime:select_startup_save_slot(index)
     end
@@ -102,7 +110,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.27.0-startup-confirm-handshake loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.28.0-native-autosave-dismiss loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
