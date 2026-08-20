@@ -44,6 +44,17 @@ $request = [ordered]@{
     auto_load_save = $true
 }
 $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Encoding utf8
+[ordered]@{
+    schema_version = 1
+    session_id = $sessionId
+    kind = 'environment_creature_lifecycle'
+    status = 'pending'
+} | ConvertTo-Json | Set-Content -LiteralPath $reportPath -Encoding utf8
+[ordered]@{
+    schema_version = 1
+    session_id = $sessionId
+    action_id = ''
+} | ConvertTo-Json | Set-Content -LiteralPath $bootstrapAckPath -Encoding utf8
 
 if (-not $game) {
     Start-Process -FilePath 'steam://run/1446780'

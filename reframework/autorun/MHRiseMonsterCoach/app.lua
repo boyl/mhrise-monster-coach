@@ -20,12 +20,7 @@ function M.start()
     local input_adapter = InputAdapter.new(config.controller_input)
     local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
     local probe_api = { quest_api = runtime:quest_restart_api() }
-    local function load_data_file(name)
-        local handle = io.open("reframework/data/MHRiseMonsterCoach/" .. name, "r")
-        if handle == nil then return nil end
-        local first_byte = handle:read(1)
-        handle:close()
-        if first_byte == nil then return nil end
+    local function load_required_data_file(name)
         local ok, value = pcall(function()
             return json.load_file("MHRiseMonsterCoach/" .. name)
         end)
@@ -40,9 +35,9 @@ function M.start()
         }
     end
     function probe_api:read_request()
-        local request = load_data_file("dev_probe_request.json")
+        local request = load_required_data_file("dev_probe_request.json")
         if type(request) ~= "table" then return nil end
-        local report = load_data_file("dev_probe_report.json")
+        local report = load_required_data_file("dev_probe_report.json")
         if type(report) == "table" and report.session_id == request.session_id
             and (report.status == "completed" or report.status == "failed") then return nil end
         return request
@@ -66,7 +61,7 @@ function M.start()
         json.dump_file("MHRiseMonsterCoach/startup_bootstrap_status.json", status)
     end
     function bootstrap_api:read_ack()
-        return load_data_file("startup_bootstrap_ack.json")
+        return load_required_data_file("startup_bootstrap_ack.json")
     end
     function bootstrap_api:observe() return runtime:startup_bootstrap_observation() end
     function bootstrap_api:diagnostics() return runtime:startup_bootstrap_diagnostics() end
@@ -110,7 +105,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.28.0-native-autosave-dismiss loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.28.1-reframework-json-paths loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
