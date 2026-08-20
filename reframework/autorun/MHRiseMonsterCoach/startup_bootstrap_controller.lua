@@ -28,6 +28,7 @@ function M:set_state(state)
 end
 
 function M:write_status(status, reason, action)
+    local diagnostics = self.api.diagnostics and self.api:diagnostics() or nil
     self.api:write_status({
         schema_version = 1,
         session_id = self.request and self.request.session_id or nil,
@@ -35,6 +36,7 @@ function M:write_status(status, reason, action)
         reason = reason,
         state = self.state,
         action = action,
+        diagnostics = diagnostics,
         frame = self.frame,
     })
 end

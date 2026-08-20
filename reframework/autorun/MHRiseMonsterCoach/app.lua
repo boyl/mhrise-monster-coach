@@ -61,6 +61,7 @@ function M.start()
         json.dump_file("MHRiseMonsterCoach/startup_bootstrap_status.json", status)
     end
     function bootstrap_api:observe() return runtime:startup_bootstrap_observation() end
+    function bootstrap_api:diagnostics() return runtime:startup_bootstrap_diagnostics() end
     function bootstrap_api:select_title_menu(index)
         return runtime:select_startup_title_menu(index)
     end
@@ -92,7 +93,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.24.0-title-fsm-bootstrap loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.24.1-bootstrap-diagnostics loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

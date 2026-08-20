@@ -717,6 +717,17 @@ function M.startup_bootstrap_observation(self)
     }
 end
 
+function M.startup_bootstrap_diagnostics(self)
+    return {
+        phase = self.startup_flow and self.startup_flow.phase or nil,
+        hooks = self.startup_flow and self.startup_flow.hooks or {},
+        hook_failures = self.startup_flow and self.startup_flow.hook_failures or {},
+        title_manager_available = sdk.get_managed_singleton(
+            "snow.gui.fsm.title.GuiTitleMenuFsmManager") ~= nil,
+        save_menu_available = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu") ~= nil,
+    }
+end
+
 function M.select_startup_title_menu(self, index)
     if tonumber(index) ~= 1 then return false, "Only Continue (index 1) is permitted" end
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
