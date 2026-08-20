@@ -43,3 +43,7 @@
 ### 环境生物实例差分
 
 训练任务内每 30 帧通过当前场景的 `EnvironmentCreatureBase` 组件集合进行一次只读采样。记录实例地址、具体运行时类型、位置及名称命中 state、active、access、repop、timer 等关键词的原始标量字段；只在实例出现、消失或字段变化时追加事件，并将最近 256 个事件写入 `runtime_environment_creatures.json`。该记录器不调用 `createObj`、`destroyObj`、`resetData`、`loadMap` 或 `unloadMap`。
+
+### 自动探针会话
+
+`tools/run_probe_session.ps1` 写入带随机 Session ID 的显式开发请求。稳定引导层可在运行中读取新请求，并自动完成大厅接任务、进入陪练任务、基线采样、在猎人位置生成一个会话自有攻击鬼火鸟、采集差分、F7 原生任务重开和重开后采样，最终写入 `dev_probe_report.json`。正常启动且没有请求文件时不会触发；不调用尚未验证的 F9 原位重置路径，也不自动关闭游戏。

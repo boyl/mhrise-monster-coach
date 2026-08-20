@@ -813,6 +813,47 @@ function M.observe_environment_creatures(self)
     return written
 end
 
+function M.environment_creature_evidence(self)
+    return self.environment_creature_recorder:export()
+end
+
+function M.spawn_owned_environment_probe(self, session_id)
+    local context = self.last_context or {}
+    if type(session_id) ~= "string" or session_id == "" then
+        return false, "Developer probe session identity is required"
+    end
+    if not context.in_quest or context.is_online
+        or tonumber(context.quest_no) ~= self.profile.training_quest.id then
+        return false, "Environment probe is limited to the offline training quest"
+    end
+    if self.player == nil then return false, "Hunter unavailable for environment probe" end
+    local manager = sdk.get_managed_singleton("snow.envCreature.EnvironmentCreatureManager")
+    if manager == nil then return false, "EnvironmentCreatureManager unavailable" end
+    local prefab_list = safe(function() return manager:get_field("_EcPrefabList") end)
+    local items = prefab_list and safe(function() return prefab_list:get_field("mItems") end)
+    local prefabs = items and safe(function() return items:get_elements() end)
+    if type(prefabs) ~= "table" then return false, "Environment creature prefab list unavailable" end
+
+    -- Index 11 is the attack Spiribird in the mature SpiritBirds implementation.
+    -- It avoids colliding with that mod's optional rainbow-bird auto spawn (index 15).
+    local prefab = prefabs[11]
+    if prefab == nil then return false, "Attack Spiribird prefab unavailable" end
+    local position = get_position(get_transform(self.player))
+    if position == nil then return false, "Hunter position unavailable for environment probe" end
+    local instance = safe(function()
+        if prefab:call("get_Standby") ~= true then prefab:call("set_Standby", true) end
+        return prefab:call("instantiate(via.vec3)", position)
+    end)
+    if instance == nil or sdk.is_managed_object(instance) ~= true then
+        return false, "Environment probe instantiation failed"
+    end
+    self.dev_probe_session_id = session_id
+    self.dev_probe_creature = instance
+    local key = tostring(safe(function() return instance:get_address() end) or instance)
+    M.observe_environment_creatures(self)
+    return true, key
+end
+
 function M.set_time_scale(self, scale)
     local application = sdk.get_native_singleton("via.Application")
     local application_type = safe(function() return sdk.find_type_definition("via.Application") end)
@@ -1006,6 +1047,8 @@ function M.context(self)
         M.restore_time_scale(self)
         clear_enemy(self, true)
         self.player_anchor = nil
+        self.dev_probe_creature = nil
+        self.dev_probe_session_id = nil
         self.last_player_health = nil
     end
     self.was_in_quest = in_quest

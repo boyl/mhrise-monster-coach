@@ -79,6 +79,17 @@ function M:start(context)
     return true
 end
 
+function M:start_from_hub(context)
+    if self:is_active() then return false, "Automatic quest launch already in progress" end
+    if context.in_quest or context.is_online or context.build_supported == false then
+        return false, "Wait for the supported offline hub"
+    end
+    self.error = nil
+    self.hub_stable_frames = 0
+    self:set_state(M.states.WAIT_HUB)
+    return true
+end
+
 local function advance(self, next_state, fn)
     local ok, reason = fn(self.api, self.quest_id)
     if not ok then return self:fail(reason) end

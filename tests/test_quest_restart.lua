@@ -33,6 +33,16 @@ assert(restart.state == "complete", "completes only after the target quest is lo
 assert(table.concat(calls, ",") == "reset,open,session,select,posted,depart,finish",
     "uses the bounded native workflow in order")
 
+calls = {}
+local launch = QuestRestart.new(api, 200032001, { hub_stable_frames = 1, timeout_frames = 30 })
+assert(launch:start_from_hub(hub) == true and launch.state == "wait_hub",
+    "developer automation can launch from the offline hub without resetting a quest")
+for _ = 1, 7 do launch:update(hub) end
+launch:update(quest)
+assert(launch.state == "complete", "hub launch reaches the target quest")
+assert(table.concat(calls, ",") == "open,session,select,posted,depart,finish",
+    "hub launch reuses posting without a reset call")
+
 local bad_api = {}
 for name, fn in pairs(api) do bad_api[name] = fn end
 function bad_api:open_counter() return false, "counter unavailable" end
