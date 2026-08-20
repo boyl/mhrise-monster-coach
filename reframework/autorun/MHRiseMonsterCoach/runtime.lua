@@ -772,6 +772,12 @@ function M.startup_bootstrap_observation(self)
     end
     local slot_array = save_menu and safe(function() return save_menu:get_field("_SlotArray") end) or nil
     local phase = self.startup_flow and self.startup_flow.phase or nil
+    if phase == "save_menu" and self.startup_flow.transition_action then
+        safe(function() self.startup_flow.transition_arg:release() end)
+        safe(function() self.startup_flow.transition_action:release() end)
+        self.startup_flow.transition_arg = nil
+        self.startup_flow.transition_action = nil
+    end
     if phase == "press_any" then title_state = 1 end
     if phase == "title_menu" then title_state = 2 end
     local quest_api = M.quest_restart_api(self)
@@ -853,6 +859,51 @@ function M.dismiss_startup_autosave_notice(self)
     local ok, reason = pcall(function() gui:call("closeInfo") end)
     if ok then M.dump_title_flow_metadata(self) end
     return ok, ok and nil or "Failed to close autosave notice: " .. tostring(reason)
+end
+
+function M.open_startup_load_data_menu(self)
+    local title_menu = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    local state = title_menu and safe(function() return title_menu:get_TitleMenuState() end) or nil
+    local cursor = title_menu and safe(function() return title_menu:get_TitleMenuCursor() end) or nil
+    local index = cursor and safe(function() return cursor:getIndex() end) or nil
+    if tonumber(state) ~= 2 or tonumber(index) ~= 1 then
+        return false, "Native load transition requires verified Continue selection"
+    end
+    local title_fsm = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleFsmManager")
+    local list_field = find_field(
+        "snow.gui.fsm.GuiFsmBaseManager`1<snow.gui.fsm.title.GuiTitleFsmManager>",
+        "guiFsmBehaviorList")
+    local behavior_list = title_fsm and list_field
+        and safe(function() return list_field:get_data(title_fsm) end) or nil
+    local behavior = behavior_list and safe(function() return behavior_list:call("get_Item", 0) end) or nil
+    local game_object = behavior and safe(function() return behavior:get_GameObject() end) or nil
+    local tree_type = safe(function() return sdk.typeof("via.behaviortree.BehaviorTree") end)
+    local tree = game_object and tree_type and safe(function()
+        return game_object:call("getComponent(System.Type)", tree_type)
+    end) or nil
+    if tree == nil then return false, "Title BehaviorTree owner unavailable" end
+
+    local action = safe(function()
+        return sdk.create_instance("snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu"):add_ref()
+    end)
+    local arg = safe(function() return sdk.create_instance("via.behaviortree.ActionArg"):add_ref() end)
+    if action == nil or arg == nil then
+        if action then safe(function() action:release() end) end
+        if arg then safe(function() arg:release() end) end
+        return false, "Failed to create native title transition Action"
+    end
+    local ok, reason = pcall(function()
+        arg:setOwnerComponentPtr(tree:get_address())
+        action:start(arg)
+    end)
+    if not ok then
+        safe(function() arg:release() end)
+        safe(function() action:release() end)
+        return false, "Native load transition failed: " .. tostring(reason)
+    end
+    self.startup_flow.transition_action = action
+    self.startup_flow.transition_arg = arg
+    return true
 end
 
 function M.select_startup_save_slot(self, index)

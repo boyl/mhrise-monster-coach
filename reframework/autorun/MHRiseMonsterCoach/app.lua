@@ -77,6 +77,9 @@ function M.start()
     function bootstrap_api:dismiss_autosave_notice()
         return runtime:dismiss_startup_autosave_notice()
     end
+    function bootstrap_api:open_load_data_menu()
+        return runtime:open_startup_load_data_menu()
+    end
     function bootstrap_api:select_save_slot(index)
         return runtime:select_startup_save_slot(index)
     end
@@ -105,7 +108,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.29.3-title-fsm-owner-snapshot loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.30.0-native-continue-transition loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

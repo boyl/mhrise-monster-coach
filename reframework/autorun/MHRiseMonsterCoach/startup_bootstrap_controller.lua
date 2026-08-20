@@ -99,7 +99,6 @@ function M:update()
             and ack.action_id == self.pending_action.id then
             local name = self.pending_action.name
             self.pending_action = nil
-            if name == "choose_continue" then self:set_state("wait_save_menu") end
             if name == "choose_first_save" then self:set_state("wait_hub") end
             self:write_status("running")
         else
@@ -151,7 +150,10 @@ function M:update()
         if tonumber(verified.title_cursor_index) ~= CONTINUE_INDEX then
             return self:fail("Continue cursor verification failed")
         end
-        self:request_key("choose_continue", 0x46)
+        local opened, reason = self.api:open_load_data_menu()
+        if not opened then return self:fail(reason or "Unable to open the load-data menu") end
+        self:set_state("wait_save_menu")
+        self:write_status("running")
         return
     end
 
