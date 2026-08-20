@@ -3,12 +3,13 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 local Bootstrap = require("MHRiseMonsterCoach.startup_bootstrap_controller")
 
 local request = { session_id = "bootstrap-1", auto_load_save = true }
-local view = { build_supported = true, title_state = 1 }
+local view = { build_supported = true, title_state = 0 }
 local statuses = {}
 local api = {}
 function api:read_request() local result = request request = nil return result end
 function api:observe() return view end
 function api:write_status(status) statuses[#statuses + 1] = status end
+function api:advance_to_press_any() view.title_state = 1 return true end
 function api:select_title_menu(index)
     assert(index == 1, "only Continue may be selected")
     view.title_cursor_index = index
@@ -22,6 +23,7 @@ end
 
 local bootstrap = Bootstrap.new(api, { timeout_seconds = 100 })
 bootstrap.frame = 30
+bootstrap:update()
 bootstrap:update()
 bootstrap:update()
 assert(statuses[#statuses].action.id == "bootstrap-1:press_any")

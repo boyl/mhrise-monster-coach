@@ -3,6 +3,7 @@ local M = {}
 local CONTINUE_INDEX = 1
 local NEW_GAME_INDEX = 0
 local FIRST_SAVE_SLOT = 0
+local TITLE_STATE_INIT = 0
 local TITLE_STATE_PRESS_ANY = 1
 local TITLE_STATE_MENU = 2
 local TITLE_STATE_NEW_GAME = 3
@@ -91,6 +92,13 @@ function M:update()
     if view.build_supported == false then return self:fail("Unsupported game build") end
     if view.title_state == TITLE_STATE_NEW_GAME then
         return self:fail("Safety stop: game entered the New Game state")
+    end
+
+    if view.title_state == TITLE_STATE_INIT then
+        local ok, reason = self.api:advance_to_press_any()
+        if not ok then return self:fail(reason or "Unable to advance the title INIT state") end
+        self:write_status("running")
+        return
     end
 
     if self.state == "wait_hub" then
