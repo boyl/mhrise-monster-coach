@@ -15,7 +15,9 @@ function M.new(api, options)
         request = nil,
         frame = 0,
         state_frames = 0,
-        timeout_frames = options.timeout_frames or 10800,
+        started_at = nil,
+        now = options.now or os.time,
+        timeout_seconds = options.timeout_seconds or 180,
         completed_sessions = {},
     }, { __index = M })
 end
@@ -65,6 +67,7 @@ function M:accept_request(request)
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     self.request = request
+    self.started_at = self.now()
     self:set_state("observing")
     self:write_status("running")
     return true
@@ -77,7 +80,9 @@ function M:update()
         return
     end
     self.state_frames = self.state_frames + 1
-    if self.state_frames > self.timeout_frames then return self:fail("Title/save bootstrap timed out") end
+    if self.started_at and self.now() - self.started_at > self.timeout_seconds then
+        return self:fail("Title/save bootstrap timed out")
+    end
 
     local view = self.api:observe() or {}
     if view.in_hub == true then return self:complete() end

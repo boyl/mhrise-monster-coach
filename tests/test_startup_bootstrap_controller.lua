@@ -20,7 +20,7 @@ function api:select_save_slot(index)
     return true
 end
 
-local bootstrap = Bootstrap.new(api, { timeout_frames = 100 })
+local bootstrap = Bootstrap.new(api, { timeout_seconds = 100 })
 bootstrap.frame = 30
 bootstrap:update()
 bootstrap:update()

@@ -73,6 +73,7 @@ function M.new(config, profile)
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
+        startup_flow = { phase = nil, hooks = {}, hook_failures = {} },
     }
 
     local hitbox_runtime_supported = self.game_name == config.supported_game_name
@@ -120,10 +121,40 @@ function M.new(config, profile)
     self.capabilities.quest_posting = posting_ready
     self.capabilities.quest_posting_reason = posting_reason
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
+    M.install_startup_flow_hooks(self)
     M.dump_in_place_reset_metadata(self)
     M.dump_in_place_type_candidates(self)
     M.dump_title_flow_metadata(self)
     return setmetatable(self, { __index = M })
+end
+
+function M.install_startup_flow_hooks(self)
+    local candidates = {
+        { "snow.gui.fsm.title.GuiTitleFsm_PressAnyButton_Action", "press_any" },
+        { "snow.gui.fsm.title.GuiTitleFsm_TitleMenu_Action", "title_menu" },
+        { "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuStart", "save_menu" },
+        { "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuInit", "save_menu" },
+        { "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuEnd", "save_menu" },
+    }
+    for _, candidate in ipairs(candidates) do
+        local phase = candidate[2]
+        local method = find_method(candidate[1], "update(via.behaviortree.ActionArg)")
+        if method then
+            local ok, reason = pcall(function()
+                sdk.hook(method, function()
+                    self.startup_flow.phase = phase
+                end, function(retval) return retval end)
+            end)
+            if ok then
+                self.startup_flow.hooks[#self.startup_flow.hooks + 1] = candidate[1]
+            else
+                self.startup_flow.hook_failures[#self.startup_flow.hook_failures + 1] = tostring(reason)
+            end
+        else
+            self.startup_flow.hook_failures[#self.startup_flow.hook_failures + 1] = candidate[1]
+        end
+    end
+    return #self.startup_flow.hooks > 0
 end
 
 local RESET_TRACE_METHODS = {
@@ -671,6 +702,9 @@ function M.startup_bootstrap_observation(self)
         current_save_slot = safe(function() return save_menu:get_field("_CurrentSlotNo") end)
     end
     local slot_array = save_menu and safe(function() return save_menu:get_field("_SlotArray") end) or nil
+    local phase = self.startup_flow and self.startup_flow.phase or nil
+    if phase == "press_any" then title_state = 1 end
+    if phase == "title_menu" then title_state = 2 end
     local quest_api = M.quest_restart_api(self)
     return {
         build_supported = self.game_name == self.config.supported_game_name
@@ -678,7 +712,7 @@ function M.startup_bootstrap_observation(self)
         in_hub = quest_api:is_hub_ready() == true,
         title_state = title_state,
         title_cursor_index = title_cursor_index,
-        save_menu_available = save_menu ~= nil and slot_array ~= nil and title_state ~= 2,
+        save_menu_available = phase == "save_menu" and save_menu ~= nil and slot_array ~= nil,
         current_save_slot = current_save_slot,
     }
 end
