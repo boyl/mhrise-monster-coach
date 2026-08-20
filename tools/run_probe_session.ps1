@@ -12,6 +12,7 @@ $resolvedGameRoot = [IO.Path]::GetFullPath($GameRoot)
 $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
 $requestPath = Join-Path $dataRoot 'dev_probe_request.json'
 $reportPath = Join-Path $dataRoot 'dev_probe_report.json'
+$bootstrapStatusPath = Join-Path $dataRoot 'startup_bootstrap_status.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -39,6 +40,7 @@ $request = [ordered]@{
     kind = 'environment_creature_lifecycle'
     requested_at = [DateTimeOffset]::Now.ToString('o')
     source_version = $sourceVersion
+    auto_load_save = $true
 }
 $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Encoding utf8
 
@@ -61,8 +63,48 @@ if ($launchedGame) {
     if (-not $game) { throw 'Steam accepted the launch request, but the game process did not start within 90 seconds.' }
 }
 
+if (-not ('MonsterCoachInput' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class MonsterCoachInput {
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+    public static bool PressEnter(IntPtr gameWindow) {
+        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+        if (GetForegroundWindow() != gameWindow) return false;
+        keybd_event(0x0D, 0, 0, UIntPtr.Zero);
+        keybd_event(0x0D, 0, 2, UIntPtr.Zero);
+        return true;
+    }
+}
+'@
+}
+
+$sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
+
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
+    if (Test-Path -LiteralPath $bootstrapStatusPath) {
+        try { $bootstrap = Get-Content -LiteralPath $bootstrapStatusPath -Raw | ConvertFrom-Json } catch { $bootstrap = $null }
+        if ($bootstrap -and $bootstrap.session_id -eq $sessionId) {
+            if ($bootstrap.status -eq 'failed') {
+                throw "Automatic Continue/save bootstrap failed: $($bootstrap.reason)"
+            }
+            if ($bootstrap.status -eq 'input_required' -and $bootstrap.action.kind -eq 'press_enter' -and
+                -not $sentBootstrapActions.Contains([string]$bootstrap.action.id)) {
+                $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($game) {
+                    $game.Refresh()
+                    if ([MonsterCoachInput]::PressEnter($game.MainWindowHandle)) {
+                        [void]$sentBootstrapActions.Add([string]$bootstrap.action.id)
+                        Write-Host "Automatic startup input: $($bootstrap.action.id)"
+                    }
+                }
+            }
+        }
+    }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
         if ($report -and ($report.session_id -eq $sessionId) -and
@@ -76,7 +118,7 @@ do {
     if (-not (Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue)) {
         throw 'The game exited before the probe report was completed.'
     }
-    Start-Sleep -Seconds 2
+    Start-Sleep -Milliseconds 250
 } while ((Get-Date) -lt $deadline)
 
 throw "Probe session timed out after $TimeoutSeconds seconds. Request retained at $requestPath"

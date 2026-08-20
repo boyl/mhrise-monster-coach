@@ -7,6 +7,7 @@ local InputAdapter = require("MHRiseMonsterCoach.input_adapter")
 local Profile = require("MHRiseMonsterCoach.profile_tigrex")
 local Font = require("MHRiseMonsterCoach.font")
 local DevProbeController = require("MHRiseMonsterCoach.dev_probe_controller")
+local StartupBootstrapController = require("MHRiseMonsterCoach.startup_bootstrap_controller")
 
 local M = {}
 
@@ -56,6 +57,19 @@ function M.start()
         return runtime:environment_creature_evidence()
     end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
+    local bootstrap_api = {}
+    function bootstrap_api:read_request() return probe_api:read_request() end
+    function bootstrap_api:write_status(status)
+        json.dump_file("MHRiseMonsterCoach/startup_bootstrap_status.json", status)
+    end
+    function bootstrap_api:observe() return runtime:startup_bootstrap_observation() end
+    function bootstrap_api:select_title_menu(index)
+        return runtime:select_startup_title_menu(index)
+    end
+    function bootstrap_api:select_save_slot(index)
+        return runtime:select_startup_save_slot(index)
+    end
+    local startup_bootstrap = StartupBootstrapController.new(bootstrap_api)
 
     local order_hooked, order_error = runtime:install_quest_list_order_hook({ Profile.training_quest.id })
     if not order_hooked then
@@ -66,6 +80,7 @@ function M.start()
         runtime:flush_quest_list_order()
         controller:guard("update", function() controller:update() end)
         controller:guard("dev_probe", function() dev_probe:update() end)
+        controller:guard("startup_bootstrap", function() startup_bootstrap:update() end)
     end)
     re.on_frame(function()
         controller:guard("draw_overlay", function() controller:draw_overlay() end)
@@ -74,9 +89,9 @@ function M.start()
         controller:guard("draw_menu", function() controller:draw_menu() end)
     end)
     re.on_config_save(function() Config.save(config) end)
-    re.on_script_reset(function() dev_probe:shutdown() controller:shutdown() end)
+    re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.22.2-save-slot-metadata loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.23.0-automatic-save-bootstrap loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

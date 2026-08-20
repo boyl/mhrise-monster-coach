@@ -78,6 +78,8 @@ function M:accept_request(request, context)
     if type(request) ~= "table" or request.kind ~= "environment_creature_lifecycle"
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
+    if request.auto_load_save == true and context.in_quest ~= true
+        and context.player_found ~= true then return false end
     self.request = request
     if context.is_online or context.build_supported == false then
         return self:fail("Developer probe requires a supported offline runtime")

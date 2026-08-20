@@ -658,6 +658,61 @@ function M.dump_title_flow_metadata(self)
     end) == true
 end
 
+function M.startup_bootstrap_observation(self)
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    local save_menu = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu")
+    local title_state, title_cursor_index, current_save_slot
+    if title then
+        title_state = safe(function() return title:call("get_TitleMenuState") end)
+        local cursor = safe(function() return title:call("get_TitleMenuCursor") end)
+        if cursor then title_cursor_index = safe(function() return cursor:call("getIndex") end) end
+    end
+    if save_menu then
+        current_save_slot = safe(function() return save_menu:get_field("_CurrentSlotNo") end)
+    end
+    local slot_array = save_menu and safe(function() return save_menu:get_field("_SlotArray") end) or nil
+    local quest_api = M.quest_restart_api(self)
+    return {
+        build_supported = self.game_name == self.config.supported_game_name
+            and self.tdb_version == self.config.supported_tdb_version,
+        in_hub = quest_api:is_hub_ready() == true,
+        title_state = title_state,
+        title_cursor_index = title_cursor_index,
+        save_menu_available = save_menu ~= nil and slot_array ~= nil and title_state ~= 2,
+        current_save_slot = current_save_slot,
+    }
+end
+
+function M.select_startup_title_menu(self, index)
+    if tonumber(index) ~= 1 then return false, "Only Continue (index 1) is permitted" end
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    if title == nil then return false, "Title menu manager unavailable" end
+    local state = safe(function() return title:call("get_TitleMenuState") end)
+    if tonumber(state) ~= 2 then return false, "Title menu is not in the selectable state" end
+    local cursor = safe(function() return title:call("get_TitleMenuCursor") end)
+    if cursor == nil then return false, "Title menu cursor unavailable" end
+    local ok, reason = pcall(function() cursor:call("setIndex", 1) end)
+    if not ok then return false, "Failed to select Continue: " .. tostring(reason) end
+    local selected = safe(function() return cursor:call("getIndex") end)
+    if tonumber(selected) ~= 1 then return false, "Continue selection did not persist" end
+    return true
+end
+
+function M.select_startup_save_slot(self, index)
+    if tonumber(index) ~= 0 then return false, "Only the first save slot (index 0) is permitted" end
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    local state = title and safe(function() return title:call("get_TitleMenuState") end) or nil
+    if tonumber(state) == 3 then return false, "Safety stop: New Game state is active" end
+    if tonumber(state) == 2 then return false, "Save data menu is not active" end
+    local save_menu = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu")
+    if save_menu == nil then return false, "Save data menu unavailable" end
+    local ok, reason = pcall(function() save_menu:set_field("_CurrentSlotNo", 0) end)
+    if not ok then return false, "Failed to select first save slot: " .. tostring(reason) end
+    local selected = safe(function() return save_menu:get_field("_CurrentSlotNo") end)
+    if tonumber(selected) ~= 0 then return false, "First save slot selection did not persist" end
+    return true
+end
+
 function M.dump_in_place_reset_metadata(self)
     if self.game_name ~= self.config.supported_game_name
         or self.tdb_version ~= self.config.supported_tdb_version then return false end

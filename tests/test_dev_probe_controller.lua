@@ -2,7 +2,7 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 
 local Probe = require("MHRiseMonsterCoach.dev_probe_controller")
 
-local context = { in_quest = false, is_online = false, build_supported = true }
+local context = { in_quest = false, is_online = false, build_supported = true, player_found = true }
 local request = { session_id = "probe-1", kind = "environment_creature_lifecycle" }
 local reports, observed, spawned, reset_calls = {}, 0, 0, 0
 local quest_api = {}
