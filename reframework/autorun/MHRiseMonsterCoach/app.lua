@@ -80,9 +80,9 @@ function M.start()
         runtime:flush_quest_list_order()
         controller:guard("update", function() controller:update() end)
         controller:guard("dev_probe", function() dev_probe:update() end)
-        controller:guard("startup_bootstrap", function() startup_bootstrap:update() end)
     end)
     re.on_frame(function()
+        controller:guard("startup_bootstrap", function() startup_bootstrap:update() end)
         controller:guard("draw_overlay", function() controller:draw_overlay() end)
     end)
     re.on_draw_ui(function()
@@ -91,7 +91,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.23.0-automatic-save-bootstrap loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.23.1-title-frame-bootstrap loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
