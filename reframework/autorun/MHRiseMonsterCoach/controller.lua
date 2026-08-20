@@ -74,6 +74,9 @@ function M.observe_enemy(self)
     local hitboxes = self.runtime:read_hitboxes()
     if hitboxes ~= nil then self.model:observe_hitboxes(hitboxes) end
     self.model:update_player_combat_state(self.runtime:player_combat_state())
+    if self.frame_counter % 30 == 0 and self.runtime.observe_environment_creatures then
+        self.runtime:observe_environment_creatures()
+    end
 end
 
 function M.persist_runtime_evidence(self, force)

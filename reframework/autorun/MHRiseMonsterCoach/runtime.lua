@@ -3,9 +3,11 @@ local QuestListOrder = require("MHRiseMonsterCoach.quest_list_order")
 local PlayerStateReader = require("MHRiseMonsterCoach.player_state_reader")
 local HitboxProvider = require("MHRiseMonsterCoach.hitbox_provider")
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
+local EnvironmentCreatureRecorder = require("MHRiseMonsterCoach.environment_creature_recorder")
 
 local M = {}
 local NATIVE_IN_PLACE_RESET_VALIDATED = false
+local get_transform, get_position, read_area_no
 
 local function safe(fn)
     local ok, value = pcall(fn)
@@ -68,6 +70,9 @@ function M.new(config, profile)
             next_sequence = 0,
             hooks = {},
         },
+        environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
+        environment_creature_field_cache = {},
+        environment_creature_saved_revision = 0,
     }
 
     local hitbox_runtime_supported = self.game_name == config.supported_game_name
@@ -701,6 +706,113 @@ function M.get_scene(self)
     end)
 end
 
+local ENVIRONMENT_STATE_KEYWORDS = {
+    "state", "status", "active", "enable", "standby", "access", "get",
+    "use", "destroy", "repop", "timer", "visible", "draw", "find", "disable",
+}
+
+local function is_environment_state_field(name)
+    local lower = string.lower(tostring(name or ""))
+    for _, keyword in ipairs(ENVIRONMENT_STATE_KEYWORDS) do
+        if string.find(lower, keyword, 1, true) then return true end
+    end
+    return false
+end
+
+local function environment_state_fields(self, type_def)
+    local type_key = type_name(type_def) or "unknown"
+    if self.environment_creature_field_cache[type_key] then
+        return self.environment_creature_field_cache[type_key]
+    end
+    local result = {}
+    local seen = {}
+    local current = type_def
+    while current do
+        local owner = type_name(current) or "unknown"
+        for _, field in ipairs(safe(function() return current:get_fields() end) or {}) do
+            local name = safe(function() return field:get_name() end)
+            local key = owner .. "." .. tostring(name)
+            if name and is_environment_state_field(name) and not seen[key]
+                and safe(function() return field:is_static() end) ~= true then
+                result[#result + 1] = { key = key, field = field }
+                seen[key] = true
+            end
+        end
+        current = safe(function() return current:get_parent_type() end)
+    end
+    self.environment_creature_field_cache[type_key] = result
+    return result
+end
+
+local function primitive_field_value(field, instance)
+    local value = safe(function() return field:get_data(instance) end)
+    local value_type = type(value)
+    if value_type == "number" or value_type == "boolean" or value_type == "string" then return value end
+    local field_type = safe(function() return field:get_type() end)
+    if field_type and safe(function() return field_type:is_enum() end) == true then
+        return tonumber(value) or tostring(value)
+    end
+    return nil
+end
+
+function M.read_environment_creatures(self)
+    local scene = M.get_scene(self)
+    local component_type = safe(function() return sdk.typeof("snow.envCreature.EnvironmentCreatureBase") end)
+    if scene == nil or component_type == nil then return {}, "Environment creature scene capability unavailable" end
+    local components = safe(function()
+        return scene:call("findComponents(System.Type)", component_type)
+    end)
+    local elements = components and safe(function() return components:get_elements() end) or nil
+    if type(elements) ~= "table" then return {}, "Environment creature component list unavailable" end
+    local entries = {}
+    for _, component in ipairs(elements) do
+        local type_def = component and safe(function() return component:get_type_definition() end)
+        if component and type_def then
+            local address = safe(function() return component:get_address() end)
+            local values = {}
+            for _, candidate in ipairs(environment_state_fields(self, type_def)) do
+                local value = primitive_field_value(candidate.field, component)
+                if value ~= nil then values[candidate.key] = value end
+            end
+            local transform = get_transform(component)
+            local position = get_position(transform)
+            if position then
+                values.position_x = tonumber(position.x)
+                values.position_y = tonumber(position.y)
+                values.position_z = tonumber(position.z)
+            end
+            entries[#entries + 1] = {
+                key = tostring(address or component),
+                type_name = type_name(type_def),
+                values = values,
+            }
+        end
+    end
+    return entries
+end
+
+function M.observe_environment_creatures(self)
+    local context = self.last_context or {}
+    if not context.in_quest or context.is_online
+        or tonumber(context.quest_no) ~= self.profile.training_quest.id then return false end
+    local entries, reason = M.read_environment_creatures(self)
+    if reason then return false, reason end
+    local revision = self.environment_creature_recorder:observe(entries, {
+        clock = safe(function() return os.clock() end),
+        quest_no = context.quest_no,
+        area_no = read_area_no(self, self.player),
+    })
+    if revision <= self.environment_creature_saved_revision then return false end
+    local exported = self.environment_creature_recorder:export()
+    exported.runtime = { game_name = self.game_name, tdb_version = self.tdb_version }
+    local written = safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_environment_creatures.json", exported)
+        return true
+    end) == true
+    if written then self.environment_creature_saved_revision = revision end
+    return written
+end
+
 function M.set_time_scale(self, scale)
     local application = sdk.get_native_singleton("via.Application")
     local application_type = safe(function() return sdk.find_type_definition("via.Application") end)
@@ -964,7 +1076,7 @@ function M.restore_player_resources(self)
     return ok, ok and nil or "Failed to restore player resources"
 end
 
-local function get_transform(component)
+get_transform = function(component)
     if component == nil then return nil end
     return safe(function()
         local game_object = component:call("get_GameObject")
@@ -972,7 +1084,7 @@ local function get_transform(component)
     end)
 end
 
-local function get_position(transform)
+get_position = function(transform)
     return transform and safe(function() return transform:call("get_Position") end) or nil
 end
 
@@ -990,7 +1102,7 @@ local function copy_rotation(value)
     return safe(function() return Quaternion.new(value.w, value.x, value.y, value.z) end)
 end
 
-local function read_area_no(self, character)
+read_area_no = function(self, character)
     if character == nil or self.methods.character_area_no == nil then return nil end
     local value = safe(function() return self.methods.character_area_no:call(character) end)
     local numeric = tonumber(value)

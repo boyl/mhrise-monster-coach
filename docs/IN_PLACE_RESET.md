@@ -39,3 +39,7 @@
 ### 连续调用验收结论
 
 `0.20.1` 在同一区域连续执行 F9 后产生原生 `c0000005`。崩溃发生在 Lua 调用返回后的游戏更新线程，说明仅执行猎人 Warp、怪物初始点 Warp 与生命恢复不足以重建 AI、碰撞、声音及区域依赖。该候选已判定不安全：F9 写入路径硬禁用并提示使用已验证的 F7 任务重开；只读元数据探针继续保留，直到完整 WarpFlow/生命周期序列可被验证。
+
+### 环境生物实例差分
+
+训练任务内每 30 帧通过当前场景的 `EnvironmentCreatureBase` 组件集合进行一次只读采样。记录实例地址、具体运行时类型、位置及名称命中 state、active、access、repop、timer 等关键词的原始标量字段；只在实例出现、消失或字段变化时追加事件，并将最近 256 个事件写入 `runtime_environment_creatures.json`。该记录器不调用 `createObj`、`destroyObj`、`resetData`、`loadMap` 或 `unloadMap`。
