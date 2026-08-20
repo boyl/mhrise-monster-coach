@@ -105,7 +105,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.28.1-reframework-json-paths loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.29.0-title-owner-metadata loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

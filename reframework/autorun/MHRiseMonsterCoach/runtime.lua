@@ -675,12 +675,40 @@ function M.dump_title_flow_metadata(self)
             end
             table.sort(entry.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
             table.sort(entry.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
+            if requested_name == "snow.gui.fsm.title.GuiTitleMenuFsmManager"
+                or requested_name == "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu" then
+                entry.hierarchy = {}
+                local current, depth = type_def, 0
+                while current and depth < 12 do
+                    local level = { type = type_name(current), fields = {}, methods = {} }
+                    for _, field in ipairs(safe(function() return current:get_fields() end) or {}) do
+                        level.fields[#level.fields + 1] = {
+                            name = safe(function() return field:get_name() end),
+                            type = type_name(safe(function() return field:get_type() end)),
+                        }
+                    end
+                    for _, method in ipairs(safe(function() return current:get_methods() end) or {}) do
+                        local params = {}
+                        for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                            params[#params + 1] = type_name(param_type) or "unknown"
+                        end
+                        level.methods[#level.methods + 1] = {
+                            name = safe(function() return method:get_name() end),
+                            return_type = type_name(safe(function() return method:get_return_type() end)),
+                            param_types = params,
+                        }
+                    end
+                    entry.hierarchy[#entry.hierarchy + 1] = level
+                    current = safe(function() return current:get_parent_type() end)
+                    depth = depth + 1
+                end
+            end
         end
         types[#types + 1] = entry
     end
     return safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_title_flow_probe.json", {
-            schema_version = 2,
+            schema_version = 3,
             policy = "exact_type_metadata_only_no_title_action_invocation",
             runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
             types = types,
