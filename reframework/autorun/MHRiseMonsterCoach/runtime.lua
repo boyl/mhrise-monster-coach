@@ -694,9 +694,9 @@ function M.startup_bootstrap_observation(self)
     local save_menu = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu")
     local title_state, title_cursor_index, current_save_slot
     if title then
-        title_state = safe(function() return title:call("get_TitleMenuState") end)
-        local cursor = safe(function() return title:call("get_TitleMenuCursor") end)
-        if cursor then title_cursor_index = safe(function() return cursor:call("getIndex") end) end
+        title_state = safe(function() return title:get_TitleMenuState() end)
+        local cursor = safe(function() return title:get_TitleMenuCursor() end)
+        if cursor then title_cursor_index = safe(function() return cursor:getIndex() end) end
     end
     if save_menu then
         current_save_slot = safe(function() return save_menu:get_field("_CurrentSlotNo") end)
@@ -718,12 +718,13 @@ function M.startup_bootstrap_observation(self)
 end
 
 function M.startup_bootstrap_diagnostics(self)
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
     return {
         phase = self.startup_flow and self.startup_flow.phase or nil,
         hooks = self.startup_flow and self.startup_flow.hooks or {},
         hook_failures = self.startup_flow and self.startup_flow.hook_failures or {},
-        title_manager_available = sdk.get_managed_singleton(
-            "snow.gui.fsm.title.GuiTitleMenuFsmManager") ~= nil,
+        title_manager_available = title ~= nil,
+        title_state = title and safe(function() return title:get_TitleMenuState() end) or nil,
         save_menu_available = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu") ~= nil,
     }
 end
@@ -732,13 +733,13 @@ function M.select_startup_title_menu(self, index)
     if tonumber(index) ~= 1 then return false, "Only Continue (index 1) is permitted" end
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
     if title == nil then return false, "Title menu manager unavailable" end
-    local state = safe(function() return title:call("get_TitleMenuState") end)
+    local state = safe(function() return title:get_TitleMenuState() end)
     if tonumber(state) ~= 2 then return false, "Title menu is not in the selectable state" end
-    local cursor = safe(function() return title:call("get_TitleMenuCursor") end)
+    local cursor = safe(function() return title:get_TitleMenuCursor() end)
     if cursor == nil then return false, "Title menu cursor unavailable" end
-    local ok, reason = pcall(function() cursor:call("setIndex", 1) end)
+    local ok, reason = pcall(function() cursor:setIndex(1) end)
     if not ok then return false, "Failed to select Continue: " .. tostring(reason) end
-    local selected = safe(function() return cursor:call("getIndex") end)
+    local selected = safe(function() return cursor:getIndex() end)
     if tonumber(selected) ~= 1 then return false, "Continue selection did not persist" end
     return true
 end
@@ -746,7 +747,7 @@ end
 function M.select_startup_save_slot(self, index)
     if tonumber(index) ~= 0 then return false, "Only the first save slot (index 0) is permitted" end
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
-    local state = title and safe(function() return title:call("get_TitleMenuState") end) or nil
+    local state = title and safe(function() return title:get_TitleMenuState() end) or nil
     if tonumber(state) == 3 then return false, "Safety stop: New Game state is active" end
     if tonumber(state) == 2 then return false, "Save data menu is not active" end
     local save_menu = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu")

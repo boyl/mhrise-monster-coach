@@ -93,7 +93,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.24.1-bootstrap-diagnostics loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.24.2-direct-title-access loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
