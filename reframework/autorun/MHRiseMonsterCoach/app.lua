@@ -20,11 +20,11 @@ function M.start()
     local input_adapter = InputAdapter.new(config.controller_input)
     local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
     local probe_api = { quest_api = runtime:quest_restart_api() }
-    local function data_file_exists(name)
-        local handle = io.open("reframework/data/MHRiseMonsterCoach/" .. name, "r")
-        if handle == nil then return false end
-        handle:close()
-        return true
+    local function load_data_file(name)
+        local ok, value = pcall(function()
+            return json.load_file("MHRiseMonsterCoach/" .. name)
+        end)
+        return ok and value or nil
     end
     function probe_api:get_context()
         return runtime.last_context or {
@@ -35,11 +35,9 @@ function M.start()
         }
     end
     function probe_api:read_request()
-        if not data_file_exists("dev_probe_request.json") then return nil end
-        local request = json.load_file("MHRiseMonsterCoach/dev_probe_request.json")
+        local request = load_data_file("dev_probe_request.json")
         if type(request) ~= "table" then return nil end
-        local report = data_file_exists("dev_probe_report.json")
-            and json.load_file("MHRiseMonsterCoach/dev_probe_report.json") or nil
+        local report = load_data_file("dev_probe_report.json")
         if type(report) == "table" and report.session_id == request.session_id
             and (report.status == "completed" or report.status == "failed") then return nil end
         return request
@@ -70,6 +68,7 @@ function M.start()
         return runtime:select_startup_save_slot(index)
     end
     local startup_bootstrap = StartupBootstrapController.new(bootstrap_api)
+    startup_bootstrap:accept_request(probe_api:read_request())
 
     local order_hooked, order_error = runtime:install_quest_list_order_hook({ Profile.training_quest.id })
     if not order_hooked then
@@ -93,7 +92,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.23.2-title-lockscene-bootstrap loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.23.3-eager-bootstrap-request loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
