@@ -4,11 +4,12 @@ local Bootstrap = require("MHRiseMonsterCoach.startup_bootstrap_controller")
 
 local request = { session_id = "bootstrap-1", auto_load_save = true }
 local view = { build_supported = true, title_state = 0 }
-local statuses = {}
+local statuses, ack = {}, nil
 local api = {}
 function api:read_request() local result = request request = nil return result end
 function api:observe() return view end
 function api:write_status(status) statuses[#statuses + 1] = status end
+function api:read_ack() return ack end
 function api:advance_to_press_any() view.title_state = 1 return true end
 function api:advance_to_title_menu() view.title_state = 2 return true end
 function api:select_title_menu(index)
@@ -22,18 +23,29 @@ function api:select_save_slot(index)
     return true
 end
 
-local bootstrap = Bootstrap.new(api, { timeout_seconds = 100 })
+local bootstrap = Bootstrap.new(api)
 bootstrap.frame = 30
 bootstrap:update()
 bootstrap:update()
 bootstrap:update()
+assert(statuses[#statuses].action.id == "bootstrap-1:dismiss_autosave_notice")
+assert(statuses[#statuses].action.virtual_key == 0x46, "autosave notice uses the visible F confirm key")
+ack = { session_id = "bootstrap-1", action_id = statuses[#statuses].action.id }
+bootstrap:update()
+ack = nil
 bootstrap:update()
 assert(statuses[#statuses].action.id == "bootstrap-1:choose_continue")
-assert(view.title_cursor_index == 1, "Continue is selected and verified before Enter")
+assert(view.title_cursor_index == 1, "Continue is selected and verified before F")
+ack = { session_id = "bootstrap-1", action_id = statuses[#statuses].action.id }
+bootstrap:update()
+ack = nil
 view = { build_supported = true, save_menu_available = true, current_save_slot = 2 }
 bootstrap:update()
 assert(statuses[#statuses].action.id == "bootstrap-1:choose_first_save")
-assert(view.current_save_slot == 0, "first slot is selected and verified before Enter")
+assert(view.current_save_slot == 0, "first slot is selected and verified before F")
+ack = { session_id = "bootstrap-1", action_id = statuses[#statuses].action.id }
+bootstrap:update()
+ack = nil
 view = { build_supported = true, in_hub = true }
 bootstrap:update()
 assert(statuses[#statuses].status == "completed")

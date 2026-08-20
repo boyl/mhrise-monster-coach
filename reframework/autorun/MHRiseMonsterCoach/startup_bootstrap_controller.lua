@@ -16,6 +16,7 @@ function M.new(api, options)
         request = nil,
         frame = 0,
         state_frames = 0,
+        pending_action = nil,
         completed_sessions = {},
     }, { __index = M })
 end
@@ -43,6 +44,7 @@ function M:fail(reason)
     self:write_status("failed", tostring(reason or "unknown bootstrap error"))
     if self.request then self.completed_sessions[self.request.session_id] = true end
     self.request = nil
+    self.pending_action = nil
     self:set_state("idle")
     return false
 end
@@ -51,15 +53,19 @@ function M:complete()
     self:write_status("completed")
     if self.request then self.completed_sessions[self.request.session_id] = true end
     self.request = nil
+    self.pending_action = nil
     self:set_state("idle")
     return true
 end
 
-function M:request_key(action_name)
-    self:write_status("input_required", nil, {
+function M:request_key(action_name, virtual_key)
+    self.pending_action = {
         id = tostring(self.request.session_id) .. ":" .. action_name,
-        kind = "press_enter",
-    })
+        name = action_name,
+        kind = "press_key",
+        virtual_key = virtual_key,
+    }
+    self:write_status("input_required", nil, self.pending_action)
 end
 
 function M:accept_request(request)
@@ -67,6 +73,7 @@ function M:accept_request(request)
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     self.request = request
+    self.pending_action = nil
     self:set_state("observing")
     self:write_status("running")
     return true
@@ -86,7 +93,23 @@ function M:update()
         return self:fail("Safety stop: game entered the New Game state")
     end
 
-    if view.title_state == TITLE_STATE_INIT then
+    if self.pending_action then
+        local ack = self.api:read_ack()
+        if type(ack) == "table" and ack.session_id == self.request.session_id
+            and ack.action_id == self.pending_action.id then
+            local name = self.pending_action.name
+            self.pending_action = nil
+            if name == "dismiss_autosave_notice" then self:set_state("wait_title_menu_ready") end
+            if name == "choose_continue" then self:set_state("wait_save_menu") end
+            if name == "choose_first_save" then self:set_state("wait_hub") end
+            self:write_status("running")
+        else
+            self:write_status("input_required", nil, self.pending_action)
+        end
+        return
+    end
+
+    if self.state == "observing" and view.title_state == TITLE_STATE_INIT then
         local ok, reason = self.api:advance_to_press_any()
         if not ok then return self:fail(reason or "Unable to advance the title INIT state") end
         self:write_status("running")
@@ -105,20 +128,19 @@ function M:update()
         if tonumber(verified.current_save_slot) ~= FIRST_SAVE_SLOT then
             return self:fail("First save slot verification failed")
         end
-        self:set_state("wait_hub")
-        self:request_key("choose_first_save")
+        self:request_key("choose_first_save", 0x46)
         return
     end
 
-    if view.title_state == TITLE_STATE_PRESS_ANY then
+    if self.state == "observing" and view.title_state == TITLE_STATE_PRESS_ANY then
         local ok, reason = self.api:advance_to_title_menu()
         if not ok then return self:fail(reason or "Unable to advance to the title menu") end
-        self:set_state("wait_title_menu")
-        self:write_status("running")
+        self:set_state("dismiss_autosave_notice")
+        self:request_key("dismiss_autosave_notice", 0x46)
         return
     end
 
-    if view.title_state == TITLE_STATE_MENU then
+    if self.state == "wait_title_menu_ready" and view.title_state == TITLE_STATE_MENU then
         local ok, reason = self.api:select_title_menu(CONTINUE_INDEX)
         if not ok then return self:fail(reason or "Unable to select Continue") end
         local verified = self.api:observe() or {}
@@ -128,8 +150,7 @@ function M:update()
         if tonumber(verified.title_cursor_index) ~= CONTINUE_INDEX then
             return self:fail("Continue cursor verification failed")
         end
-        self:set_state("wait_save_menu")
-        self:request_key("choose_continue")
+        self:request_key("choose_continue", 0x46)
         return
     end
 

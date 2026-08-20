@@ -60,6 +60,9 @@ function M.start()
     function bootstrap_api:write_status(status)
         json.dump_file("MHRiseMonsterCoach/startup_bootstrap_status.json", status)
     end
+    function bootstrap_api:read_ack()
+        return load_data_file("startup_bootstrap_ack.json")
+    end
     function bootstrap_api:observe() return runtime:startup_bootstrap_observation() end
     function bootstrap_api:diagnostics() return runtime:startup_bootstrap_diagnostics() end
     function bootstrap_api:select_title_menu(index)
@@ -99,7 +102,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.26.0-native-title-transition loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.27.0-startup-confirm-handshake loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

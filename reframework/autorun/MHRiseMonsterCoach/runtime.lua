@@ -726,6 +726,7 @@ function M.startup_bootstrap_diagnostics(self)
         title_manager_available = title ~= nil,
         title_state = title and safe(function() return title:get_TitleMenuState() end) or nil,
         save_menu_available = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu") ~= nil,
+        reframework_ui_open = safe(function() return reframework:is_drawing_ui() end) == true,
     }
 end
 

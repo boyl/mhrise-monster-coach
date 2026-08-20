@@ -13,6 +13,7 @@ $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
 $requestPath = Join-Path $dataRoot 'dev_probe_request.json'
 $reportPath = Join-Path $dataRoot 'dev_probe_report.json'
 $bootstrapStatusPath = Join-Path $dataRoot 'startup_bootstrap_status.json'
+$bootstrapAckPath = Join-Path $dataRoot 'startup_bootstrap_ack.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -71,12 +72,12 @@ public static class MonsterCoachInput {
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
-    public static bool PressEnter(IntPtr gameWindow) {
+    public static bool PressKey(IntPtr gameWindow, byte virtualKey) {
         if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
         if (GetForegroundWindow() != gameWindow) return false;
-        keybd_event(0x0D, 0, 0, UIntPtr.Zero);
+        keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
         System.Threading.Thread.Sleep(120);
-        keybd_event(0x0D, 0, 2, UIntPtr.Zero);
+        keybd_event(virtualKey, 0, 2, UIntPtr.Zero);
         return true;
     }
 }
@@ -84,6 +85,7 @@ public static class MonsterCoachInput {
 }
 
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
+$uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
@@ -93,13 +95,28 @@ do {
             if ($bootstrap.status -eq 'failed') {
                 throw "Automatic Continue/save bootstrap failed: $($bootstrap.reason)"
             }
-            if ($bootstrap.status -eq 'input_required' -and $bootstrap.action.kind -eq 'press_enter' -and
+            if ($bootstrap.status -eq 'input_required' -and $bootstrap.action.kind -eq 'press_key' -and
                 -not $sentBootstrapActions.Contains([string]$bootstrap.action.id)) {
                 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
                 if ($game) {
                     $game.Refresh()
-                    if ([MonsterCoachInput]::PressEnter($game.MainWindowHandle)) {
+                    if ($bootstrap.diagnostics.reframework_ui_open -eq $true) {
+                        if (-not $uiCloseRequestedForActions.Contains([string]$bootstrap.action.id) -and
+                            [MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x2D)) {
+                            [void]$uiCloseRequestedForActions.Add([string]$bootstrap.action.id)
+                            Write-Host 'Automatic startup input: closing REFramework UI'
+                        }
+                        Start-Sleep -Milliseconds 250
+                        continue
+                    }
+                    if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, [byte]$bootstrap.action.virtual_key)) {
                         [void]$sentBootstrapActions.Add([string]$bootstrap.action.id)
+                        [ordered]@{
+                            schema_version = 1
+                            session_id = $sessionId
+                            action_id = [string]$bootstrap.action.id
+                            sent_at = [DateTimeOffset]::Now.ToString('o')
+                        } | ConvertTo-Json | Set-Content -LiteralPath $bootstrapAckPath -Encoding utf8
                         Write-Host "Automatic startup input: $($bootstrap.action.id)"
                     }
                 }
