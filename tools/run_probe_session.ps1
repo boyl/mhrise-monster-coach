@@ -75,6 +75,7 @@ public static class MonsterCoachInput {
         if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
         if (GetForegroundWindow() != gameWindow) return false;
         keybd_event(0x0D, 0, 0, UIntPtr.Zero);
+        System.Threading.Thread.Sleep(120);
         keybd_event(0x0D, 0, 2, UIntPtr.Zero);
         return true;
     }
