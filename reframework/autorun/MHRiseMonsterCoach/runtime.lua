@@ -876,11 +876,24 @@ function M.open_startup_load_data_menu(self)
     local behavior_list = title_fsm and list_field
         and safe(function() return list_field:get_data(title_fsm) end) or nil
     local behavior = behavior_list and safe(function() return behavior_list:call("get_Item", 0) end) or nil
-    local game_object = behavior and safe(function() return behavior:get_GameObject() end) or nil
     local tree_type = safe(function() return sdk.typeof("via.behaviortree.BehaviorTree") end)
-    local tree = game_object and tree_type and safe(function()
-        return game_object:call("getComponent(System.Type)", tree_type)
-    end) or nil
+    local game_objects = {}
+    local function append_game_object(value)
+        if value then game_objects[#game_objects + 1] = value end
+    end
+    append_game_object(title_fsm and safe(function() return title_fsm:get_GameObject() end) or nil)
+    append_game_object(title_fsm and safe(function() return title_fsm:get_Parent() end) or nil)
+    append_game_object(behavior and safe(function() return behavior:get_GameObject() end) or nil)
+    append_game_object(behavior and safe(function() return behavior:get_Parent() end) or nil)
+    local tree
+    for _, game_object in ipairs(game_objects) do
+        if game_object and tree_type then
+            tree = safe(function()
+                return game_object:call("getComponent(System.Type)", tree_type)
+            end)
+            if tree then break end
+        end
+    end
     if tree == nil then return false, "Title BehaviorTree owner unavailable" end
 
     local action = safe(function()
