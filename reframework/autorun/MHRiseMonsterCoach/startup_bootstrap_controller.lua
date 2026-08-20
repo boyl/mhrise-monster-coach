@@ -89,6 +89,7 @@ function M:update()
     local view = self.api:observe() or {}
     if view.in_hub == true then return self:complete() end
     if view.build_supported == false then return self:fail("Unsupported game build") end
+    if view.bootstrap_error then return self:fail(view.bootstrap_error) end
     if view.title_state == TITLE_STATE_NEW_GAME then
         return self:fail("Safety stop: game entered the New Game state")
     end

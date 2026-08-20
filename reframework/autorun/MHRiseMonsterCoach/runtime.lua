@@ -772,11 +772,18 @@ function M.startup_bootstrap_observation(self)
     end
     local slot_array = save_menu and safe(function() return save_menu:get_field("_SlotArray") end) or nil
     local phase = self.startup_flow and self.startup_flow.phase or nil
-    if phase == "save_menu" and self.startup_flow.transition_action then
-        safe(function() self.startup_flow.transition_arg:release() end)
-        safe(function() self.startup_flow.transition_action:release() end)
-        self.startup_flow.transition_arg = nil
-        self.startup_flow.transition_action = nil
+    if self.startup_flow.transition_action then
+        if phase == "save_menu" then
+            safe(function() self.startup_flow.transition_arg:release() end)
+            safe(function() self.startup_flow.transition_action:release() end)
+            self.startup_flow.transition_arg = nil
+            self.startup_flow.transition_action = nil
+        else
+            local ok, reason = pcall(function()
+                self.startup_flow.transition_action:update(self.startup_flow.transition_arg)
+            end)
+            if not ok then self.startup_flow.transition_error = tostring(reason) end
+        end
     end
     if phase == "press_any" then title_state = 1 end
     if phase == "title_menu" then title_state = 2 end
@@ -789,6 +796,7 @@ function M.startup_bootstrap_observation(self)
         title_cursor_index = title_cursor_index,
         save_menu_available = phase == "save_menu" and save_menu ~= nil and slot_array ~= nil,
         current_save_slot = current_save_slot,
+        bootstrap_error = self.startup_flow.transition_error,
     }
 end
 
@@ -802,6 +810,7 @@ function M.startup_bootstrap_diagnostics(self)
         title_state = title and safe(function() return title:get_TitleMenuState() end) or nil,
         save_menu_available = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu") ~= nil,
         reframework_ui_open = safe(function() return reframework:is_drawing_ui() end) == true,
+        transition_error = self.startup_flow and self.startup_flow.transition_error or nil,
     }
 end
 
