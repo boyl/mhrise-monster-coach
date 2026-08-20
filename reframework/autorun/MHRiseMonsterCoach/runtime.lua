@@ -92,6 +92,7 @@ function M.new(config, profile)
         quest_data = find_method("snow.QuestManager", "getQuestData(System.Int32)"),
         player_native_warp = find_method("snow.player.PlayerBase", "setPosWarpConsiderDogRide(via.vec3)"),
         enemy_native_warp_init = find_method("snow.enemy.EnemyCharacterBase", "warpEnemyInitPos"),
+        character_area_no = find_method("snow.CharacterBase", "get_AreaNo"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -556,7 +557,11 @@ local IN_PLACE_RESET_TYPES = {
     "snow.player.PlayerBase",
     "snow.QuestManager",
     "snow.stage.StageManager",
-    "snow.env.EnvironmentManager",
+    "snow.access.QuestAreaMovePopManager",
+    "snow.access.QuestAreaMovePopMarker",
+    "snow.envCreature.EnvironmentCreatureManager",
+    "snow.envCreature.EnvironmentCreatureBase",
+    "snow.envCreature.EcPopBehavior",
 }
 
 local IN_PLACE_RESET_KEYWORDS = {
@@ -984,6 +989,14 @@ local function copy_rotation(value)
     return safe(function() return Quaternion.new(value.w, value.x, value.y, value.z) end)
 end
 
+local function read_area_no(self, character)
+    if character == nil or self.methods.character_area_no == nil then return nil end
+    local value = safe(function() return self.methods.character_area_no:call(character) end)
+    local numeric = tonumber(value)
+    if numeric ~= nil then return numeric end
+    return safe(function() return tonumber(value:get_field("value__")) end)
+end
+
 function M.capture_anchors(self)
     if self.player == nil or self.enemy == nil then return false, "Player or Tigrex unavailable" end
     local player_transform = get_transform(self.player)
@@ -995,6 +1008,7 @@ function M.capture_anchors(self)
         position = copy_position(player_position),
         rotation = copy_rotation(get_rotation(player_transform)),
         quest_no = self.last_context and self.last_context.quest_no or nil,
+        area_no = read_area_no(self, self.player),
     }
     self.enemy_anchor = {
         position = copy_position(enemy_position),
@@ -1076,22 +1090,14 @@ function M.experimental_native_in_place_reset(self)
     if self.methods.player_native_warp == nil or self.methods.enemy_native_warp_init == nil then
         return false, "Native character warp methods unavailable"
     end
-    local current_position = get_position(get_transform(self.player))
-    if current_position == nil then return false, "Current hunter position unavailable" end
-    local current_x, current_y, current_z = tonumber(current_position.x), tonumber(current_position.y), tonumber(current_position.z)
-    local anchor_x = tonumber(self.player_anchor.position.x)
-    local anchor_y = tonumber(self.player_anchor.position.y)
-    local anchor_z = tonumber(self.player_anchor.position.z)
-    if current_x == nil or current_y == nil or current_z == nil
-        or anchor_x == nil or anchor_y == nil or anchor_z == nil then
-        return false, "Hunter reset point components unavailable"
+    local current_area_no = read_area_no(self, self.player)
+    if self.player_anchor.area_no == nil or current_area_no == nil then
+        return false, "Area identity unavailable; press F8 again in the current area"
     end
-    local dx = current_x - anchor_x
-    local dy = current_y - anchor_y
-    local dz = current_z - anchor_z
-    local distance_squared = dx * dx + dy * dy + dz * dz
-    if distance_squared > 2500 then
-        return false, "Reset point is over 50m away and may belong to another area; press F8 in the current area"
+    if current_area_no ~= self.player_anchor.area_no then
+        return false, string.format(
+            "Reset point belongs to area %s; current area is %s. Cross-area native reconstruction is not enabled yet",
+            tostring(self.player_anchor.area_no), tostring(current_area_no))
     end
     local safe_now, safe_reason, retry = M.quick_reset_safe(self)
     if not safe_now then return false, safe_reason, retry end

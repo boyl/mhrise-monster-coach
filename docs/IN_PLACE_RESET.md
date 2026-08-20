@@ -32,4 +32,6 @@
 
 ### 已知跨区域风险
 
-准备区锚点在战斗区直接交给 `PlayerBase.setPosWarpConsiderDogRide` 会绕过 StageManager 区域切换并导致原生崩溃。区域字段完成解析前，F9 对超过 50 米的锚点执行硬拒绝；这只是临时安全门，不是最终跨区设计。开发探针同时枚举 Player/Stage 的 Area、Block、Map 成员以及环境生物相关类型，后续改为保存 Area ID 并调用原生切区流程。
+准备区锚点在战斗区直接交给 `PlayerBase.setPosWarpConsiderDogRide` 会绕过 StageManager 区域切换并导致原生崩溃。F8 现通过 `snow.CharacterBase.get_AreaNo()` 保存真实 AreaNo，F9 在 AreaNo 不一致时执行硬拒绝，不再使用距离猜测。最终跨区设计需要通过 `StageManager.setPlWarpInfo`、`requestAreaMoveQuest` 与 WarpFlow 完成原生区域切换，再恢复语义快照。
+
+环境生物管理器已定位为 `snow.envCreature.EnvironmentCreatureManager`；后续从其重生、创建与区域生命周期成员中确定最小原生重建序列。
