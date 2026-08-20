@@ -25,7 +25,7 @@ if ($game) {
     }
 } else {
     & (Join-Path $PSScriptRoot 'deploy_dev.ps1') -GameRoot $resolvedGameRoot
-    if ($LASTEXITCODE -ne 0) { throw 'Probe deployment failed.' }
+    if (-not $?) { throw 'Probe deployment failed.' }
 }
 
 if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
