@@ -706,12 +706,47 @@ function M.dump_title_flow_metadata(self)
         end
         types[#types + 1] = entry
     end
+    local behavior_instances = {}
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    local behavior_list = title and safe(function() return title:get_field("guiFsmBehaviorList") end) or nil
+    local count = behavior_list and safe(function() return behavior_list:call("get_Count") end) or 0
+    for index = 0, math.min(tonumber(count) or 0, 32) - 1 do
+        local instance = safe(function() return behavior_list:call("get_Item", index) end)
+        local current = instance and safe(function() return instance:get_type_definition() end) or nil
+        local entry = { index = index, type = type_name(current), hierarchy = {} }
+        local depth = 0
+        while current and depth < 10 do
+            local level = { type = type_name(current), fields = {}, methods = {} }
+            for _, field in ipairs(safe(function() return current:get_fields() end) or {}) do
+                level.fields[#level.fields + 1] = {
+                    name = safe(function() return field:get_name() end),
+                    type = type_name(safe(function() return field:get_type() end)),
+                }
+            end
+            for _, method in ipairs(safe(function() return current:get_methods() end) or {}) do
+                local params = {}
+                for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                    params[#params + 1] = type_name(param_type) or "unknown"
+                end
+                level.methods[#level.methods + 1] = {
+                    name = safe(function() return method:get_name() end),
+                    return_type = type_name(safe(function() return method:get_return_type() end)),
+                    param_types = params,
+                }
+            end
+            entry.hierarchy[#entry.hierarchy + 1] = level
+            current = safe(function() return current:get_parent_type() end)
+            depth = depth + 1
+        end
+        behavior_instances[#behavior_instances + 1] = entry
+    end
     return safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_title_flow_probe.json", {
-            schema_version = 3,
+            schema_version = 4,
             policy = "exact_type_metadata_only_no_title_action_invocation",
             runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
             types = types,
+            behavior_instances = behavior_instances,
         })
         return true
     end) == true
