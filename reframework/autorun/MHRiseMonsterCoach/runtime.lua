@@ -623,6 +623,7 @@ end
 
 local TITLE_FLOW_TYPES = {
     "snow.gui.fsm.title.GuiTitleFsmManager",
+    "snow.gui.fsm.title.GuiTitleFsmManager",
     "snow.gui.fsm.title.GuiTitleMenuFsmManager",
     "snow.gui.fsm.title.GuiTitleMenuFsmManager.TitleMenu",
     "snow.gui.fsm.title.GuiTitleMenuFsmManager.TitleMenuStateType",
@@ -675,7 +676,8 @@ function M.dump_title_flow_metadata(self)
             end
             table.sort(entry.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
             table.sort(entry.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
-            if requested_name == "snow.gui.fsm.title.GuiTitleMenuFsmManager"
+            if requested_name == "snow.gui.fsm.title.GuiTitleFsmManager"
+                or requested_name == "snow.gui.fsm.title.GuiTitleMenuFsmManager"
                 or requested_name == "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu" then
                 entry.hierarchy = {}
                 local current, depth = type_def, 0
@@ -707,8 +709,12 @@ function M.dump_title_flow_metadata(self)
         types[#types + 1] = entry
     end
     local behavior_instances = {}
-    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
-    local behavior_list = title and safe(function() return title:get_field("guiFsmBehaviorList") end) or nil
+    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleFsmManager")
+    local list_field = find_field(
+        "snow.gui.fsm.GuiFsmBaseManager`1<snow.gui.fsm.title.GuiTitleFsmManager>",
+        "guiFsmBehaviorList")
+    local behavior_list = title and list_field
+        and safe(function() return list_field:get_data(title) end) or nil
     local count = behavior_list and safe(function() return behavior_list:call("get_Count") end) or 0
     for index = 0, math.min(tonumber(count) or 0, 32) - 1 do
         local instance = safe(function() return behavior_list:call("get_Item", index) end)
