@@ -5,6 +5,7 @@ local HitboxProvider = require("MHRiseMonsterCoach.hitbox_provider")
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 
 local M = {}
+local NATIVE_IN_PLACE_RESET_VALIDATED = false
 
 local function safe(fn)
     local ok, value = pcall(fn)
@@ -1072,6 +1073,9 @@ function M.restore_monster_health(self)
 end
 
 function M.experimental_native_in_place_reset(self)
+    if not NATIVE_IN_PLACE_RESET_VALIDATED then
+        return false, "Disabled after repeated native engine crashes; use F7 quest restart"
+    end
     local context = self.last_context or {}
     if self.config.experimental_in_place_reset_enabled ~= true then
         return false, "Experimental in-place reset is disabled"

@@ -35,3 +35,7 @@
 准备区锚点在战斗区直接交给 `PlayerBase.setPosWarpConsiderDogRide` 会绕过 StageManager 区域切换并导致原生崩溃。F8 现通过 `snow.CharacterBase.get_AreaNo()` 保存真实 AreaNo，F9 在 AreaNo 不一致时执行硬拒绝，不再使用距离猜测。最终跨区设计需要通过 `StageManager.setPlWarpInfo`、`requestAreaMoveQuest` 与 WarpFlow 完成原生区域切换，再恢复语义快照。
 
 环境生物管理器已定位为 `snow.envCreature.EnvironmentCreatureManager`；后续从其重生、创建与区域生命周期成员中确定最小原生重建序列。
+
+### 连续调用验收结论
+
+`0.20.1` 在同一区域连续执行 F9 后产生原生 `c0000005`。崩溃发生在 Lua 调用返回后的游戏更新线程，说明仅执行猎人 Warp、怪物初始点 Warp 与生命恢复不足以重建 AI、碰撞、声音及区域依赖。该候选已判定不安全：F9 写入路径硬禁用并提示使用已验证的 F7 任务重开；只读元数据探针继续保留，直到完整 WarpFlow/生命周期序列可被验证。

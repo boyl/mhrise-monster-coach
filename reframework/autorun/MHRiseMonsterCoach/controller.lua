@@ -354,7 +354,7 @@ function M.draw_menu_content(self)
         self.model:reset_round(self.reset_status)
     end
     imgui.same_line()
-    if imgui.button("Experimental in-place reset (F9)") then
+    if imgui.button("In-place reset disabled after crash evidence (F9)") then
         local ok, reason = self.runtime:experimental_native_in_place_reset()
         self.reset_status = ok and "Experimental in-place reset completed"
             or ("Experimental in-place reset failed: " .. tostring(reason))

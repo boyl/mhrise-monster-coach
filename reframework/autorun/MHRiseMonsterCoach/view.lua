@@ -160,10 +160,10 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         controls = "Hold LB+RB/L1+R1: slow | reset shortcut: restart training quest"
     elseif model.context.safe_mode then
         controls = model.context.in_quest
-            and "F6: slow | F7: quest restart | F8: set reset point | F9: experimental in-place reset"
+            and "F6: slow | F7: quest restart | F8: set reset point | F9: in-place reset disabled"
             or "One-key restart continues automatically; no second F7 needed"
     else
-        controls = "F6: slow | F7: quest restart | F8: set reset point | F9: experimental in-place reset"
+        controls = "F6: slow | F7: quest restart | F8: set reset point | F9: in-place reset disabled"
     end
     lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
 
