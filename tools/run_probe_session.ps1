@@ -15,6 +15,7 @@ $reportPath = Join-Path $dataRoot 'dev_probe_report.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+$launchedGame = $false
 
 if ($game) {
     $installedVersion = if (Test-Path -LiteralPath $receiptPath) {
@@ -43,11 +44,22 @@ $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Enco
 
 if (-not $game) {
     Start-Process -FilePath 'steam://run/1446780'
+    $launchedGame = $true
     Write-Host 'Game launched. The probe will wait for the offline hub, then enter the training quest automatically.'
 } else {
     Write-Host 'Probe request delivered to the running game.'
 }
 Write-Host "Session: $sessionId"
+
+if ($launchedGame) {
+    $startupDeadline = (Get-Date).AddSeconds(90)
+    do {
+        $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($game) { break }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $startupDeadline)
+    if (-not $game) { throw 'Steam accepted the launch request, but the game process did not start within 90 seconds.' }
+}
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
