@@ -122,6 +122,7 @@ function M.new(config, profile)
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
     M.dump_in_place_reset_metadata(self)
     M.dump_in_place_type_candidates(self)
+    M.dump_title_flow_metadata(self)
     return setmetatable(self, { __index = M })
 end
 
@@ -587,6 +588,69 @@ end
 
 local function type_name(type_def)
     return type_def and safe(function() return type_def:get_full_name() end) or nil
+end
+
+local TITLE_FLOW_TYPES = {
+    "snow.gui.fsm.title.GuiTitleFsmManager",
+    "snow.gui.fsm.title.GuiTitleMenuFsmManager",
+    "snow.gui.fsm.title.GuiTitleMenuFsmManager.TitleMenu",
+    "snow.gui.fsm.title.GuiTitleFsm_PressAnyButton_Action",
+    "snow.gui.fsm.title.GuiTitleFsm_TitleMenu_Action",
+    "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuStart",
+    "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuInit",
+    "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuEnd",
+    "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu",
+    "snow.gui.fsm.title.GuiTitleFsmLoadSaveData",
+}
+
+function M.dump_title_flow_metadata(self)
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then return false end
+    local types = {}
+    for _, requested_name in ipairs(TITLE_FLOW_TYPES) do
+        local type_def = safe(function() return sdk.find_type_definition(requested_name) end)
+        local entry = { requested_type = requested_name, found = type_def ~= nil, fields = {}, methods = {} }
+        if type_def then
+            for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+                local field_type = safe(function() return field:get_type() end)
+                local is_static = safe(function() return field:is_static() end) == true
+                local value = is_static and safe(function() return field:get_data(nil) end) or nil
+                if type(value) ~= "number" and type(value) ~= "boolean" and type(value) ~= "string" then
+                    value = nil
+                end
+                entry.fields[#entry.fields + 1] = {
+                    name = safe(function() return field:get_name() end),
+                    type = type_name(field_type),
+                    is_static = is_static,
+                    is_literal = safe(function() return field:is_literal() end) == true,
+                    static_value = value,
+                }
+            end
+            for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+                local params = {}
+                for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                    params[#params + 1] = type_name(param_type) or "unknown"
+                end
+                entry.methods[#entry.methods + 1] = {
+                    name = safe(function() return method:get_name() end),
+                    return_type = type_name(safe(function() return method:get_return_type() end)),
+                    param_types = params,
+                }
+            end
+            table.sort(entry.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
+            table.sort(entry.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
+        end
+        types[#types + 1] = entry
+    end
+    return safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_title_flow_probe.json", {
+            schema_version = 1,
+            policy = "exact_type_metadata_only_no_title_action_invocation",
+            runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
+            types = types,
+        })
+        return true
+    end) == true
 end
 
 function M.dump_in_place_reset_metadata(self)
