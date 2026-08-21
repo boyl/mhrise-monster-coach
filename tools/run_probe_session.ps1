@@ -119,7 +119,8 @@ public static class MonsterCoachInput {
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
 $combatEntryAttemptedForStates = [Collections.Generic.HashSet[string]]::new()
-$combatTransferSentForStates = [Collections.Generic.HashSet[string]]::new()
+$combatTransferLastSent = @{}
+$combatTransferAttempts = @{}
 $lastCombatPulse = [DateTime]::MinValue
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -168,13 +169,17 @@ do {
             $report.state -in @('wait_stable', 'verify_restart') -and
             [int]$report.areas.player -eq 0 -and
             $report.areas.arena_transfer_ready -eq $true -and
-            -not $combatTransferSentForStates.Contains([string]$report.state)) {
+            (-not $combatTransferLastSent.ContainsKey([string]$report.state) -or
+                ((Get-Date) - $combatTransferLastSent[[string]$report.state]).TotalSeconds -ge 3) -and
+            ([int]($combatTransferAttempts[[string]$report.state] ?? 0)) -lt 5) {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($game) {
                 $game.Refresh()
                 if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
-                    [void]$combatTransferSentForStates.Add([string]$report.state)
-                    Write-Host "Automatic native F interaction sent during $($report.state)"
+                    $stateKey = [string]$report.state
+                    $combatTransferLastSent[$stateKey] = Get-Date
+                    $combatTransferAttempts[$stateKey] = [int]($combatTransferAttempts[$stateKey] ?? 0) + 1
+                    Write-Host "Automatic native F interaction sent during $stateKey (attempt $($combatTransferAttempts[$stateKey])/5)"
                 }
             }
         }
