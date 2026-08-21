@@ -146,26 +146,42 @@ function M.new(config, profile)
 end
 
 function M.install_arena_transfer_focus_hook(self)
-    local method = find_method("snow.access.QuestAreaMovePopMarker",
-        "intoFocus(via.GameObject, via.GameObject)")
-        or find_method("snow.access.QuestAreaMovePopMarker", "intoFocus")
-    if method == nil then return false, "Quest area transfer focus hook unavailable" end
-    local ok, reason = pcall(function()
-        sdk.hook(method, function(args)
-            local marker = safe(function() return sdk.to_managed_object(args[2]) end)
-            local first = safe(function() return sdk.to_managed_object(args[3]) end)
-            local second = safe(function() return sdk.to_managed_object(args[4]) end)
-            if marker and first and second then
-                self.arena_transfer_focus = {
-                    marker = marker,
-                    first = first,
-                    second = second,
-                    clock = os.clock(),
-                }
-            end
-        end, function(retval) return retval end)
-    end)
-    return ok, ok and nil or tostring(reason)
+    local candidates = {
+        { "snow.access.QuestAreaMovePopMarker", "intoFocus" },
+        { "snow.access.ObjectPopMarker", "eventIntoFocus" },
+        { "snow.access.ObjectPopMarker", "eventIntoAccessable" },
+        { "snow.access.ObjectPopMarker", "eventOnAccessable" },
+    }
+    local installed = 0
+    local errors = {}
+    for _, candidate in ipairs(candidates) do
+        local method = find_method(candidate[1], candidate[2])
+        if method then
+            local ok, reason = pcall(function()
+                sdk.hook(method, function(args)
+                    local marker = safe(function() return sdk.to_managed_object(args[2]) end)
+                    local marker_type = marker and safe(function()
+                        return marker:get_type_definition():get_full_name()
+                    end) or ""
+                    local first = safe(function() return sdk.to_managed_object(args[3]) end)
+                    local second = safe(function() return sdk.to_managed_object(args[4]) end)
+                    if string.find(tostring(marker_type), "QuestAreaMovePopMarker", 1, true)
+                        and first and second then
+                        self.arena_transfer_focus = {
+                            marker = marker,
+                            first = first,
+                            second = second,
+                            source = candidate[1] .. "." .. candidate[2],
+                            clock = os.clock(),
+                        }
+                    end
+                end, function(retval) return retval end)
+            end)
+            if ok then installed = installed + 1 else errors[#errors + 1] = tostring(reason) end
+        end
+    end
+    return installed > 0, installed > 0 and nil
+        or (errors[1] or "Quest area transfer focus hooks unavailable")
 end
 
 function M.install_startup_flow_hooks(self)
