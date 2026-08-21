@@ -450,7 +450,36 @@ function M.quest_restart_api(self)
         end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
-        if current_node == "QuestMenuTop" then
+        if current_node == "QuestLevelMenuSelect"
+            and self.runtime.quest_posting.level_menu_selected ~= true then
+            local target = enum_value(
+                "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterLevelMenuType",
+                "Lv_04_MR")
+            local list = safe(function() return counter:get_QuestLevelMenuList() end)
+            local cursor = safe(function() return counter:get_LevelMenuCursor() end)
+            local count = list and safe(function() return list:call("get_Count") end) or 0
+            local target_index
+            for index = 0, (tonumber(count) or 0) - 1 do
+                local value = safe(function() return list:call("get_Item", index) end)
+                if tonumber(value) == tonumber(target) then target_index = index break end
+            end
+            if target == nil or cursor == nil or target_index == nil then
+                return false, "MR 4-star quest level entry unavailable"
+            end
+            local selected_ok, selected_error = pcall(function()
+                cursor:setIndex(target_index)
+            end)
+            if not selected_ok then
+                return false, "Failed to select MR 4-star quest level: "
+                    .. tostring(selected_error)
+            end
+            local selected = safe(function() return counter:getQuestCounterSelectedLevelMenu() end)
+            if tonumber(selected) ~= tonumber(target) then
+                return false, "MR 4-star quest level verification failed"
+            end
+            self.runtime.quest_posting.level_menu_selected = true
+        end
+        if current_node == "QuestMenuTop" or current_node == "QuestLevelMenuSelect" then
             local posting = self.runtime.quest_posting
             if posting.top_menu_selected ~= true then
                 local target = enum_value(
@@ -651,6 +680,7 @@ function M.clear_quest_posting(self, close_windows)
     posting.counter_input_attempts = 0
     posting.counter_input_frames = 0
     posting.top_menu_selected = false
+    posting.level_menu_selected = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
