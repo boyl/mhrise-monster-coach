@@ -218,7 +218,6 @@ local RESET_TRACE_LIFECYCLE_METHODS = {
     },
     ["snow.enemy.EnemyManager"] = {
         "registerRequestDestroyEnemyList",
-        "updateDestroyEnemy",
         "destroyEnemy",
         "destroyEnemyGameObject",
         "createEnemyFromSetInfo",
