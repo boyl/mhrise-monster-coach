@@ -452,6 +452,34 @@ function M.quest_restart_api(self)
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
         if current_node == "QuestMenuTop" then
             local posting = self.runtime.quest_posting
+            if posting.top_menu_selected ~= true then
+                local target = enum_value(
+                    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterTopMenuType",
+                    "Normal_Hall_Master")
+                local list = safe(function() return counter:get_QuestCounterTopMenuList() end)
+                local cursor = safe(function() return counter:get_TopMenuCursor() end)
+                local count = list and safe(function() return list:call("get_Count") end) or 0
+                local target_index
+                for index = 0, (tonumber(count) or 0) - 1 do
+                    local value = safe(function() return list:call("get_Item", index) end)
+                    if tonumber(value) == tonumber(target) then target_index = index break end
+                end
+                if target == nil or cursor == nil or target_index == nil then
+                    return false, "Master Rank quest top-menu entry unavailable"
+                end
+                local selected_ok, selected_error = pcall(function()
+                    cursor:setIndex(target_index)
+                end)
+                if not selected_ok then
+                    return false, "Failed to select Master Rank quest menu: "
+                        .. tostring(selected_error)
+                end
+                local selected = safe(function() return counter:getQuestCounterSelectedTopMenu() end)
+                if tonumber(selected) ~= tonumber(target) then
+                    return false, "Master Rank top-menu verification failed"
+                end
+                posting.top_menu_selected = true
+            end
             posting.counter_input_frames = posting.counter_input_frames + 1
             if posting.counter_input_frames < 180 then return nil end
             posting.counter_input_frames = 0
@@ -622,6 +650,7 @@ function M.clear_quest_posting(self, close_windows)
     posting.counter_state_initialized = false
     posting.counter_input_attempts = 0
     posting.counter_input_frames = 0
+    posting.top_menu_selected = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
