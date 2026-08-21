@@ -1642,9 +1642,12 @@ function M.monster_respawn_api(runtime)
         local ok, reason = pcall(function()
             created = runtime.methods.enemy_create_from_set:call(manager, contract.set_info, 0, -1)
         end)
-        if not ok or created == nil then
-            return false, "Native monster create request failed: " .. tostring(reason or "no instance returned")
+        if not ok then
+            return false, "Native monster create request failed: " .. tostring(reason)
         end
+        -- The native quest-start trace does not expose a synchronous return
+        -- instance. EnemySetInfo.OwnerEnemy and the boss registry are the
+        -- authoritative asynchronous completion signals.
         return true, created
     end
 

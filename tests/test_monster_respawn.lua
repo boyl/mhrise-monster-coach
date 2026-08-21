@@ -35,6 +35,24 @@ assert(respawn.state == "complete" and respawn.result == created,
 assert(table.concat(calls, ",") == "destroy:tigrex,create:tigrex",
     "lifecycle never repeats a destructive request")
 
+local async_owner
+local async_api = {}
+function async_api:request_destroy() return true end
+function async_api:is_enemy_absent() return true end
+function async_api:request_create() return true, nil end
+function async_api:find_created_enemy() return async_owner end
+local async = MonsterRespawn.new(async_api, { stable_frames = 1, timeout_frames = 20 })
+assert(async:start(contract))
+async:update()
+async:update()
+async:update()
+async:update()
+assert(async.state == "wait_present", "nil native return waits for asynchronous registry ownership")
+async_owner = { id = "async-tigrex" }
+async:update()
+assert(async.state == "complete" and async.result == async_owner,
+    "asynchronous owner discovery completes the lifecycle")
+
 local invalid = MonsterRespawn.new(api)
 assert(invalid:start({}) == false, "missing runtime handles are rejected")
 
