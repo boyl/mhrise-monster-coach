@@ -37,6 +37,12 @@ bootstrap:update()
 bootstrap:update()
 bootstrap:update()
 assert(view.title_cursor_index == 1, "Continue is selected and verified before native transition")
+view.autosave_notice_active = true
+bootstrap:update()
+assert(bootstrap.state == "wait_autosave_notice_closed", "late autosave notice preempts later states")
+view.autosave_notice_active = false
+bootstrap:update()
+assert(bootstrap.state == "wait_save_menu", "bootstrap resumes the suspended state after closure")
 view = { build_supported = true, save_menu_available = true, current_save_slot = 2 }
 bootstrap:update()
 assert(statuses[#statuses].action.id == "bootstrap-1:choose_first_save")
