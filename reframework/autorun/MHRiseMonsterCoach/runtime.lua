@@ -442,7 +442,26 @@ function M.quest_restart_api(self)
         if counter == nil then return nil end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
-        if current_node == "QuestMenuTop" then return nil end
+        if current_node == "QuestMenuTop" then
+            local request = safe(function()
+                return json.load_file("MHRiseMonsterCoach/dev_probe_request.json")
+            end) or {}
+            safe(function()
+                json.dump_file("MHRiseMonsterCoach/quest_counter_input_request.json", {
+                    schema_version = 1,
+                    session_id = request.session_id,
+                    status = "input_required",
+                    action = {
+                        id = tostring(request.session_id or "") .. ":quest_counter:QuestMenuTop",
+                        kind = "press_key",
+                        virtual_key = 0x46,
+                        node = current_node,
+                        delay_ms = 500,
+                    },
+                })
+            end)
+            return nil
+        end
         local nodes = {}
         for index = 0, 7 do
             nodes[index + 1] = safe(function()
