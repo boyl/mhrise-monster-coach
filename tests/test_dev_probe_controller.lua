@@ -3,7 +3,9 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 local Probe = require("MHRiseMonsterCoach.dev_probe_controller")
 
 local context = { in_quest = false, is_online = false, build_supported = true, player_found = true }
-local request = { session_id = "probe-1", kind = "environment_creature_lifecycle" }
+local request = {
+    session_id = "probe-1", kind = "environment_creature_lifecycle", allow_spawn_probe = true,
+}
 local reports, observed, spawned, reset_calls = {}, 0, 0, 0
 local quest_api = {}
 function quest_api:request_reset() reset_calls = reset_calls + 1 return true end
@@ -67,10 +69,26 @@ local retry_probe = Probe.new(retry_api, 200032001, {
     stable_frames = 1, spawn_retry_interval_frames = 2, spawn_timeout_frames = 10,
 })
 retry_probe.request = { session_id = "probe-retry", kind = "environment_creature_lifecycle" }
+retry_probe.request.allow_spawn_probe = true
 retry_probe:set_state("wait_stable")
 for _ = 1, 6 do retry_probe:update() end
 assert(retry_attempts == 3 and retry_probe.state == "wait_collection",
     "transient prefab initialization is retried without aborting the session")
 assert(retry_probe.probe_key == "bird-after-init", "retry preserves the successful probe identity")
+
+local passive_observations = 0
+local passive_api = { quest_api = quest_api }
+function passive_api:get_context() return retry_context end
+function passive_api:read_request() return nil end
+function passive_api:write_report() end
+function passive_api:observe_environment() passive_observations = passive_observations + 1 return true end
+function passive_api:spawn_environment_probe() error("passive probe must not spawn") end
+function passive_api:environment_evidence() return {} end
+local passive_probe = Probe.new(passive_api, 200032001, { stable_frames = 1 })
+passive_probe.request = { session_id = "probe-passive", kind = "environment_creature_lifecycle" }
+passive_probe:set_state("wait_stable")
+passive_probe:update()
+assert(passive_probe.state == "wait_collection" and passive_observations == 1,
+    "default automation uses passive observation without unsafe prefab access")
 
 print("test_dev_probe_controller.lua: PASS")

@@ -127,6 +127,11 @@ function M:update()
         if target_quest(context, self.quest_id) and context.target_found then
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
+                if self.request.allow_spawn_probe ~= true then
+                    self.api:observe_environment()
+                    self:set_state("wait_collection")
+                    return true
+                end
                 local due = self.last_spawn_attempt_frame == nil
                     or self.state_frames - self.last_spawn_attempt_frame
                         >= self.spawn_retry_interval_frames

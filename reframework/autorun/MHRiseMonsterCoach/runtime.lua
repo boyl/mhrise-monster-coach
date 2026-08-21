@@ -1201,29 +1201,6 @@ function M.environment_creature_evidence(self)
     return self.environment_creature_recorder:export()
 end
 
-local function attack_spiribird_prefab(prefab_list)
-    if prefab_list == nil then return nil, "_EcPrefabList is nil" end
-
-    local count = safe(function() return prefab_list:call("get_Count") end)
-    if tonumber(count) and tonumber(count) > 10 then
-        local prefab = safe(function() return prefab_list:call("get_Item", 10) end)
-        if prefab ~= nil then return prefab, "managed_list" end
-    end
-
-    local direct = safe(function() return prefab_list:get_elements() end)
-    if type(direct) == "table" and direct[11] ~= nil then
-        return direct[11], "managed_array"
-    end
-
-    local items = safe(function() return prefab_list:get_field("mItems") end)
-        or safe(function() return prefab_list:get_field("_items") end)
-    local elements = items and safe(function() return items:get_elements() end)
-    if type(elements) == "table" and elements[11] ~= nil then
-        return elements[11], "backing_array"
-    end
-    return nil, "unsupported prefab container"
-end
-
 function M.spawn_owned_environment_probe(self, session_id)
     local context = self.last_context or {}
     if type(session_id) ~= "string" or session_id == "" then
@@ -1237,13 +1214,14 @@ function M.spawn_owned_environment_probe(self, session_id)
     local manager = sdk.get_managed_singleton("snow.envCreature.EnvironmentCreatureManager")
     if manager == nil then return false, "EnvironmentCreatureManager unavailable" end
     local prefab_list = safe(function() return manager:get_field("_EcPrefabList") end)
-    -- Zero-based index 10 / Lua-array index 11 is the attack Spiribird in the
-    -- mature SpiritBirds implementation.
+    local items = prefab_list and safe(function() return prefab_list:get_field("mItems") end)
+    local prefabs = items and safe(function() return items:get_elements() end)
+    if type(prefabs) ~= "table" then return false, "Environment creature prefab list unavailable" end
+
+    -- Index 11 is the attack Spiribird in the mature SpiritBirds implementation.
     -- It avoids colliding with that mod's optional rainbow-bird auto spawn (index 15).
-    local prefab, prefab_source = attack_spiribird_prefab(prefab_list)
-    if prefab == nil then
-        return false, "Attack Spiribird prefab unavailable: " .. tostring(prefab_source)
-    end
+    local prefab = prefabs[11]
+    if prefab == nil then return false, "Attack Spiribird prefab unavailable" end
     local position = get_position(get_transform(self.player))
     if position == nil then return false, "Hunter position unavailable for environment probe" end
     local instance = safe(function()
@@ -1255,7 +1233,6 @@ function M.spawn_owned_environment_probe(self, session_id)
     end
     self.dev_probe_session_id = session_id
     self.dev_probe_creature = instance
-    self.dev_probe_prefab_source = prefab_source
     local key = tostring(safe(function() return instance:get_address() end) or instance)
     M.observe_environment_creatures(self)
     return true, key
