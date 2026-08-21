@@ -1841,7 +1841,7 @@ function M.request_arena_transfer(self)
     local accessible = safe(function() return focus.marker:call("get_IsAccessible") end)
     if accessible ~= true then return false, "Arena transfer prompt is not accessible", true end
     local ok, reason = pcall(function()
-        focus.marker:call("eventAccess(via.GameObject, via.GameObject)", focus.first, focus.second)
+        focus.marker:call("callAccessMethod(via.GameObject, via.GameObject)", focus.first, focus.second)
     end)
     if not ok then return false, "Native arena transfer request failed: " .. tostring(reason) end
     self.arena_transfer_focus = nil
