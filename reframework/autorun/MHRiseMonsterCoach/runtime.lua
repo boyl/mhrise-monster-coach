@@ -368,12 +368,15 @@ function M.install_quest_posting_hooks(self)
             if counter and access ~= nil then counter:call("set_QuestCounterType", access) end
         end },
         { "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
-            "update(via.behaviortree.ActionArg)", nil, function()
-                local counter = sdk.get_managed_singleton(
-                    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
+            "update(via.behaviortree.ActionArg)", function(args)
+                local action = sdk.to_managed_object(args[2])
+                local action_arg = sdk.to_managed_object(args[3])
                 local success = enum_value(
                     "snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
-                if counter and success ~= nil then counter:setBaseBranchValue(success) end
+                if action and action_arg and success ~= nil then
+                    action:setBaseBranch(action_arg, success)
+                    return sdk.PreHookResult.SKIP_ORIGINAL
+                end
             end },
         { "snow.gui.GuiManager", "IsPlayerAllInputDisable()", nil, true_post },
         { "snow.gui.GuiManager", "IsCanFieldObjectAccessSub()", nil, true_post },
