@@ -175,7 +175,7 @@ do {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($game) {
                 $game.Refresh()
-                if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
+                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x46, 500)) {
                     $stateKey = [string]$report.state
                     $combatTransferLastSent[$stateKey] = Get-Date
                     $combatTransferAttempts[$stateKey] = [int]($combatTransferAttempts[$stateKey] ?? 0) + 1
