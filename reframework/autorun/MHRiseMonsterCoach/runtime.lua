@@ -524,22 +524,34 @@ function M.quest_restart_api(self)
             local cursor = safe(function() return counter:get_QuestMenuCursor() end)
             local count = list and safe(function() return list:call("get_Count") end) or 0
             local target_id = tonumber(self.runtime.profile.training_quest.id)
+            local quest_manager = sdk.get_managed_singleton("snow.QuestManager")
+            local target_data = quest_manager and self.runtime.methods.quest_data
+                and safe(function()
+                    return self.runtime.methods.quest_data:call(quest_manager, target_id)
+                end) or nil
+            local target_address = target_data and safe(function() return target_data:get_address() end)
             local target_index
             local observed = {}
             for index = 0, (tonumber(count) or 0) - 1 do
                 local item = safe(function() return list:call("get_Item", index) end)
                 local quest_id, source = read_quest_list_item_id(item)
+                local item_address = item and safe(function() return item:get_address() end)
                 observed[#observed + 1] = {
                     index = index,
                     quest_id = quest_id,
                     source = source or (tonumber(item) and "numeric_item" or nil),
+                    matches_target_object = target_address ~= nil and item_address == target_address,
                     item_type = tostring(safe(function()
                         return item:get_type_definition():get_full_name()
                     end) or type(item)),
                 }
-                if quest_id == target_id then target_index = index break end
+                if quest_id == target_id
+                    or (target_address ~= nil and item_address == target_address) then
+                    target_index = index
+                    break
+                end
             end
-            if cursor == nil or target_index == nil then
+            if cursor == nil or target_data == nil or target_index == nil then
                 safe(function()
                     json.dump_file("MHRiseMonsterCoach/runtime_quest_list_probe.json", {
                         schema_version = 1,
