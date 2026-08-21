@@ -206,19 +206,19 @@ local RESET_TRACE_METHODS = {
 
 local RESET_TRACE_LIFECYCLE_METHODS = {
     ["snow.enemy.EnemySetInfo"] = {
-        "destroyEnemy(System.Int32,snow.enemy.EnemyManager.DestroyStatus)",
-        "repop()",
-        "resetEnemy()",
-        "updateDestroyStatus(snow.enemy.EnemyManager.DestroyStatus)",
-        "updateSetStatus(snow.enemy.EnemyManager.EnemySetStatus)",
+        "destroyEnemy",
+        "repop",
+        "resetEnemy",
+        "updateDestroyStatus",
+        "updateSetStatus",
     },
     ["snow.enemy.EnemyManager"] = {
-        "registerRequestDestroyEnemyList(snow.enemy.EnemyCharacterBase)",
-        "updateDestroyEnemy()",
-        "destroyEnemy(snow.enemy.EnemyCharacterBase)",
-        "destroyEnemyGameObject(snow.enemy.EnemyCharacterBase)",
-        "createEnemyFromSetInfo(snow.enemy.EnemySetInfo,snow.enemy.EnemyDef.EnemySetType,System.Int32)",
-        "notifyCreateEnemy(snow.enemy.EnemySetInfo)",
+        "registerRequestDestroyEnemyList",
+        "updateDestroyEnemy",
+        "destroyEnemy",
+        "destroyEnemyGameObject",
+        "createEnemyFromSetInfo",
+        "notifyCreateEnemy",
     },
 }
 
