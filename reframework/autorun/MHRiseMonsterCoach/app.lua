@@ -60,6 +60,15 @@ function M.start()
     function probe_api:request_arena_transfer()
         return runtime:request_arena_transfer()
     end
+    function probe_api:start_monster_respawn()
+        return runtime:start_monster_respawn_probe()
+    end
+    function probe_api:update_monster_respawn()
+        runtime:update_monster_respawn_probe()
+        local respawn = runtime.monster_respawn
+        return respawn and respawn.state or "unavailable",
+            respawn and respawn.error or nil
+    end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end

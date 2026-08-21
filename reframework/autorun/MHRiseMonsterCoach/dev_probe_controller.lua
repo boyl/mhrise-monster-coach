@@ -31,6 +31,7 @@ function M.new(api, quest_id, options)
         last_spawn_reason = nil,
         completed_sessions = {},
         arena_transfer = { attempted = false },
+        monster_respawn = { attempted = false, state = "idle" },
     }, { __index = M })
 end
 
@@ -62,6 +63,7 @@ function M:report(status, reason)
         environment = evidence,
         areas = self.api:area_snapshot(),
         arena_transfer = self.arena_transfer,
+        monster_respawn = self.monster_respawn,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -88,7 +90,9 @@ function M:complete()
 end
 
 function M:accept_request(request, context)
-    if type(request) ~= "table" or request.kind ~= "environment_creature_lifecycle"
+    if type(request) ~= "table"
+        or (request.kind ~= "environment_creature_lifecycle"
+            and request.kind ~= "monster_respawn_lifecycle")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     if request.auto_load_save == true and context.in_quest ~= true
@@ -143,6 +147,13 @@ function M:update()
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 if self.request.allow_spawn_probe ~= true then
+                    if self.request.kind == "monster_respawn_lifecycle" then
+                        local ok, reason = self.api:start_monster_respawn()
+                        self.monster_respawn = { attempted = true, state = "starting", reason = reason }
+                        if not ok then return self:fail(reason) end
+                        self:set_state("monster_respawn")
+                        return true
+                    end
                     self.api:observe_environment()
                     self:set_state("wait_collection")
                     return true
@@ -173,6 +184,12 @@ function M:update()
         else
             self.stable_frames = 0
         end
+    elseif self.state == "monster_respawn" then
+        local state, reason = self.api:update_monster_respawn()
+        self.monster_respawn = { attempted = true, state = state, reason = reason }
+        if self.state_frames % 15 == 0 then self:report("running") end
+        if state == "complete" then return self:complete() end
+        if state == "failed" then return self:fail(reason or "Monster respawn lifecycle failed") end
     elseif self.state == "wait_collection" then
         if self.state_frames % 15 == 0 then self.api:observe_environment() end
         if self.state_frames >= self.collect_wait_frames then

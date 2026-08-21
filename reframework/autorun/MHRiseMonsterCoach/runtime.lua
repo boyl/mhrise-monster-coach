@@ -4,10 +4,11 @@ local PlayerStateReader = require("MHRiseMonsterCoach.player_state_reader")
 local HitboxProvider = require("MHRiseMonsterCoach.hitbox_provider")
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 local EnvironmentCreatureRecorder = require("MHRiseMonsterCoach.environment_creature_recorder")
+local MonsterRespawn = require("MHRiseMonsterCoach.monster_respawn")
 
 local M = {}
 local NATIVE_IN_PLACE_RESET_VALIDATED = false
-local get_transform, get_position, read_area_no
+local get_transform, get_position, read_area_no, clear_enemy
 
 local function safe(fn)
     local ok, value = pcall(fn)
@@ -79,6 +80,7 @@ function M.new(config, profile)
         environment_creature_saved_revision = 0,
         enemy_spawn_contract_address = nil,
         enemy_spawn_contract_history = {},
+        monster_respawn = nil,
         startup_flow = {
             phase = nil,
             hooks = {},
@@ -112,6 +114,10 @@ function M.new(config, profile)
         player_native_warp = find_method("snow.player.PlayerBase", "setPosWarpConsiderDogRide(via.vec3)"),
         enemy_native_warp_init = find_method("snow.enemy.EnemyCharacterBase", "warpEnemyInitPos"),
         character_area_no = find_method("snow.CharacterBase", "get_AreaNo"),
+        enemy_set_info = find_method("snow.enemy.EnemyCharacterBase", "get_SetInfo"),
+        enemy_destroy = find_method("snow.enemy.EnemyManager", "destroyEnemy(snow.enemy.EnemyCharacterBase)"),
+        set_info_destroy = find_method("snow.enemy.EnemySetInfo", "destroyEnemy(System.Int32, snow.enemy.EnemyManager.DestroyStatus)"),
+        enemy_create_from_set = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfo(snow.enemy.EnemySetInfo, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -129,6 +135,7 @@ function M.new(config, profile)
         player_stamina = find_field("snow.player.PlayerData", "_stamina"),
         player_max_stamina = find_field("snow.player.PlayerData", "_staminaMax"),
     }
+    self.monster_respawn = MonsterRespawn.new(M.monster_respawn_api(self))
     local posting_ready, posting_reason = M.install_quest_posting_hooks(self)
     self.capabilities.quest_posting = posting_ready
     self.capabilities.quest_posting_reason = posting_reason
@@ -1586,6 +1593,108 @@ function M.capture_enemy_spawn_contract(self, enemy)
     return written, written and nil or "Failed to export EnemySetInfo contract"
 end
 
+local function same_managed_object(left, right)
+    if left == nil or right == nil then return false end
+    local left_address = safe(function() return left:get_address() end)
+    local right_address = safe(function() return right:get_address() end)
+    return left_address ~= nil and left_address == right_address
+end
+
+function M.monster_respawn_api(runtime)
+    local api = {}
+
+    function api:request_destroy(contract)
+        local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
+        if manager == nil or runtime.methods.enemy_destroy == nil
+            or runtime.methods.set_info_destroy == nil then
+            return false, "Native monster destroy contract unavailable"
+        end
+        local ok, reason = pcall(function()
+            runtime.methods.enemy_destroy:call(manager, contract.enemy)
+            runtime.methods.set_info_destroy:call(contract.set_info, 0, 0)
+        end)
+        if not ok then return false, "Native monster destroy request failed: " .. tostring(reason) end
+        clear_enemy(runtime, false)
+        return true
+    end
+
+    function api:is_enemy_absent(contract)
+        local owner = safe(function() return contract.set_info:call("get_OwnerEnemy") end)
+        if same_managed_object(owner, contract.enemy) then return false end
+        local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
+        if manager == nil or runtime.methods.boss_enemy_count == nil
+            or runtime.methods.boss_enemy == nil then return false end
+        local count = safe(function() return runtime.methods.boss_enemy_count:call(manager) end)
+        if type(count) ~= "number" or count < 0 or count > 8 then return false end
+        for index = 0, count - 1 do
+            local candidate = safe(function() return runtime.methods.boss_enemy:call(manager, index) end)
+            if same_managed_object(candidate, contract.enemy) then return false end
+        end
+        return true
+    end
+
+    function api:request_create(contract)
+        local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
+        if manager == nil or runtime.methods.enemy_create_from_set == nil then
+            return false, "Native monster create contract unavailable"
+        end
+        local created
+        local ok, reason = pcall(function()
+            created = runtime.methods.enemy_create_from_set:call(manager, contract.set_info, 0, -1)
+        end)
+        if not ok or created == nil then
+            return false, "Native monster create request failed: " .. tostring(reason or "no instance returned")
+        end
+        return true, created
+    end
+
+    function api:find_created_enemy(contract, candidate)
+        local owner = safe(function() return contract.set_info:call("get_OwnerEnemy") end)
+        local resolved = owner or candidate
+        if resolved == nil or not M.is_tigrex(runtime, resolved) then return nil end
+        local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
+        if manager == nil then return nil end
+        local count = safe(function() return runtime.methods.boss_enemy_count:call(manager) end)
+        if type(count) ~= "number" or count < 1 or count > 8 then return nil end
+        for index = 0, count - 1 do
+            local listed = safe(function() return runtime.methods.boss_enemy:call(manager, index) end)
+            if same_managed_object(listed, resolved) then return resolved end
+        end
+        return nil
+    end
+
+    return api
+end
+
+function M.start_monster_respawn_probe(self)
+    local context = self.last_context or {}
+    if not context.in_quest or context.is_online
+        or tonumber(context.quest_no) ~= self.profile.training_quest.id then
+        return false, "Monster respawn probe requires the offline training quest"
+    end
+    if self.enemy == nil or self.methods.enemy_set_info == nil then
+        return false, "Tigrex spawn contract unavailable"
+    end
+    local set_info = safe(function() return self.methods.enemy_set_info:call(self.enemy) end)
+    if set_info == nil then return false, "Tigrex EnemySetInfo unavailable" end
+    return self.monster_respawn:start({
+        enemy = self.enemy,
+        set_info = set_info,
+        enemy_id = self.enemy_id,
+    })
+end
+
+function M.update_monster_respawn_probe(self)
+    if self.monster_respawn == nil or not self.monster_respawn:is_active() then return false end
+    self.monster_respawn:update()
+    if self.monster_respawn.state == MonsterRespawn.states.COMPLETE then
+        self.enemy = self.monster_respawn.result
+        self.enemy_id = M.read_enemy_id(self, self.enemy)
+        M.capture_enemy_spawn_contract(self, self.enemy)
+    end
+    return true
+end
+
 function M.read_enemy_id(self, enemy)
     local value
     if self.methods.enemy_type then value = safe(function() return self.methods.enemy_type:call(enemy) end) end
@@ -1603,7 +1712,7 @@ function M.is_tigrex(self, enemy)
     return string.find(text, "em032_00", 1, true) ~= nil
 end
 
-local function clear_enemy(self, clear_anchor)
+clear_enemy = function(self, clear_anchor)
     self.enemy = nil
     self.enemy_id = nil
     self.enemy_spawn_contract_address = nil

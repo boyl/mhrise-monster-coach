@@ -4,7 +4,8 @@
 param(
     [string]$GameRoot = 'C:\Program Files (x86)\Steam\steamapps\common\MonsterHunterRise',
     [int]$TimeoutSeconds = 900,
-    [switch]$RequireCombatArea
+    [switch]$RequireCombatArea,
+    [switch]$MonsterRespawn
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,7 +40,7 @@ $sessionId = [Guid]::NewGuid().ToString('N')
 $request = [ordered]@{
     schema_version = 1
     session_id = $sessionId
-    kind = 'environment_creature_lifecycle'
+    kind = if ($MonsterRespawn) { 'monster_respawn_lifecycle' } else { 'environment_creature_lifecycle' }
     requested_at = [DateTimeOffset]::Now.ToString('o')
     source_version = $sourceVersion
     auto_load_save = $true
@@ -50,7 +51,7 @@ $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Enco
 [ordered]@{
     schema_version = 1
     session_id = $sessionId
-    kind = 'environment_creature_lifecycle'
+    kind = $request.kind
     status = 'pending'
 } | ConvertTo-Json | Set-Content -LiteralPath $reportPath -Encoding utf8
 [ordered]@{
@@ -110,6 +111,22 @@ public static class MonsterCoachInput {
         keybd_event(0, scanCode, KEYEVENTF_SCANCODE, UIntPtr.Zero);
         System.Threading.Thread.Sleep(Math.Max(100, milliseconds));
         keybd_event(0, scanCode, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+        return true;
+    }
+    public static bool HoldKeys(IntPtr gameWindow, byte firstKey, byte secondKey, int milliseconds) {
+        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+        System.Threading.Thread.Sleep(300);
+        if (GetForegroundWindow() != gameWindow) return false;
+        byte firstScan = (byte)MapVirtualKey(firstKey, 0);
+        byte secondScan = (byte)MapVirtualKey(secondKey, 0);
+        if (firstScan == 0 || secondScan == 0) return false;
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        keybd_event(0, secondScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        keybd_event(0, firstScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        System.Threading.Thread.Sleep(Math.Max(100, milliseconds));
+        keybd_event(0, firstScan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+        keybd_event(0, secondScan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
         return true;
     }
 }
@@ -191,7 +208,7 @@ do {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($game) {
                 $game.Refresh()
-                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 100)) {
+                if ([MonsterCoachInput]::HoldKeys($game.MainWindowHandle, 0x57, 0x10, 100)) {
                     $lastCombatPulse = Get-Date
                     if (-not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
                         [void]$combatEntryAttemptedForStates.Add([string]$report.state)
