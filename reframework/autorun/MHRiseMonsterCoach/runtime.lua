@@ -641,6 +641,15 @@ local IN_PLACE_RESET_TYPES = {
     "snow.envCreature.EnvironmentCreatureManager",
     "snow.envCreature.EnvironmentCreatureBase",
     "snow.envCreature.EcPopBehavior",
+    "snow.enemy.EnemySetInfo",
+    "snow.quest.EnemySetParam",
+    "snow.quest.QuestData",
+}
+
+local IN_PLACE_RESET_FULL_TYPES = {
+    ["snow.enemy.EnemySetInfo"] = true,
+    ["snow.quest.EnemySetParam"] = true,
+    ["snow.quest.QuestData"] = true,
 }
 
 local IN_PLACE_RESET_KEYWORDS = {
@@ -980,6 +989,7 @@ function M.dump_in_place_reset_metadata(self)
     for _, requested_name in ipairs(IN_PLACE_RESET_TYPES) do
         local type_def = safe(function() return sdk.find_type_definition(requested_name) end)
         local entry = { requested_type = requested_name, found = type_def ~= nil, levels = {} }
+        local include_all = IN_PLACE_RESET_FULL_TYPES[requested_name] == true
         local seen = {}
         while type_def do
             local current_name = type_name(type_def) or "unknown"
@@ -988,7 +998,7 @@ function M.dump_in_place_reset_metadata(self)
             local level = { type = current_name, methods = {}, fields = {} }
             for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
                 local name = safe(function() return method:get_name() end)
-                if matches_reset_keyword(name) then
+                if include_all or matches_reset_keyword(name) then
                     local params = {}
                     for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
                         params[#params + 1] = type_name(param_type) or "unknown"
@@ -1002,7 +1012,7 @@ function M.dump_in_place_reset_metadata(self)
             end
             for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
                 local name = safe(function() return field:get_name() end)
-                if matches_reset_keyword(name) then
+                if include_all or matches_reset_keyword(name) then
                     level.fields[#level.fields + 1] = {
                         name = name,
                         type = type_name(safe(function() return field:get_type() end)),
