@@ -108,6 +108,14 @@ function M:update()
         return
     end
 
+    if self.state == "observing" and view.autosave_notice_active == true then
+        local ok, reason = self.api:dismiss_autosave_notice()
+        if not ok then return self:fail(reason or "Unable to dismiss the autosave notice") end
+        self:set_state("wait_autosave_notice_closed")
+        self:write_status("running")
+        return
+    end
+
     if self.state == "observing" and view.title_state == TITLE_STATE_INIT then
         local ok, reason = self.api:advance_to_press_any()
         if not ok then return self:fail(reason or "Unable to advance the title INIT state") end
@@ -116,6 +124,16 @@ function M:update()
     end
 
     if self.state == "wait_hub" then
+        self:write_status("running")
+        return
+    end
+
+    if self.state == "wait_autosave_notice_closed" then
+        if view.autosave_notice_active == true then
+            self:write_status("running")
+            return
+        end
+        self:set_state("observing")
         self:write_status("running")
         return
     end
@@ -134,8 +152,6 @@ function M:update()
     if self.state == "observing" and view.title_state == TITLE_STATE_PRESS_ANY then
         local ok, reason = self.api:advance_to_title_menu()
         if not ok then return self:fail(reason or "Unable to advance to the title menu") end
-        ok, reason = self.api:dismiss_autosave_notice()
-        if not ok then return self:fail(reason or "Unable to dismiss the autosave notice") end
         self:set_state("wait_title_menu_ready")
         self:write_status("running")
         return

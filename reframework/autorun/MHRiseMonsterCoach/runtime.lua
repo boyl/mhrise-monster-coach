@@ -73,7 +73,13 @@ function M.new(config, profile)
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
-        startup_flow = { phase = nil, hooks = {}, hook_failures = {} },
+        startup_flow = {
+            phase = nil,
+            hooks = {},
+            hook_failures = {},
+            autosave_notice_seen = false,
+            force_autosave_notice_success = false,
+        },
     }
 
     local hitbox_runtime_supported = self.game_name == config.supported_game_name
@@ -130,6 +136,7 @@ end
 
 function M.install_startup_flow_hooks(self)
     local candidates = {
+        { "snow.gui.fsm.title.GuiGameStartFsm_AutoSaveCaution_Action", "autosave_notice" },
         { "snow.gui.fsm.title.GuiTitleFsm_PressAnyButton_Action", "press_any" },
         { "snow.gui.fsm.title.GuiTitleFsm_TitleMenu_Action", "title_menu" },
         { "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuStart", "save_menu" },
@@ -143,6 +150,9 @@ function M.install_startup_flow_hooks(self)
             local ok, reason = pcall(function()
                 sdk.hook(method, function()
                     self.startup_flow.phase = phase
+                    if phase == "autosave_notice" then
+                        self.startup_flow.autosave_notice_seen = true
+                    end
                     if phase == "save_menu" then self.startup_flow.force_continue = false end
                     if phase == "title_menu" and self.startup_flow.force_continue == true then
                         local manager = sdk.get_managed_singleton(
@@ -155,7 +165,22 @@ function M.install_startup_flow_hooks(self)
                         if branch_ok then return sdk.PreHookResult.SKIP_ORIGINAL end
                         self.startup_flow.transition_error = tostring(branch_error)
                     end
-                end, function(retval) return retval end)
+                end, function(retval)
+                    if phase == "autosave_notice"
+                        and self.startup_flow.force_autosave_notice_success == true then
+                        local manager = sdk.get_managed_singleton(
+                            "snow.gui.fsm.title.GuiGameStartFsmManager")
+                        local success = enum_value(
+                            "snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
+                        local branch_ok, branch_error = pcall(function()
+                            manager:setBaseBranchValue(success)
+                        end)
+                        if not branch_ok then
+                            self.startup_flow.transition_error = tostring(branch_error)
+                        end
+                    end
+                    return retval
+                end)
             end)
             if ok then
                 self.startup_flow.hooks[#self.startup_flow.hooks + 1] = candidate[1]
@@ -784,6 +809,13 @@ function M.startup_bootstrap_observation(self)
     end
     local slot_array = save_menu and safe(function() return save_menu:get_field("_SlotArray") end) or nil
     local phase = self.startup_flow and self.startup_flow.phase or nil
+    local game_start_fsm = sdk.get_managed_singleton(
+        "snow.gui.fsm.title.GuiGameStartFsmManager")
+    local game_start_node = game_start_fsm and safe(function()
+        return game_start_fsm:getCurrentNodeName()
+    end) or nil
+    local autosave_notice_active = phase == "autosave_notice"
+        or string.find(string.lower(tostring(game_start_node or "")), "autosavecaution", 1, true) ~= nil
     if self.startup_flow.transition_action then
         if phase == "save_menu" then
             safe(function() self.startup_flow.transition_arg:release() end)
@@ -808,12 +840,20 @@ function M.startup_bootstrap_observation(self)
         title_cursor_index = title_cursor_index,
         save_menu_available = phase == "save_menu" and save_menu ~= nil and slot_array ~= nil,
         current_save_slot = current_save_slot,
+        autosave_notice_active = autosave_notice_active,
+        autosave_notice_seen = self.startup_flow.autosave_notice_seen == true,
+        game_start_node = game_start_node,
         bootstrap_error = self.startup_flow.transition_error,
     }
 end
 
 function M.startup_bootstrap_diagnostics(self)
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
+    local game_start_fsm = sdk.get_managed_singleton(
+        "snow.gui.fsm.title.GuiGameStartFsmManager")
+    local game_start_node = game_start_fsm and safe(function()
+        return game_start_fsm:getCurrentNodeName()
+    end) or nil
     return {
         phase = self.startup_flow and self.startup_flow.phase or nil,
         hooks = self.startup_flow and self.startup_flow.hooks or {},
@@ -823,6 +863,11 @@ function M.startup_bootstrap_diagnostics(self)
         save_menu_available = sdk.get_managed_singleton("snow.gui.GuiSaveDataSelectMenu") ~= nil,
         reframework_ui_open = safe(function() return reframework:is_drawing_ui() end) == true,
         transition_error = self.startup_flow and self.startup_flow.transition_error or nil,
+        autosave_notice_seen = self.startup_flow
+            and self.startup_flow.autosave_notice_seen == true or false,
+        autosave_notice_active = self.startup_flow
+            and self.startup_flow.phase == "autosave_notice" or false,
+        game_start_node = game_start_node,
     }
 end
 
@@ -872,14 +917,16 @@ function M.advance_startup_to_title_menu(self)
 end
 
 function M.dismiss_startup_autosave_notice(self)
-    local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
-    local state = title and safe(function() return title:get_TitleMenuState() end) or nil
-    if tonumber(state) ~= 2 then return false, "Autosave notice dismissal requires TitleMenu state" end
-    local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
-    if gui == nil then return false, "GuiManager unavailable" end
-    local ok, reason = pcall(function() gui:call("closeInfo") end)
-    if ok then M.dump_title_flow_metadata(self) end
-    return ok, ok and nil or "Failed to close autosave notice: " .. tostring(reason)
+    if self.startup_flow.autosave_notice_seen ~= true then
+        return false, "Autosave caution action has not been observed"
+    end
+    local manager = sdk.get_managed_singleton("snow.gui.fsm.title.GuiGameStartFsmManager")
+    local success = enum_value("snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
+    if manager == nil or success == nil then
+        return false, "Game-start FSM branch API unavailable"
+    end
+    self.startup_flow.force_autosave_notice_success = true
+    return true
 end
 
 function M.open_startup_load_data_menu(self)

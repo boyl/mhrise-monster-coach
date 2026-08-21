@@ -3,7 +3,7 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 local Bootstrap = require("MHRiseMonsterCoach.startup_bootstrap_controller")
 
 local request = { session_id = "bootstrap-1", auto_load_save = true }
-local view = { build_supported = true, title_state = 0 }
+local view = { build_supported = true, title_state = 0, autosave_notice_active = true }
 local statuses, ack = {}, nil
 local api = {}
 function api:read_request() local result = request request = nil return result end
@@ -28,6 +28,11 @@ end
 local bootstrap = Bootstrap.new(api)
 bootstrap.frame = 30
 bootstrap:update()
+bootstrap:update()
+assert(bootstrap.state == "wait_autosave_notice_closed", "autosave notice must be handled first")
+view.autosave_notice_active = false
+bootstrap:update()
+assert(bootstrap.state == "observing", "bootstrap waits for observed notice closure")
 bootstrap:update()
 bootstrap:update()
 bootstrap:update()
