@@ -380,7 +380,6 @@ function M.install_quest_posting_hooks(self)
                     action:setBaseBranch(action_arg, success)
                 end
             end },
-        { "snow.gui.GuiManager", "IsPlayerAllInputDisable()", nil, true_post },
         { "snow.gui.GuiManager", "IsCanFieldObjectAccessSub()", nil, true_post },
         { "snow.gui.GuiManager", "isDisplayForHeadMessage(System.Boolean)", nil, true_post },
         { "snow.SnowSessionManager", "reqOnlineWarning()", skip },
