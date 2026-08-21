@@ -74,6 +74,7 @@ function M.new(config, profile)
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
+        enemy_spawn_contract_address = nil,
         startup_flow = {
             phase = nil,
             hooks = {},
@@ -1288,6 +1289,67 @@ local function normalize_enemy_id(value)
     return tostring(value)
 end
 
+local function serializable_vector(value, include_w)
+    if value == nil then return nil end
+    local result = {
+        x = safe(function() return value.x end),
+        y = safe(function() return value.y end),
+        z = safe(function() return value.z end),
+    }
+    if include_w then result.w = safe(function() return value.w end) end
+    return result
+end
+
+function M.capture_enemy_spawn_contract(self, enemy)
+    if enemy == nil then return false, "Enemy unavailable" end
+    local set_info = safe(function() return enemy:call("get_SetInfo") end)
+    if set_info == nil then return false, "EnemySetInfo unavailable" end
+    local set_info_address = safe(function() return set_info:get_address() end)
+    if set_info_address ~= nil and self.enemy_spawn_contract_address == set_info_address then
+        return true
+    end
+    local owner = safe(function() return set_info:call("get_OwnerEnemy") end)
+    local owner_address = owner and safe(function() return owner:get_address() end)
+    local enemy_address = safe(function() return enemy:get_address() end)
+    local param = safe(function() return set_info:call("get_EnemySetParam") end)
+    local payload = {
+        schema_version = 1,
+        policy = "read_only_current_enemy_spawn_contract",
+        quest_id = self.last_context and self.last_context.quest_no or self.profile.training_quest.id,
+        enemy = {
+            address = tostring(enemy_address),
+            enemy_id = M.read_enemy_id(self, enemy),
+        },
+        set_info = {
+            address = tostring(set_info_address),
+            owner_address = tostring(owner_address),
+            owner_matches_enemy = enemy_address ~= nil and owner_address == enemy_address,
+            em_set_id = safe(function() return set_info:call("get_EmSetId") end),
+            em_gen_id = safe(function() return set_info:call("get_EmGenId") end),
+            unique_id = safe(function() return set_info:call("get_UniqueId") end),
+            set_status = safe(function() return set_info:call("get_SetStatus") end),
+            destroy_status = safe(function() return set_info:call("get_DestroyStatus") end),
+            repop_num = safe(function() return set_info:call("get_RepopNum") end),
+            repop_max = safe(function() return set_info:call("get_RepopMax") end),
+        },
+        enemy_set_param = param and {
+            address = tostring(safe(function() return param:get_address() end)),
+            em_type = safe(function() return param:call("get_EmType") end),
+            block_no = safe(function() return param:call("get_BlockNo") end),
+            sub_type = safe(function() return param:call("get_SubType") end),
+            individual_type = safe(function() return param:call("get_IndividualType") end),
+            set_position = serializable_vector(safe(function() return param:call("get_SetPos") end), false),
+            set_rotation = serializable_vector(safe(function() return param:call("get_SetRot") end), true),
+        } or nil,
+    }
+    local written = safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_enemy_spawn_contract.json", payload)
+        return true
+    end) == true
+    if written then self.enemy_spawn_contract_address = set_info_address end
+    return written, written and nil or "Failed to export EnemySetInfo contract"
+end
+
 function M.read_enemy_id(self, enemy)
     local value
     if self.methods.enemy_type then value = safe(function() return self.methods.enemy_type:call(enemy) end) end
@@ -1308,6 +1370,7 @@ end
 local function clear_enemy(self, clear_anchor)
     self.enemy = nil
     self.enemy_id = nil
+    self.enemy_spawn_contract_address = nil
     if clear_anchor then self.enemy_anchor = nil end
 end
 
@@ -1337,6 +1400,7 @@ function M.poll_target_enemy(self, quest_no, is_online)
         if enemy ~= nil and M.is_tigrex(self, enemy) then
             self.enemy = enemy
             self.enemy_id = M.read_enemy_id(self, enemy)
+            M.capture_enemy_spawn_contract(self, enemy)
             return true
         end
     end
