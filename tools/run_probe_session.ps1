@@ -191,7 +191,7 @@ do {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($game) {
                 $game.Refresh()
-                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 350)) {
+                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 100)) {
                     $lastCombatPulse = Get-Date
                     if (-not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
                         [void]$combatEntryAttemptedForStates.Add([string]$report.state)

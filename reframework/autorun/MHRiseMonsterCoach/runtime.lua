@@ -149,7 +149,9 @@ end
 function M.install_arena_transfer_focus_hook(self)
     local candidates = {
         { "snow.access.QuestAreaMovePopMarker", "intoFocus" },
+        { "snow.access.QuestAreaMovePopMarker", "outOfFocus" },
         { "snow.access.ObjectPopMarker", "eventIntoFocus" },
+        { "snow.access.ObjectPopMarker", "eventOutOfFocus" },
         { "snow.access.ObjectPopMarker", "eventIntoAccessable" },
         { "snow.access.ObjectPopMarker", "eventOnAccessable" },
         { "snow.access.ObjectPopMarker", "eventAccessStart" },
@@ -195,7 +197,14 @@ function M.install_arena_transfer_focus_hook(self)
                                 events = self.arena_transfer_trace,
                             })
                         end)
-                        if first and second then self.arena_transfer_focus = {
+                        local leaving_focus = candidate_method == "outOfFocus"
+                            or candidate_method == "eventOutOfFocus"
+                        if leaving_focus then
+                            if self.arena_transfer_focus == nil
+                                or self.arena_transfer_focus.marker == marker then
+                                self.arena_transfer_focus = nil
+                            end
+                        elseif first and second then self.arena_transfer_focus = {
                             marker = marker,
                             first = first,
                             second = second,
