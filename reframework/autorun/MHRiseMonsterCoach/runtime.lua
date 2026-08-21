@@ -156,6 +156,9 @@ function M.install_arena_transfer_focus_hook(self)
         { "snow.access.ObjectPopMarker", "eventAccessStart" },
         { "snow.access.ObjectPopMarker", "eventAccess" },
         { "snow.access.ObjectPopMarker", "eventAccessEnd" },
+        { "snow.access.ObjectPopMarker", "onAccessStart" },
+        { "snow.access.ObjectPopMarker", "onAccess" },
+        { "snow.access.ObjectPopMarker", "onAccessEnd" },
         { "snow.access.ObjectPopMarker", "callBeforeAccessMethod" },
         { "snow.access.ObjectPopMarker", "callAccessStartMethod" },
         { "snow.access.ObjectPopMarker", "callAccessMethod" },
@@ -176,15 +179,14 @@ function M.install_arena_transfer_focus_hook(self)
                     end) or ""
                     local first = safe(function() return sdk.to_managed_object(args[3]) end)
                     local second = safe(function() return sdk.to_managed_object(args[4]) end)
-                    if string.find(tostring(marker_type), "QuestAreaMovePopMarker", 1, true)
-                        and first and second then
+                    if string.find(tostring(marker_type), "QuestAreaMovePopMarker", 1, true) then
                         self.arena_transfer_trace[#self.arena_transfer_trace + 1] = {
                             sequence = #self.arena_transfer_trace + 1,
                             clock = os.clock(),
                             name = candidate_type .. "." .. candidate_method,
                             marker_address = tostring(safe(function() return marker:get_address() end)),
-                            first_address = tostring(safe(function() return first:get_address() end)),
-                            second_address = tostring(safe(function() return second:get_address() end)),
+                            first_address = first and tostring(safe(function() return first:get_address() end)) or nil,
+                            second_address = second and tostring(safe(function() return second:get_address() end)) or nil,
                         }
                         while #self.arena_transfer_trace > 128 do table.remove(self.arena_transfer_trace, 1) end
                         safe(function()
@@ -194,7 +196,7 @@ function M.install_arena_transfer_focus_hook(self)
                                 events = self.arena_transfer_trace,
                             })
                         end)
-                        self.arena_transfer_focus = {
+                        if first and second then self.arena_transfer_focus = {
                             marker = marker,
                             first = first,
                             second = second,
@@ -211,7 +213,7 @@ function M.install_arena_transfer_focus_hook(self)
                             end),
                             source = candidate_type .. "." .. candidate_method,
                             clock = os.clock(),
-                        }
+                        } end
                     end
                 end, function(retval) return retval end)
             end)
