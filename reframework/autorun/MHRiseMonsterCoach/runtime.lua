@@ -143,6 +143,18 @@ function M.install_startup_flow_hooks(self)
             local ok, reason = pcall(function()
                 sdk.hook(method, function()
                     self.startup_flow.phase = phase
+                    if phase == "save_menu" then self.startup_flow.force_continue = false end
+                    if phase == "title_menu" and self.startup_flow.force_continue == true then
+                        local manager = sdk.get_managed_singleton(
+                            "snow.gui.fsm.title.GuiTitleFsmManager")
+                        local success = enum_value(
+                            "snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
+                        local branch_ok, branch_error = pcall(function()
+                            manager:setBaseBranchValue(success)
+                        end)
+                        if branch_ok then return sdk.PreHookResult.SKIP_ORIGINAL end
+                        self.startup_flow.transition_error = tostring(branch_error)
+                    end
                 end, function(retval) return retval end)
             end)
             if ok then
@@ -882,8 +894,8 @@ function M.open_startup_load_data_menu(self)
     local success = enum_value("snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
     if title_fsm == nil or success == nil then return false, "Title FSM branch API unavailable" end
     self.startup_flow.transition_error = nil
-    local ok, reason = pcall(function() title_fsm:setBaseBranchValue(success) end)
-    return ok, ok and nil or "Native Continue branch failed: " .. tostring(reason)
+    self.startup_flow.force_continue = true
+    return true
 end
 
 function M.select_startup_save_slot(self, index)
