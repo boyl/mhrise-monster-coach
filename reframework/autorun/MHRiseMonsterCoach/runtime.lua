@@ -334,12 +334,14 @@ end
 local function install_conditional_hook(self, type_name, method_name, pre, post)
     local method = find_method(type_name, method_name)
     if method == nil then return false, type_name .. "." .. method_name .. " unavailable" end
+    local last_args
     local ok, reason = pcall(function()
         sdk.hook(method, function(args)
+            last_args = args
             if posting_active(self) and pre then return pre(args) end
         end, function(retval)
             if posting_active(self) and post then
-                local replacement = post(retval)
+                local replacement = post(retval, last_args)
                 if replacement ~= nil then return sdk.to_ptr(replacement) end
             end
             return retval
@@ -368,14 +370,14 @@ function M.install_quest_posting_hooks(self)
             if counter and access ~= nil then counter:call("set_QuestCounterType", access) end
         end },
         { "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
-            "update(via.behaviortree.ActionArg)", function(args)
+            "update(via.behaviortree.ActionArg)", nil, function(_, args)
+                if args == nil then return nil end
                 local action = sdk.to_managed_object(args[2])
                 local action_arg = sdk.to_managed_object(args[3])
                 local success = enum_value(
                     "snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
                 if action and action_arg and success ~= nil then
                     action:setBaseBranch(action_arg, success)
-                    return sdk.PreHookResult.SKIP_ORIGINAL
                 end
             end },
         { "snow.gui.GuiManager", "IsPlayerAllInputDisable()", nil, true_post },
