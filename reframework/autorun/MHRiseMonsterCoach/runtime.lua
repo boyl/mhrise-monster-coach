@@ -60,6 +60,7 @@ function M.new(config, profile)
         quest_posting = {
             active = false,
             direct_session = false,
+            counter_state_initialized = false,
             action = nil,
             action_arg = nil,
             hooks = {},
@@ -445,6 +446,17 @@ function M.quest_restart_api(self)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
+        if self.runtime.quest_posting.counter_state_initialized ~= true then
+            local state_ok, state_error = pcall(function()
+                counter:setOpenQuestCounterOnState()
+            end)
+            if not state_ok then
+                return false, "Failed to initialize quest counter input state: "
+                    .. tostring(state_error)
+            end
+            self.runtime.quest_posting.counter_state_initialized = true
+            return nil
+        end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
         if current_node == "QuestMenuTop" then
@@ -604,6 +616,7 @@ function M.clear_quest_posting(self, close_windows)
     local posting = self.quest_posting
     posting.active = false
     posting.direct_session = false
+    posting.counter_state_initialized = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
