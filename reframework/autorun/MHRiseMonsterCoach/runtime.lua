@@ -450,6 +450,9 @@ function M.quest_restart_api(self)
         end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
+        if string.find(tostring(current_node or ""), "OpenWithAnim", 1, true) then
+            return nil
+        end
         if current_node == "QuestLevelMenuSelect"
             and self.runtime.quest_posting.level_menu_selected ~= true then
             local target = enum_value(
