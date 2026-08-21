@@ -1880,11 +1880,10 @@ function M.request_arena_transfer(self)
     local ok, reason = pcall(function()
         local stage = sdk.get_managed_singleton("snow.stage.StageManager")
         if stage == nil then error("StageManager unavailable") end
-        local manager = stage:call("get_QuestAreaMovePopManager")
-        if manager == nil then error("QuestAreaMovePopManager unavailable") end
-        manager:call(
-            "notifyAreaMove(snow.stage.StageManager.QuestAreaMoveRequest)",
-            focus.request
+        stage:call(
+            "setWarpAreaMove(snow.stage.StageManager.QuestAreaMoveRequest, snow.access.QuestAreaMovePopMarker)",
+            focus.request,
+            focus.marker
         )
     end)
     if not ok then return false, "Native arena transfer request failed: " .. tostring(reason) end

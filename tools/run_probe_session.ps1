@@ -171,7 +171,7 @@ do {
                 $game.Refresh()
                 if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 10000)) {
                     [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                    Write-Host "Combat entry ready during $($report.state): press F once in the game to capture the native transfer sequence"
+                    Write-Host "Combat entry ready during $($report.state): waiting for native automatic transfer"
                 }
             }
         }
