@@ -57,6 +57,9 @@ function M.start()
     function probe_api:area_snapshot()
         return runtime:area_snapshot()
     end
+    function probe_api:request_arena_transfer()
+        return runtime:request_arena_transfer()
+    end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end

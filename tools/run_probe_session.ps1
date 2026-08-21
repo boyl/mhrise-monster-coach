@@ -161,7 +161,7 @@ do {
     }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
-        if ($report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+        if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -in @('wait_stable', 'verify_restart') -and
             [int]$report.areas.player -eq 0 -and
             -not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
@@ -169,12 +169,8 @@ do {
             if ($game) {
                 $game.Refresh()
                 if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 10000)) {
-                    Start-Sleep -Milliseconds 500
-                    if (-not [MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
-                        throw "Reached the combat-area interaction point but failed to press F during $($report.state)."
-                    }
                     [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                    Write-Host "Automatic combat entry: held forward and pressed F during $($report.state)"
+                    Write-Host "Automatic combat entry: reached transfer prompt during $($report.state); native interaction requested by the mod"
                 }
             }
         }

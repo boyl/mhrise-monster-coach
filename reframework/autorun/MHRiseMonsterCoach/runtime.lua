@@ -72,6 +72,7 @@ function M.new(config, profile)
             hooks = {},
             lifecycle_hook_failures = {},
         },
+        arena_transfer_focus = nil,
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
@@ -133,12 +134,38 @@ function M.new(config, profile)
     local trace_ready, trace_reason = M.install_quest_reset_trace_hooks(self)
     self.capabilities.quest_reset_trace = trace_ready
     self.capabilities.quest_reset_trace_reason = trace_reason
+    local transfer_ready, transfer_reason = M.install_arena_transfer_focus_hook(self)
+    self.capabilities.arena_transfer = transfer_ready
+    self.capabilities.arena_transfer_reason = transfer_reason
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
     M.install_startup_flow_hooks(self)
     M.dump_in_place_reset_metadata(self)
     M.dump_in_place_type_candidates(self)
     M.dump_title_flow_metadata(self)
     return setmetatable(self, { __index = M })
+end
+
+function M.install_arena_transfer_focus_hook(self)
+    local method = find_method("snow.access.QuestAreaMovePopMarker",
+        "intoFocus(via.GameObject, via.GameObject)")
+        or find_method("snow.access.QuestAreaMovePopMarker", "intoFocus")
+    if method == nil then return false, "Quest area transfer focus hook unavailable" end
+    local ok, reason = pcall(function()
+        sdk.hook(method, function(args)
+            local marker = safe(function() return sdk.to_managed_object(args[2]) end)
+            local first = safe(function() return sdk.to_managed_object(args[3]) end)
+            local second = safe(function() return sdk.to_managed_object(args[4]) end)
+            if marker and first and second then
+                self.arena_transfer_focus = {
+                    marker = marker,
+                    first = first,
+                    second = second,
+                    clock = os.clock(),
+                }
+            end
+        end, function(retval) return retval end)
+    end)
+    return ok, ok and nil or tostring(reason)
 end
 
 function M.install_startup_flow_hooks(self)
@@ -1783,6 +1810,26 @@ function M.area_snapshot(self)
         player_position = serializable_vector(player_position, false),
         enemy_position = serializable_vector(enemy_position, false),
     }
+end
+
+function M.request_arena_transfer(self)
+    local context = self.last_context or {}
+    if not context.in_quest or context.is_online
+        or tonumber(context.quest_no) ~= self.profile.training_quest.id then
+        return false, "Arena transfer is limited to the offline training quest"
+    end
+    local focus = self.arena_transfer_focus
+    if focus == nil or focus.marker == nil or focus.first == nil or focus.second == nil then
+        return false, "Move to the arena transfer prompt first", true
+    end
+    local accessible = safe(function() return focus.marker:call("get_IsAccessible") end)
+    if accessible ~= true then return false, "Arena transfer prompt is not accessible", true end
+    local ok, reason = pcall(function()
+        focus.marker:call("eventAccess(via.GameObject, via.GameObject)", focus.first, focus.second)
+    end)
+    if not ok then return false, "Native arena transfer request failed: " .. tostring(reason) end
+    self.arena_transfer_focus = nil
+    return true
 end
 
 function M.capture_anchors(self)
