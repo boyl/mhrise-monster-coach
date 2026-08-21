@@ -63,3 +63,9 @@
 这组接口比逐项调用 `resetThinkParam`、`resetEnemyInfo`、部位恢复或 Warp 更接近完整生命周期重建，但仍不能直接调用。下一门禁是只读取得当前陪练任务对应的 `EnemySetParam`、现有目标的 `EnemySetInfo`/SetType/索引，以及观察原生销毁完成信号。只有参数全部来自当前任务配置、销毁与创建能在不同帧确认完成、并有 F7 失败回退时，才允许单次受控候选；`allDestroyEnemyInstance`、`clearEnemyCreateInstance` 和 `destroyEnemyGameObject` 不进入首轮白名单。
 
 启动引导的已确认用户契约为“继续游戏 → 第一存档 → 进入”，并明确禁止“开始新游戏”。在实施任何确认写入前，`runtime_title_flow_probe.json` 只读导出按任意键、标题菜单、存档列表和读取存档相关 FSM 的精确成员；后续状态机只对白名单页面执行确定性确认，未知页面停止。
+
+### F7 怪物生命周期实测
+
+自动会话已确认原生任务重开的离散顺序为 `EnemyManager.destroyEnemy` → `EnemySetInfo.destroyEnemy` → 任务临时数据清理/保存 → 批量构造 SetInfo → `createEnemyFromSetInfo`。`createEnemyFromSetInfo` 的实参为 `EnemySetType=0`、`enemyIndex=-1`；早期日志中的巨大正数是 REFramework hook 参数高位携带噪声，按低 32 位有符号整数解码后恒为 `-1`。
+
+重开后的目标轰龙、`EnemySetInfo` 与 `EnemySetParam` 都是新对象，不能缓存旧托管对象并在重置后复用。目标轰龙所用 SetInfo 也不是已观察到的 `EnemyManager.createEnemySetInfo` 返回对象之一，因此在确认其构造器及注册容器路径前，禁止只凭三个已知参数直接调用 `createEnemyFromSetInfo`。

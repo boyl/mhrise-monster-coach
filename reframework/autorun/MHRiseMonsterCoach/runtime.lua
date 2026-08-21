@@ -210,6 +210,7 @@ local RESET_TRACE_METHODS = {
 
 local RESET_TRACE_LIFECYCLE_METHODS = {
     ["snow.enemy.EnemySetInfo"] = {
+        ".ctor",
         "destroyEnemy",
         "repop",
         "resetEnemy",
@@ -220,6 +221,7 @@ local RESET_TRACE_LIFECYCLE_METHODS = {
         "registerRequestDestroyEnemyList",
         "destroyEnemy",
         "destroyEnemyGameObject",
+        "createEnemySetInfo",
         "createEnemyFromSetInfo",
         "notifyCreateEnemy",
     },
@@ -262,24 +264,41 @@ local function managed_address(value)
     return object and tostring(safe(function() return object:get_address() end)) or nil
 end
 
-local function native_int(value)
-    return safe(function() return sdk.to_int(value) end)
-        or safe(function() return sdk.to_int64(value) end)
+local function native_int32(value)
+    local raw = safe(function() return sdk.to_int64(value) end)
+        or safe(function() return sdk.to_int(value) end)
+    if raw == nil then return nil end
+    local low = raw % 4294967296
+    if low >= 2147483648 then low = low - 4294967296 end
+    return low
 end
 
 local function lifecycle_trace_details(event_name, args)
     local details = { owner_address = managed_address(args[2]) }
-    if event_name == "snow.enemy.EnemyManager.destroyEnemy" then
+    if event_name == "snow.enemy.EnemySetInfo..ctor" then
+        details.em_set_id = native_int32(args[3])
+        details.unique_id = native_int32(args[4])
+        details.enemy_set_param_address = managed_address(args[5])
+    elseif event_name == "snow.enemy.EnemyManager.destroyEnemy" then
         details.enemy_address = managed_address(args[3])
     elseif event_name == "snow.enemy.EnemySetInfo.destroyEnemy" then
-        details.enemy_index = native_int(args[3])
-        details.destroy_status = native_int(args[4])
+        details.enemy_index = native_int32(args[3])
+        details.destroy_status = native_int32(args[4])
+    elseif event_name == "snow.enemy.EnemyManager.createEnemySetInfo" then
+        details.enemy_set_param_address = managed_address(args[3])
     elseif event_name == "snow.enemy.EnemyManager.createEnemyFromSetInfo" then
         details.set_info_address = managed_address(args[3])
-        details.enemy_set_type = native_int(args[4])
-        details.enemy_index = native_int(args[5])
+        details.enemy_set_type = native_int32(args[4])
+        details.enemy_index = native_int32(args[5])
     end
     return details
+end
+
+local function lifecycle_trace_post_details(event_name, retval)
+    if event_name == "snow.enemy.EnemyManager.createEnemySetInfo" then
+        return { returned_set_info_address = managed_address(retval) }
+    end
+    return nil
 end
 
 function M.install_quest_reset_trace_hooks(self)
@@ -328,7 +347,8 @@ function M.install_quest_reset_trace_hooks(self)
                         append_reset_trace_event(self, "lifecycle_pre", event_name, nil,
                             lifecycle_trace_details(event_name, args))
                     end, function(retval)
-                        append_reset_trace_event(self, "lifecycle_post", event_name)
+                        append_reset_trace_event(self, "lifecycle_post", event_name, nil,
+                            lifecycle_trace_post_details(event_name, retval))
                         return retval
                     end)
                 end)
