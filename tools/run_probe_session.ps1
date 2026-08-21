@@ -14,7 +14,6 @@ $requestPath = Join-Path $dataRoot 'dev_probe_request.json'
 $reportPath = Join-Path $dataRoot 'dev_probe_report.json'
 $bootstrapStatusPath = Join-Path $dataRoot 'startup_bootstrap_status.json'
 $bootstrapAckPath = Join-Path $dataRoot 'startup_bootstrap_ack.json'
-$questInputRequestPath = Join-Path $dataRoot 'quest_counter_input_request.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -56,12 +55,6 @@ $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Enco
     session_id = $sessionId
     action_id = ''
 } | ConvertTo-Json | Set-Content -LiteralPath $bootstrapAckPath -Encoding utf8
-[ordered]@{
-    schema_version = 1
-    session_id = $sessionId
-    status = 'pending'
-} | ConvertTo-Json | Set-Content -LiteralPath $questInputRequestPath -Encoding utf8
-
 if (-not $game) {
     Start-Process -FilePath 'steam://run/1446780'
     $launchedGame = $true
@@ -109,7 +102,6 @@ public static class MonsterCoachInput {
 
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
-$sentQuestInputs = [Collections.Generic.HashSet[string]]::new()
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
@@ -147,23 +139,6 @@ do {
                         } | ConvertTo-Json | Set-Content -LiteralPath $bootstrapAckPath -Encoding utf8
                         Write-Host "Automatic startup input: $($bootstrap.action.id)"
                     }
-                }
-            }
-        }
-    }
-    if (Test-Path -LiteralPath $questInputRequestPath) {
-        try { $questInput = Get-Content -LiteralPath $questInputRequestPath -Raw | ConvertFrom-Json } catch { $questInput = $null }
-        if ($questInput -and $questInput.session_id -eq $sessionId -and
-            $questInput.status -eq 'input_required' -and $questInput.action.kind -eq 'press_key' -and
-            -not $sentQuestInputs.Contains([string]$questInput.action.id)) {
-            $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($game) {
-                $game.Refresh()
-                $inputDelay = [Math]::Max(0, [int]$questInput.action.delay_ms)
-                if ($inputDelay -gt 0) { Start-Sleep -Milliseconds $inputDelay }
-                if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, [byte]$questInput.action.virtual_key)) {
-                    [void]$sentQuestInputs.Add([string]$questInput.action.id)
-                    Write-Host "Automatic quest-counter input: $($questInput.action.id)"
                 }
             }
         }
