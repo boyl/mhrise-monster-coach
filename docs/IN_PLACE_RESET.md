@@ -46,6 +46,20 @@
 
 ### 自动探针会话
 
-`tools/run_probe_session.ps1` 写入带随机 Session ID 的显式开发请求。稳定引导层可在运行中读取新请求，并自动完成大厅接任务、进入陪练任务、基线采样、在猎人位置生成一个会话自有攻击鬼火鸟、采集差分、F7 原生任务重开和重开后采样，最终写入 `dev_probe_report.json`。正常启动且没有请求文件时不会触发；不调用尚未验证的 F9 原位重置路径，也不自动关闭游戏。
+`tools/run_probe_session.ps1` 写入带随机 Session ID 的显式开发请求。稳定引导层可在运行中读取新请求，并自动完成大厅接任务、进入陪练任务、只读基线采样、F7 原生任务重开和重开后采样，最终写入 `dev_probe_report.json`。正常启动且没有请求文件时不会触发；不调用尚未验证的 F9 原位重置路径，也不自动关闭游戏。
+
+主动生成环境生物不再属于默认自动验收。当前运行时的 `_EcPrefabList` 容器与旧版 SpiritBirds 使用的 `mItems` 布局不一致；一次尝试通用集合读取导致原生进程退出，因此该写入候选保持显式关闭。自动验收只调用场景组件枚举和标量字段读取。
+
+### 怪物原生重建候选筛选
+
+只读元数据确认 `EnemyManager` 提供成组的高层生命周期入口：
+
+- `createEnemySetInfo(snow.quest.EnemySetParam)`
+- `createEnemyFromSetInfo(snow.enemy.EnemySetInfo, EnemySetType, System.Int32)`
+- `registerRequestDestroyEnemyList(EnemyCharacterBase)` / `updateDestroyEnemy()`
+- `destroyEnemy(EnemyCharacterBase)` / `destroyEnemyGameObject(EnemyCharacterBase)`
+- `findBossInitPosition(...)`
+
+这组接口比逐项调用 `resetThinkParam`、`resetEnemyInfo`、部位恢复或 Warp 更接近完整生命周期重建，但仍不能直接调用。下一门禁是只读取得当前陪练任务对应的 `EnemySetParam`、现有目标的 `EnemySetInfo`/SetType/索引，以及观察原生销毁完成信号。只有参数全部来自当前任务配置、销毁与创建能在不同帧确认完成、并有 F7 失败回退时，才允许单次受控候选；`allDestroyEnemyInstance`、`clearEnemyCreateInstance` 和 `destroyEnemyGameObject` 不进入首轮白名单。
 
 启动引导的已确认用户契约为“继续游戏 → 第一存档 → 进入”，并明确禁止“开始新游戏”。在实施任何确认写入前，`runtime_title_flow_probe.json` 只读导出按任意键、标题菜单、存档列表和读取存档相关 FSM 的精确成员；后续状态机只对白名单页面执行确定性确认，未知页面停止。
