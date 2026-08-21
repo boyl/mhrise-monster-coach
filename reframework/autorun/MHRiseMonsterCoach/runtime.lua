@@ -441,10 +441,15 @@ function M.quest_restart_api(self)
                 "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
         end)
         if action == nil then return false, "Failed to create quest session Action" end
-        local init_ok, init_error = pcall(function() action:init() end)
-        if not init_ok then
+        local info_ok, info_error = pcall(function() action:setQuestInfoToQuestManager() end)
+        if not info_ok then
             safe(function() action:release() end)
-            return false, "Failed to initialize quest session Action: " .. tostring(init_error)
+            return false, "Failed to copy quest info to QuestManager: " .. tostring(info_error)
+        end
+        local create_ok, create_error = pcall(function() action:routine_CreateSession() end)
+        if not create_ok then
+            safe(function() action:release() end)
+            return false, "Failed to create native quest session: " .. tostring(create_error)
         end
         self.runtime.quest_posting.action = action
         self.runtime.quest_posting.action_arg = nil
