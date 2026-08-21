@@ -671,6 +671,12 @@ local function type_name(type_def)
     return type_def and safe(function() return type_def:get_full_name() end) or nil
 end
 
+local function mentions_enemy_spawn_contract(type_def)
+    local name = string.lower(tostring(type_name(type_def) or ""))
+    return string.find(name, "enemysetinfo", 1, true) ~= nil
+        or string.find(name, "enemysetparam", 1, true) ~= nil
+end
+
 local TITLE_FLOW_TYPES = {
     "snow.gui.fsm.title.GuiTitleFsmManager",
     "snow.gui.fsm.title.GuiTitleFsmManager",
@@ -998,24 +1004,32 @@ function M.dump_in_place_reset_metadata(self)
             local level = { type = current_name, methods = {}, fields = {} }
             for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
                 local name = safe(function() return method:get_name() end)
-                if include_all or matches_reset_keyword(name) then
+                local param_types = safe(function() return method:get_param_types() end) or {}
+                local return_type = safe(function() return method:get_return_type() end)
+                local contract = mentions_enemy_spawn_contract(return_type)
+                for _, param_type in ipairs(param_types) do
+                    contract = contract or mentions_enemy_spawn_contract(param_type)
+                end
+                if include_all or matches_reset_keyword(name) or contract then
                     local params = {}
-                    for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                    for _, param_type in ipairs(param_types) do
                         params[#params + 1] = type_name(param_type) or "unknown"
                     end
                     level.methods[#level.methods + 1] = {
                         name = name,
-                        return_type = type_name(safe(function() return method:get_return_type() end)),
+                        return_type = type_name(return_type),
                         param_types = params,
                     }
                 end
             end
             for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
                 local name = safe(function() return field:get_name() end)
-                if include_all or matches_reset_keyword(name) then
+                local field_type = safe(function() return field:get_type() end)
+                if include_all or matches_reset_keyword(name)
+                    or mentions_enemy_spawn_contract(field_type) then
                     level.fields[#level.fields + 1] = {
                         name = name,
-                        type = type_name(safe(function() return field:get_type() end)),
+                        type = type_name(field_type),
                         is_static = safe(function() return field:is_static() end) == true,
                     }
                 end
