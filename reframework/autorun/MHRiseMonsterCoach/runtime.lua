@@ -389,6 +389,16 @@ end
 function M.quest_restart_api(self)
     local api = {}
 
+    local function is_target_quest_posted()
+        local quest = sdk.get_managed_singleton("snow.QuestManager")
+        if quest == nil or self.methods.quest_active == nil or self.methods.quest_no == nil then
+            return false
+        end
+        local active = safe(function() return self.methods.quest_active:call(quest) end) == true
+        local quest_no = safe(function() return self.methods.quest_no:call(quest) end)
+        return active and tonumber(quest_no) == tonumber(self.profile.training_quest.id)
+    end
+
     function api:request_reset()
         if self.runtime.capabilities.quest_posting ~= true then
             return false, "Quest posting hooks unavailable: "
@@ -456,6 +466,7 @@ function M.quest_restart_api(self)
     end
 
     function api:select_quest()
+        if is_target_quest_posted() then return true end
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         if gui == nil then return false, "GuiManager unavailable" end
         if safe(function() return gui:call("isOpenYNInfo") end) == true then return true end
@@ -497,8 +508,9 @@ function M.quest_restart_api(self)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         local success = enum_value("snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
-        if counter and success ~= nil
-            and safe(function() return counter:call("get_BaseBranchValue") end) == success then
+        local branch_succeeded = counter and success ~= nil
+            and safe(function() return counter:call("get_BaseBranchValue") end) == success
+        if branch_succeeded or is_target_quest_posted() then
             local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
             local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
             local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
