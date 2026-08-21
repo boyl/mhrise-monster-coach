@@ -239,11 +239,11 @@ local function is_quest_launch_candidate(name)
     return false
 end
 
-local function append_reset_trace_event(self, kind, name, context)
+local function append_reset_trace_event(self, kind, name, context, details)
     local trace = self.quest_reset_trace
     if not trace or not trace.active or #trace.events >= 256 then return end
     trace.next_sequence = trace.next_sequence + 1
-    trace.events[#trace.events + 1] = {
+    local event = {
         sequence = trace.next_sequence,
         kind = kind,
         name = name,
@@ -252,7 +252,34 @@ local function append_reset_trace_event(self, kind, name, context)
         quest_no = context and context.quest_no or nil,
         target_found = context and context.target_found or nil,
     }
+    for key, value in pairs(details or {}) do event[key] = value end
+    trace.events[#trace.events + 1] = event
     trace.dirty = true
+end
+
+local function managed_address(value)
+    local object = safe(function() return sdk.to_managed_object(value) end)
+    return object and tostring(safe(function() return object:get_address() end)) or nil
+end
+
+local function native_int(value)
+    return safe(function() return sdk.to_int64(value) end)
+        or safe(function() return sdk.to_int(value) end)
+end
+
+local function lifecycle_trace_details(event_name, args)
+    local details = { owner_address = managed_address(args[2]) }
+    if event_name == "snow.enemy.EnemyManager.destroyEnemy" then
+        details.enemy_address = managed_address(args[3])
+    elseif event_name == "snow.enemy.EnemySetInfo.destroyEnemy" then
+        details.enemy_index = native_int(args[3])
+        details.destroy_status = native_int(args[4])
+    elseif event_name == "snow.enemy.EnemyManager.createEnemyFromSetInfo" then
+        details.set_info_address = managed_address(args[3])
+        details.enemy_set_type = native_int(args[4])
+        details.enemy_index = native_int(args[5])
+    end
+    return details
 end
 
 function M.install_quest_reset_trace_hooks(self)
@@ -297,8 +324,9 @@ function M.install_quest_reset_trace_hooks(self)
             if method then
                 local event_name = requested_type .. "." .. method_name
                 local ok, reason = pcall(function()
-                    sdk.hook(method, function()
-                        append_reset_trace_event(self, "lifecycle_pre", event_name)
+                    sdk.hook(method, function(args)
+                        append_reset_trace_event(self, "lifecycle_pre", event_name, nil,
+                            lifecycle_trace_details(event_name, args))
                     end, function(retval)
                         append_reset_trace_event(self, "lifecycle_post", event_name)
                         return retval
