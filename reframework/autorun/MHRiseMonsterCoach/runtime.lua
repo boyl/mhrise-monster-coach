@@ -118,6 +118,7 @@ function M.new(config, profile)
         enemy_destroy = find_method("snow.enemy.EnemyManager", "destroyEnemy(snow.enemy.EnemyCharacterBase)"),
         set_info_destroy = find_method("snow.enemy.EnemySetInfo", "destroyEnemy(System.Int32, snow.enemy.EnemyManager.DestroyStatus)"),
         enemy_create_from_set = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfo(snow.enemy.EnemySetInfo, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
+        enemy_create_from_set_runtime = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfoNetSend(snow.enemy.EnemySetInfo, System.Boolean, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
         enemy_create_set_info = find_method("snow.enemy.EnemyManager", "createEnemySetInfo(snow.quest.EnemySetParam)"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
@@ -1637,7 +1638,7 @@ function M.monster_respawn_api(runtime)
     function api:request_create(contract)
         local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
         if manager == nil or runtime.methods.enemy_create_set_info == nil
-            or runtime.methods.enemy_create_from_set == nil or contract.enemy_set_param == nil then
+            or runtime.methods.enemy_create_from_set_runtime == nil or contract.enemy_set_param == nil then
             return false, "Native monster create contract unavailable"
         end
         if contract.create_wait_frames ~= nil and contract.create_wait_frames > 0 then
@@ -1665,7 +1666,8 @@ function M.monster_respawn_api(runtime)
         end
         local created
         local ok, reason = pcall(function()
-            created = runtime.methods.enemy_create_from_set:call(manager, contract.set_info, 0, -1)
+            created = runtime.methods.enemy_create_from_set_runtime:call(
+                manager, contract.set_info, false, 0, -1)
         end)
         if not ok then
             return false, "Native monster create request failed: " .. tostring(reason)
