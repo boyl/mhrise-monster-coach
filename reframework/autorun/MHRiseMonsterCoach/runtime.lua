@@ -61,6 +61,8 @@ function M.new(config, profile)
             active = false,
             direct_session = false,
             counter_state_initialized = false,
+            counter_input_attempts = 0,
+            counter_input_frames = 0,
             action = nil,
             action_arg = nil,
             hooks = {},
@@ -460,6 +462,14 @@ function M.quest_restart_api(self)
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
         if current_node == "QuestMenuTop" then
+            local posting = self.runtime.quest_posting
+            posting.counter_input_frames = posting.counter_input_frames + 1
+            if posting.counter_input_frames < 180 then return nil end
+            posting.counter_input_frames = 0
+            posting.counter_input_attempts = posting.counter_input_attempts + 1
+            if posting.counter_input_attempts > 5 then
+                return false, "QuestMenuTop did not accept five verified confirm inputs"
+            end
             local request = safe(function()
                 return json.load_file("MHRiseMonsterCoach/dev_probe_request.json")
             end) or {}
@@ -469,11 +479,13 @@ function M.quest_restart_api(self)
                     session_id = request.session_id,
                     status = "input_required",
                     action = {
-                        id = tostring(request.session_id or "") .. ":quest_counter:QuestMenuTop",
+                        id = tostring(request.session_id or "") .. ":quest_counter:QuestMenuTop:"
+                            .. tostring(posting.counter_input_attempts),
                         kind = "press_key",
                         virtual_key = 0x46,
                         node = current_node,
-                        delay_ms = 500,
+                        attempt = posting.counter_input_attempts,
+                        delay_ms = 750,
                     },
                 })
             end)
@@ -617,6 +629,8 @@ function M.clear_quest_posting(self, close_windows)
     posting.active = false
     posting.direct_session = false
     posting.counter_state_initialized = false
+    posting.counter_input_attempts = 0
+    posting.counter_input_frames = 0
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
