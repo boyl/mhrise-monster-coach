@@ -48,4 +48,29 @@ for _ = 1, 4 do probe:update() end
 assert(#reports == 1 and reports[1].status == "completed", "completed report is emitted automatically")
 assert(reports[1].probe_key == "bird-1" and probe.state == "idle", "report binds evidence to the owned probe")
 
+local retry_context = { in_quest = true, quest_no = 200032001, is_online = false,
+    build_supported = true, target_found = true }
+local retry_attempts = 0
+local retry_api = { quest_api = quest_api }
+function retry_api:get_context() return retry_context end
+function retry_api:read_request() return nil end
+function retry_api:write_report() end
+function retry_api:observe_environment() return true end
+function retry_api:spawn_environment_probe()
+    retry_attempts = retry_attempts + 1
+    if retry_attempts < 3 then return false, "Environment creature prefab list unavailable" end
+    return true, "bird-after-init"
+end
+function retry_api:environment_evidence() return {} end
+
+local retry_probe = Probe.new(retry_api, 200032001, {
+    stable_frames = 1, spawn_retry_interval_frames = 2, spawn_timeout_frames = 10,
+})
+retry_probe.request = { session_id = "probe-retry", kind = "environment_creature_lifecycle" }
+retry_probe:set_state("wait_stable")
+for _ = 1, 6 do retry_probe:update() end
+assert(retry_attempts == 3 and retry_probe.state == "wait_collection",
+    "transient prefab initialization is retried without aborting the session")
+assert(retry_probe.probe_key == "bird-after-init", "retry preserves the successful probe identity")
+
 print("test_dev_probe_controller.lua: PASS")

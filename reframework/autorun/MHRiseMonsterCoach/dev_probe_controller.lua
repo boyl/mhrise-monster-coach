@@ -24,6 +24,11 @@ function M.new(api, quest_id, options)
         }),
         stable_required = options.stable_frames or 120,
         collect_wait_frames = options.collect_wait_frames or 180,
+        spawn_retry_interval_frames = options.spawn_retry_interval_frames or 30,
+        spawn_timeout_frames = options.spawn_timeout_frames or 1800,
+        spawn_attempts = 0,
+        last_spawn_attempt_frame = nil,
+        last_spawn_reason = nil,
         completed_sessions = {},
     }, { __index = M })
 end
@@ -32,6 +37,9 @@ function M:set_state(state)
     self.state = state
     self.state_frames = 0
     self.stable_frames = 0
+    self.spawn_attempts = 0
+    self.last_spawn_attempt_frame = nil
+    self.last_spawn_reason = nil
 end
 
 function M:report(status, reason)
@@ -119,12 +127,28 @@ function M:update()
         if target_quest(context, self.quest_id) and context.target_found then
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
-                self.api:observe_environment()
-                local ok, key_or_reason = self.api:spawn_environment_probe(self.request.session_id)
-                if not ok then return self:fail(key_or_reason) end
-                self.probe_key = key_or_reason
-                self.api:observe_environment()
-                self:set_state("wait_collection")
+                local due = self.last_spawn_attempt_frame == nil
+                    or self.state_frames - self.last_spawn_attempt_frame
+                        >= self.spawn_retry_interval_frames
+                if due then
+                    self.last_spawn_attempt_frame = self.state_frames
+                    self.spawn_attempts = self.spawn_attempts + 1
+                    self.api:observe_environment()
+                    local ok, key_or_reason = self.api:spawn_environment_probe(
+                        self.request.session_id)
+                    if ok then
+                        self.probe_key = key_or_reason
+                        self.api:observe_environment()
+                        self:set_state("wait_collection")
+                    else
+                        self.last_spawn_reason = key_or_reason
+                    end
+                end
+                if self.state == "wait_stable"
+                    and self.stable_frames >= self.stable_required + self.spawn_timeout_frames then
+                    return self:fail("Environment probe initialization timed out: "
+                        .. tostring(self.last_spawn_reason or "unknown reason"))
+                end
             end
         else
             self.stable_frames = 0
