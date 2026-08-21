@@ -30,6 +30,7 @@ function M.new(api, quest_id, options)
         last_spawn_attempt_frame = nil,
         last_spawn_reason = nil,
         completed_sessions = {},
+        arena_transfer = { attempted = false },
     }, { __index = M })
 end
 
@@ -60,6 +61,7 @@ function M:report(status, reason)
         },
         environment = evidence,
         areas = self.api:area_snapshot(),
+        arena_transfer = self.arena_transfer,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -131,7 +133,10 @@ function M:update()
         local combat_ready = self.request.require_combat_area ~= true
             or (areas.player ~= nil and areas.player ~= 0)
         if self.request.require_combat_area == true and not combat_ready
-            and self.state_frames % 30 == 1 then self.api:request_arena_transfer() end
+            and self.state_frames % 30 == 1 then
+            local ok, reason, retry = self.api:request_arena_transfer()
+            self.arena_transfer = { attempted = true, ok = ok, reason = reason, retry = retry }
+        end
         if self.state_frames % 30 == 1 then self:report("running") end
         if target_quest(context, self.quest_id) and context.target_found and combat_ready then
             self.stable_frames = self.stable_frames + 1
@@ -184,7 +189,10 @@ function M:update()
         local combat_ready = self.request.require_combat_area ~= true
             or (areas.player ~= nil and areas.player ~= 0)
         if self.request.require_combat_area == true and not combat_ready
-            and self.state_frames % 30 == 1 then self.api:request_arena_transfer() end
+            and self.state_frames % 30 == 1 then
+            local ok, reason, retry = self.api:request_arena_transfer()
+            self.arena_transfer = { attempted = true, ok = ok, reason = reason, retry = retry }
+        end
         if self.state_frames % 30 == 1 then self:report("running") end
         if target_quest(context, self.quest_id) and context.target_found and combat_ready then
             self.stable_frames = self.stable_frames + 1
