@@ -1405,6 +1405,30 @@ local function serializable_vector(value, include_w)
     return result
 end
 
+local function inspect_enemy_set_info_registry(target_address)
+    local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
+    if manager == nil then return { available = false } end
+    local list = safe(function() return manager:call("getEnemySetInfoList") end)
+        or safe(function() return manager:get_field("_EnemySetInfoList") end)
+    local count = list and tonumber(safe(function() return list:call("get_Count") end)) or nil
+    local matched_index = nil
+    local addresses = {}
+    for index = 0, math.min((count or 0) - 1, 63) do
+        local item = safe(function() return list:call("get_Item", index) end)
+        local address = item and safe(function() return item:get_address() end) or nil
+        addresses[#addresses + 1] = tostring(address)
+        if address ~= nil and address == target_address then matched_index = index end
+    end
+    return {
+        available = list ~= nil,
+        manager_address = tostring(safe(function() return manager:get_address() end)),
+        list_address = tostring(list and safe(function() return list:get_address() end) or nil),
+        count = count,
+        target_index = matched_index,
+        set_info_addresses = addresses,
+    }
+end
+
 function M.capture_enemy_spawn_contract(self, enemy)
     if enemy == nil then return false, "Enemy unavailable" end
     local set_info = safe(function() return enemy:call("get_SetInfo") end)
@@ -1447,6 +1471,7 @@ function M.capture_enemy_spawn_contract(self, enemy)
             set_position = serializable_vector(safe(function() return param:call("get_SetPos") end), false),
             set_rotation = serializable_vector(safe(function() return param:call("get_SetRot") end), true),
         } or nil,
+        registry = inspect_enemy_set_info_registry(set_info_address),
     }
     local written = safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_enemy_spawn_contract.json", payload)
