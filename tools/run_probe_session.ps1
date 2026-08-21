@@ -82,13 +82,19 @@ using System.Runtime.InteropServices;
 public static class MonsterCoachInput {
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
     [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     public static bool PressKey(IntPtr gameWindow, byte virtualKey) {
         if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+        System.Threading.Thread.Sleep(300);
         if (GetForegroundWindow() != gameWindow) return false;
-        keybd_event(virtualKey, 0, 0, UIntPtr.Zero);
-        System.Threading.Thread.Sleep(120);
-        keybd_event(virtualKey, 0, 2, UIntPtr.Zero);
+        byte scanCode = (byte)MapVirtualKey(virtualKey, 0);
+        if (scanCode == 0) return false;
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        keybd_event(0, scanCode, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        System.Threading.Thread.Sleep(150);
+        keybd_event(0, scanCode, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
         return true;
     }
 }

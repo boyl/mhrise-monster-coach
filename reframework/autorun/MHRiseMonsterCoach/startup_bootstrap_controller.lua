@@ -101,15 +101,27 @@ function M:update()
         if self.state ~= "wait_autosave_notice_closed" then
             self.pending_action = nil
             self.autosave_resume_state = self.state
-            local ok, reason = self.api:dismiss_autosave_notice()
-            if not ok then return self:fail(reason or "Unable to dismiss the autosave notice") end
             self:set_state("wait_autosave_notice_closed")
+            self:request_key("dismiss_autosave_notice", 0x46)
+            return
+        end
+        if self.pending_action then
+            local ack = self.api:read_ack()
+            if type(ack) == "table" and ack.session_id == self.request.session_id
+                and ack.action_id == self.pending_action.id then
+                self.pending_action = nil
+                self:write_status("running")
+            else
+                self:write_status("input_required", nil, self.pending_action)
+            end
+            return
         end
         self:write_status("running")
         return
     end
 
     if self.state == "wait_autosave_notice_closed" then
+        self.pending_action = nil
         local resume_state = self.autosave_resume_state or "observing"
         self.autosave_resume_state = nil
         self:set_state(resume_state)
