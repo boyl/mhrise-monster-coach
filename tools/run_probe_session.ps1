@@ -3,7 +3,8 @@
 [CmdletBinding()]
 param(
     [string]$GameRoot = 'C:\Program Files (x86)\Steam\steamapps\common\MonsterHunterRise',
-    [int]$TimeoutSeconds = 900
+    [int]$TimeoutSeconds = 900,
+    [switch]$RequireCombatArea
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +43,7 @@ $request = [ordered]@{
     requested_at = [DateTimeOffset]::Now.ToString('o')
     source_version = $sourceVersion
     auto_load_save = $true
-    require_combat_area = $true
+    require_combat_area = [bool]$RequireCombatArea
 }
 $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Encoding utf8
 [ordered]@{

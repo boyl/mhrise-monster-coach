@@ -762,7 +762,7 @@ local IN_PLACE_RESET_KEYWORDS = {
     "spawn", "despawn", "respawn", "create", "generate", "instantiate",
     "arrange", "destroy", "delete", "erase", "remove", "reset", "restart",
     "reload", "reentry", "revive", "warp", "teleport", "position",
-    "area", "block", "stage", "map",
+    "area", "block", "stage", "map", "camp", "safe", "battle",
 }
 
 local function matches_reset_keyword(name)
@@ -1769,10 +1769,14 @@ end
 function M.area_snapshot(self)
     local player_area = read_area_no(self, self.player)
     local enemy_area = read_area_no(self, self.enemy)
+    local player_position = get_position(get_transform(self.player))
+    local enemy_position = get_position(get_transform(self.enemy))
     return {
         player = player_area,
         enemy = enemy_area,
         same_area = player_area ~= nil and enemy_area ~= nil and player_area == enemy_area,
+        player_position = serializable_vector(player_position, false),
+        enemy_position = serializable_vector(enemy_position, false),
     }
 end
 
