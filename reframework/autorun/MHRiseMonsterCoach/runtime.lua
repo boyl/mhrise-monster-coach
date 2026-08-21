@@ -372,17 +372,6 @@ function M.install_quest_posting_hooks(self)
                 "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterAccessType", "HallCounter")
             if counter and access ~= nil then counter:call("set_QuestCounterType", access) end
         end },
-        { "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
-            "update(via.behaviortree.ActionArg)", nil, function(_, args)
-                if args == nil then return nil end
-                local action = sdk.to_managed_object(args[2])
-                local action_arg = sdk.to_managed_object(args[3])
-                local success = enum_value(
-                    "snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
-                if action and action_arg and success ~= nil then
-                    action:setBaseBranch(action_arg, success)
-                end
-            end },
         { "snow.gui.GuiManager", "IsCanFieldObjectAccessSub()", nil, true_post },
         { "snow.gui.GuiManager", "isDisplayForHeadMessage(System.Boolean)", nil, true_post },
         { "snow.SnowSessionManager", "reqOnlineWarning()", skip },
