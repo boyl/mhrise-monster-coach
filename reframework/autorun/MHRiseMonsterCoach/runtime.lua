@@ -204,6 +204,24 @@ local RESET_TRACE_METHODS = {
     "netSendQuestDoneResult",
 }
 
+local RESET_TRACE_LIFECYCLE_METHODS = {
+    ["snow.enemy.EnemySetInfo"] = {
+        "destroyEnemy(System.Int32,snow.enemy.EnemyManager.DestroyStatus)",
+        "repop()",
+        "resetEnemy()",
+        "updateDestroyStatus(snow.enemy.EnemyManager.DestroyStatus)",
+        "updateSetStatus(snow.enemy.EnemyManager.EnemySetStatus)",
+    },
+    ["snow.enemy.EnemyManager"] = {
+        "registerRequestDestroyEnemyList(snow.enemy.EnemyCharacterBase)",
+        "updateDestroyEnemy()",
+        "destroyEnemy(snow.enemy.EnemyCharacterBase)",
+        "destroyEnemyGameObject(snow.enemy.EnemyCharacterBase)",
+        "createEnemyFromSetInfo(snow.enemy.EnemySetInfo,snow.enemy.EnemyDef.EnemySetType,System.Int32)",
+        "notifyCreateEnemy(snow.enemy.EnemySetInfo)",
+    },
+}
+
 local QUEST_LAUNCH_KEYWORDS = {
     "orderquest", "questorder", "startquest", "queststart", "loadquest", "questload",
     "acceptquest", "questaccept", "requestquest", "questrequest", "depart", "departure",
@@ -263,6 +281,24 @@ function M.install_quest_reset_trace_hooks(self)
                 end)
             end)
             if ok then self.quest_reset_trace.hooks[#self.quest_reset_trace.hooks + 1] = method_name end
+        end
+    end
+    for requested_type, method_names in pairs(RESET_TRACE_LIFECYCLE_METHODS) do
+        local type_def = safe(function() return sdk.find_type_definition(requested_type) end)
+        for _, method_name in ipairs(method_names) do
+            local method = type_def and safe(function() return type_def:get_method(method_name) end)
+            if method then
+                local event_name = requested_type .. "." .. method_name
+                local ok = pcall(function()
+                    sdk.hook(method, function()
+                        append_reset_trace_event(self, "lifecycle_pre", event_name)
+                    end, function(retval)
+                        append_reset_trace_event(self, "lifecycle_post", event_name)
+                        return retval
+                    end)
+                end)
+                if ok then self.quest_reset_trace.hooks[#self.quest_reset_trace.hooks + 1] = event_name end
+            end
         end
     end
     return #self.quest_reset_trace.hooks > 0,
