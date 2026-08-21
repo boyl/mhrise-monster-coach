@@ -450,14 +450,15 @@ function M.quest_restart_api(self)
         end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
-        if current_node == "QuestMenuTop" then
+        if current_node == "QuestMenuTop" or current_node == "QuestMenuSub" then
             local posting = self.runtime.quest_posting
             posting.counter_input_frames = posting.counter_input_frames + 1
             if posting.counter_input_frames < 180 then return nil end
             posting.counter_input_frames = 0
             posting.counter_input_attempts = posting.counter_input_attempts + 1
             if posting.counter_input_attempts > 5 then
-                return false, "QuestMenuTop did not accept five verified confirm inputs"
+                return false, tostring(current_node)
+                    .. " did not accept five verified confirm inputs"
             end
             local request = safe(function()
                 return json.load_file("MHRiseMonsterCoach/dev_probe_request.json")
@@ -468,7 +469,8 @@ function M.quest_restart_api(self)
                     session_id = request.session_id,
                     status = "input_required",
                     action = {
-                        id = tostring(request.session_id or "") .. ":quest_counter:QuestMenuTop:"
+                        id = tostring(request.session_id or "") .. ":quest_counter:"
+                            .. tostring(current_node) .. ":"
                             .. tostring(posting.counter_input_attempts),
                         kind = "press_key",
                         virtual_key = 0x46,
