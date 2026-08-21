@@ -59,6 +59,7 @@ function M.new(config, profile)
         capabilities = {},
         quest_posting = {
             active = false,
+            direct_session = false,
             action = nil,
             action_arg = nil,
             hooks = {},
@@ -453,6 +454,7 @@ function M.quest_restart_api(self)
         end
         self.runtime.quest_posting.action = action
         self.runtime.quest_posting.action_arg = nil
+        self.runtime.quest_posting.direct_session = true
         return true
     end
 
@@ -484,6 +486,7 @@ function M.quest_restart_api(self)
 
     function api:tick_posting()
         local posting = self.runtime.quest_posting
+        if posting.direct_session == true then return true end
         local action = posting.action
         if action == nil then return false, "Quest posting action unavailable" end
         local ok, reason = pcall(function()
@@ -562,6 +565,7 @@ end
 function M.clear_quest_posting(self, close_windows)
     local posting = self.quest_posting
     posting.active = false
+    posting.direct_session = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
