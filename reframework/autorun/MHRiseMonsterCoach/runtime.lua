@@ -118,6 +118,7 @@ function M.new(config, profile)
         enemy_destroy = find_method("snow.enemy.EnemyManager", "destroyEnemy(snow.enemy.EnemyCharacterBase)"),
         set_info_destroy = find_method("snow.enemy.EnemySetInfo", "destroyEnemy(System.Int32, snow.enemy.EnemyManager.DestroyStatus)"),
         enemy_create_from_set = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfo(snow.enemy.EnemySetInfo, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
+        enemy_create_set_info = find_method("snow.enemy.EnemyManager", "createEnemySetInfo(snow.quest.EnemySetParam)"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -1635,11 +1636,21 @@ function M.monster_respawn_api(runtime)
 
     function api:request_create(contract)
         local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
-        if manager == nil or runtime.methods.enemy_create_from_set == nil then
+        if manager == nil or runtime.methods.enemy_create_set_info == nil
+            or runtime.methods.enemy_create_from_set == nil or contract.enemy_set_param == nil then
             return false, "Native monster create contract unavailable"
         end
+        local old_set_info = contract.set_info
+        local registry = safe(function() return manager:call("getEnemySetInfoList") end)
+            or safe(function() return manager:get_field("_EnemySetInfoList") end)
+        if registry == nil then return false, "EnemySetInfo registry unavailable" end
         local created
         local ok, reason = pcall(function()
+            local removed = registry:call("Remove(snow.enemy.EnemySetInfo)", old_set_info)
+            if removed ~= true then error("destroyed EnemySetInfo was not removed from the registry") end
+            local new_set_info = runtime.methods.enemy_create_set_info:call(manager, contract.enemy_set_param)
+            if new_set_info == nil then error("createEnemySetInfo returned no replacement") end
+            contract.set_info = new_set_info
             created = runtime.methods.enemy_create_from_set:call(manager, contract.set_info, 0, -1)
         end)
         if not ok then
@@ -1680,9 +1691,12 @@ function M.start_monster_respawn_probe(self)
     end
     local set_info = safe(function() return self.methods.enemy_set_info:call(self.enemy) end)
     if set_info == nil then return false, "Tigrex EnemySetInfo unavailable" end
+    local enemy_set_param = safe(function() return set_info:call("get_EnemySetParam") end)
+    if enemy_set_param == nil then return false, "Tigrex EnemySetParam unavailable" end
     return self.monster_respawn:start({
         enemy = self.enemy,
         set_info = set_info,
+        enemy_set_param = enemy_set_param,
         enemy_id = self.enemy_id,
     })
 end
