@@ -49,7 +49,8 @@ bootstrap:update()
 assert(bootstrap.state == "wait_save_menu", "bootstrap resumes the suspended state after closure")
 view = { build_supported = true, save_menu_active = true }
 bootstrap:update()
-assert(statuses[#statuses].action.id == "bootstrap-1:choose_first_save")
+assert(string.find(statuses[#statuses].action.id,
+    "bootstrap-1:choose_first_save:", 1, true) == 1)
 assert(statuses[#statuses].action.delay_ms == 2000, "save confirmation waits for menu initialization")
 ack = { session_id = "bootstrap-1", action_id = statuses[#statuses].action.id }
 bootstrap:update()

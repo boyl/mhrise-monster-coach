@@ -17,6 +17,7 @@ function M.new(api, options)
         frame = 0,
         state_frames = 0,
         pending_action = nil,
+        input_sequence = 0,
         autosave_resume_state = nil,
         completed_sessions = {},
     }, { __index = M })
@@ -60,8 +61,10 @@ function M:complete()
 end
 
 function M:request_key(action_name, virtual_key, delay_ms)
+    self.input_sequence = self.input_sequence + 1
     self.pending_action = {
-        id = tostring(self.request.session_id) .. ":" .. action_name,
+        id = tostring(self.request.session_id) .. ":" .. action_name
+            .. ":" .. tostring(self.input_sequence),
         name = action_name,
         kind = "press_key",
         virtual_key = virtual_key,
@@ -136,6 +139,7 @@ function M:update()
             and ack.action_id == self.pending_action.id then
             local name = self.pending_action.name
             self.pending_action = nil
+            self.state_frames = 0
             self:write_status("running")
         else
             self:write_status("input_required", nil, self.pending_action)
@@ -151,6 +155,10 @@ function M:update()
     end
 
     if self.state == "wait_hub" then
+        if view.save_menu_active == true and self.state_frames > 240 then
+            self:request_key("choose_first_save_retry", 0x46, 500)
+            return
+        end
         self:write_status("running")
         return
     end
@@ -179,6 +187,18 @@ function M:update()
         end
         self:set_state("wait_save_menu")
         self:request_key("confirm_continue", 0x46)
+        return
+    end
+
+    if self.state == "wait_title_menu_ready"
+        and view.title_state == TITLE_STATE_PRESS_ANY and self.state_frames > 180 then
+        self:request_key("advance_press_any_retry", 0x46, 250)
+        return
+    end
+
+    if self.state == "wait_save_menu"
+        and view.title_state == TITLE_STATE_MENU and self.state_frames > 180 then
+        self:request_key("confirm_continue_retry", 0x46, 250)
         return
     end
 

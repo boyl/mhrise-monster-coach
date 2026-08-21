@@ -452,6 +452,11 @@ function M.quest_restart_api(self)
             safe(function() action:release() end)
             return false, "Failed to create native quest session: " .. tostring(create_error)
         end
+        local order_ok, order_error = pcall(function() action:routine_NomarlQuestOrderFlow() end)
+        if not order_ok then
+            safe(function() action:release() end)
+            return false, "Failed to open native quest order flow: " .. tostring(order_error)
+        end
         self.runtime.quest_posting.action = action
         self.runtime.quest_posting.action_arg = nil
         self.runtime.quest_posting.direct_session = true
