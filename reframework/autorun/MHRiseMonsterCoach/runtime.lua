@@ -263,8 +263,8 @@ local function managed_address(value)
 end
 
 local function native_int(value)
-    return safe(function() return sdk.to_int64(value) end)
-        or safe(function() return sdk.to_int(value) end)
+    return safe(function() return sdk.to_int(value) end)
+        or safe(function() return sdk.to_int64(value) end)
 end
 
 local function lifecycle_trace_details(event_name, args)
