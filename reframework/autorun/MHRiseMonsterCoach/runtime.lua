@@ -744,6 +744,8 @@ local IN_PLACE_RESET_TYPES = {
     "snow.stage.StageManager",
     "snow.access.QuestAreaMovePopManager",
     "snow.access.QuestAreaMovePopMarker",
+    "snow.access.QuestAreaMovePopMarker.AreaMoveInfo",
+    "snow.stage.StageManager.QuestAreaMoveRequest",
     "snow.envCreature.EnvironmentCreatureManager",
     "snow.envCreature.EnvironmentCreatureBase",
     "snow.envCreature.EcPopBehavior",
@@ -756,6 +758,9 @@ local IN_PLACE_RESET_FULL_TYPES = {
     ["snow.enemy.EnemySetInfo"] = true,
     ["snow.quest.EnemySetParam"] = true,
     ["snow.quest.QuestData"] = true,
+    ["snow.access.QuestAreaMovePopMarker"] = true,
+    ["snow.access.QuestAreaMovePopMarker.AreaMoveInfo"] = true,
+    ["snow.stage.StageManager.QuestAreaMoveRequest"] = true,
 }
 
 local IN_PLACE_RESET_KEYWORDS = {
