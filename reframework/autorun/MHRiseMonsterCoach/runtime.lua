@@ -428,10 +428,16 @@ function M.quest_restart_api(self)
 
     function api:open_counter()
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
+        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
-        if facility == nil or scene_id == nil then return false, "Quest counter API unavailable" end
+        if facility == nil or gui == nil or scene_id == nil then
+            return false, "Quest counter API unavailable"
+        end
         self.runtime.quest_posting.active = true
-        local ok = pcall(function() facility:call("activateOnly", scene_id) end)
+        local ok = pcall(function()
+            gui:call("set_IsActivateQuestCounterFromQuestBoard", true)
+            facility:call("activateOnly", scene_id)
+        end)
         return ok, ok and nil or "Failed to open quest counter"
     end
 
