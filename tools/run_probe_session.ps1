@@ -42,6 +42,7 @@ $request = [ordered]@{
     requested_at = [DateTimeOffset]::Now.ToString('o')
     source_version = $sourceVersion
     auto_load_save = $true
+    require_combat_area = $true
 }
 $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Encoding utf8
 [ordered]@{
@@ -96,12 +97,26 @@ public static class MonsterCoachInput {
         keybd_event(0, scanCode, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
         return true;
     }
+    public static bool HoldKey(IntPtr gameWindow, byte virtualKey, int milliseconds) {
+        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+        System.Threading.Thread.Sleep(300);
+        if (GetForegroundWindow() != gameWindow) return false;
+        byte scanCode = (byte)MapVirtualKey(virtualKey, 0);
+        if (scanCode == 0) return false;
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        keybd_event(0, scanCode, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        System.Threading.Thread.Sleep(Math.Max(100, milliseconds));
+        keybd_event(0, scanCode, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+        return true;
+    }
 }
 '@
 }
 
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
+$combatEntryAttemptedForStates = [Collections.Generic.HashSet[string]]::new()
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
@@ -145,6 +160,19 @@ do {
     }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
+        if ($report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -in @('wait_stable', 'verify_restart') -and
+            [int]$report.areas.player -eq 0 -and
+            -not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
+            $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($game) {
+                $game.Refresh()
+                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 10000)) {
+                    [void]$combatEntryAttemptedForStates.Add([string]$report.state)
+                    Write-Host "Automatic combat entry: held forward during $($report.state)"
+                }
+            }
+        }
         if ($report -and ($report.session_id -eq $sessionId) -and
             ($report.status -in @('completed', 'failed'))) {
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue

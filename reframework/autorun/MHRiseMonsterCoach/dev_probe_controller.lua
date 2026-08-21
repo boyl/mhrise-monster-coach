@@ -62,7 +62,9 @@ function M:report(status, reason)
         areas = self.api:area_snapshot(),
     }
     self.api:write_report(report)
-    if report.session_id then self.completed_sessions[report.session_id] = true end
+    if report.session_id and (status == "completed" or status == "failed") then
+        self.completed_sessions[report.session_id] = true
+    end
     return report
 end
 
@@ -125,7 +127,11 @@ function M:update()
         if self.quest_flow.state == "failed" then return self:fail(self.quest_flow.error) end
         if self.quest_flow.state == "complete" then self:set_state("wait_stable") end
     elseif self.state == "wait_stable" then
-        if target_quest(context, self.quest_id) and context.target_found then
+        local areas = self.api:area_snapshot()
+        local combat_ready = self.request.require_combat_area ~= true
+            or (areas.player ~= nil and areas.player ~= 0)
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if target_quest(context, self.quest_id) and context.target_found and combat_ready then
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 if self.request.allow_spawn_probe ~= true then
@@ -172,7 +178,11 @@ function M:update()
         if self.quest_flow.state == "failed" then return self:fail(self.quest_flow.error) end
         if self.quest_flow.state == "complete" then self:set_state("verify_restart") end
     elseif self.state == "verify_restart" then
-        if target_quest(context, self.quest_id) and context.target_found then
+        local areas = self.api:area_snapshot()
+        local combat_ready = self.request.require_combat_area ~= true
+            or (areas.player ~= nil and areas.player ~= 0)
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if target_quest(context, self.quest_id) and context.target_found and combat_ready then
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 self.api:observe_environment()
