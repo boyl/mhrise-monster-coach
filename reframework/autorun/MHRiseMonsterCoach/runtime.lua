@@ -1726,6 +1726,36 @@ function M.update_monster_respawn_probe(self)
     return true
 end
 
+function M.monster_respawn_diagnostics(self)
+    local respawn = self.monster_respawn
+    local contract = respawn and respawn.contract or nil
+    local set_info = contract and contract.set_info or nil
+    local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
+    local registry = manager and (safe(function() return manager:call("getEnemySetInfoList") end)
+        or safe(function() return manager:get_field("_EnemySetInfoList") end)) or nil
+    local contains = registry and set_info and safe(function()
+        return registry:call("Contains(snow.enemy.EnemySetInfo)", set_info)
+    end) or false
+    return {
+        state = respawn and respawn.state or "unavailable",
+        state_frames = respawn and respawn.state_frames or 0,
+        set_info_address = set_info and tostring(safe(function() return set_info:get_address() end)) or nil,
+        set_status = set_info and safe(function() return set_info:call("get_SetStatus") end) or nil,
+        destroy_status = set_info and safe(function() return set_info:call("get_DestroyStatus") end) or nil,
+        owner_address = set_info and tostring(safe(function()
+            local owner = set_info:call("get_OwnerEnemy")
+            return owner and owner:get_address() or nil
+        end)) or nil,
+        registry_count = registry and safe(function() return registry:call("get_Count") end) or nil,
+        registry_contains = contains == true,
+        receive_create_enemy = manager and safe(function()
+            return manager:get_field("_IsReceiveCreateEnemy")
+        end) or nil,
+        create_wait_frames = contract and contract.create_wait_frames or nil,
+        replacement_created = contract and contract.replacement_set_info ~= nil or false,
+    }
+end
+
 function M.read_enemy_id(self, enemy)
     local value
     if self.methods.enemy_type then value = safe(function() return self.methods.enemy_type:call(enemy) end) end

@@ -67,7 +67,8 @@ function M.start()
         runtime:update_monster_respawn_probe()
         local respawn = runtime.monster_respawn
         return respawn and respawn.state or "unavailable",
-            respawn and respawn.error or nil
+            respawn and respawn.error or nil,
+            runtime:monster_respawn_diagnostics()
     end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
     local bootstrap_api = {}

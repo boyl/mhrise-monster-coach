@@ -185,8 +185,13 @@ function M:update()
             self.stable_frames = 0
         end
     elseif self.state == "monster_respawn" then
-        local state, reason = self.api:update_monster_respawn()
-        self.monster_respawn = { attempted = true, state = state, reason = reason }
+        local state, reason, diagnostics = self.api:update_monster_respawn()
+        self.monster_respawn = {
+            attempted = true,
+            state = state,
+            reason = reason,
+            diagnostics = diagnostics,
+        }
         if self.state_frames % 15 == 0 then self:report("running") end
         if state == "complete" then return self:complete() end
         if state == "failed" then return self:fail(reason or "Monster respawn lifecycle failed") end
