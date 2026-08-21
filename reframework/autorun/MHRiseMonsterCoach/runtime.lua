@@ -73,7 +73,6 @@ function M.new(config, profile)
             lifecycle_hook_failures = {},
         },
         arena_transfer_focus = nil,
-        arena_transfer_pending = false,
         arena_transfer_trace = {},
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
@@ -1874,19 +1873,8 @@ function M.request_arena_transfer(self)
         or tonumber(context.quest_no) ~= self.profile.training_quest.id then
         return false, "Arena transfer is limited to the offline training quest"
     end
-    if self.arena_transfer_pending == true then
-        local ok, reason = pcall(function()
-            local stage = sdk.get_managed_singleton("snow.stage.StageManager")
-            if stage == nil then error("StageManager unavailable") end
-            stage:call("callAreaMoveQuest")
-        end)
-        self.arena_transfer_pending = false
-        self.arena_transfer_focus = nil
-        if not ok then return false, "Native arena warp execution failed: " .. tostring(reason) end
-        return true, "Native arena warp flow executed"
-    end
     local focus = self.arena_transfer_focus
-    if focus == nil or focus.marker == nil or focus.request == nil then
+    if focus == nil or focus.marker == nil then
         return false, "Move to the arena transfer prompt first", true
     end
     local accessible = safe(function() return focus.marker:call("get_IsAccessible") end)
@@ -1894,15 +1882,11 @@ function M.request_arena_transfer(self)
     local ok, reason = pcall(function()
         local stage = sdk.get_managed_singleton("snow.stage.StageManager")
         if stage == nil then error("StageManager unavailable") end
-        stage:call(
-            "setWarpAreaMove(snow.stage.StageManager.QuestAreaMoveRequest, snow.access.QuestAreaMovePopMarker)",
-            focus.request,
-            focus.marker
-        )
+        stage:call("callAreaMoveQuest")
     end)
     if not ok then return false, "Native arena transfer request failed: " .. tostring(reason) end
-    self.arena_transfer_pending = true
-    return false, "Native arena warp initialized", true
+    self.arena_transfer_focus = nil
+    return true, "Native arena warp flow executed"
 end
 
 function M.capture_anchors(self)
