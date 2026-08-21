@@ -430,38 +430,24 @@ function M.quest_restart_api(self)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
+        local identifier_ok, identifier_error = pcall(function()
+            counter:call("setQuestIdentifierQuestNo", self.runtime.profile.training_quest.id)
+        end)
+        if not identifier_ok then
+            return false, "Failed to set training quest identifier: " .. tostring(identifier_error)
+        end
         local action = safe(function()
             return sdk.create_instance(
                 "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
         end)
         if action == nil then return false, "Failed to create quest session Action" end
-        local arg = safe(function()
-            return sdk.create_instance("via.behaviortree.ActionArg"):add_ref()
-        end)
-        if arg == nil then
+        local init_ok, init_error = pcall(function() action:init() end)
+        if not init_ok then
             safe(function() action:release() end)
-            return false, "Failed to create quest session ActionArg"
-        end
-        local tree = safe(function() return counter:get_refQuestCounterBehaviorTree() end)
-        if tree == nil then
-            safe(function() arg:release() end)
-            safe(function() action:release() end)
-            return false, "Quest counter behavior tree unavailable"
-        end
-        local owner_ok = pcall(function() arg:setOwnerComponentPtr(tree:get_address()) end)
-        if not owner_ok then
-            safe(function() arg:release() end)
-            safe(function() action:release() end)
-            return false, "Failed to bind quest session ActionArg owner"
-        end
-        local start_ok, start_error = pcall(function() action:start(arg) end)
-        if not start_ok then
-            safe(function() arg:release() end)
-            safe(function() action:release() end)
-            return false, "Failed to start quest session Action: " .. tostring(start_error)
+            return false, "Failed to initialize quest session Action: " .. tostring(init_error)
         end
         self.runtime.quest_posting.action = action
-        self.runtime.quest_posting.action_arg = arg
+        self.runtime.quest_posting.action_arg = nil
         return true
     end
 
