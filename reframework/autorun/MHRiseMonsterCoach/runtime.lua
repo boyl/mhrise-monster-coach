@@ -130,6 +130,9 @@ function M.new(config, profile)
     local posting_ready, posting_reason = M.install_quest_posting_hooks(self)
     self.capabilities.quest_posting = posting_ready
     self.capabilities.quest_posting_reason = posting_reason
+    local trace_ready, trace_reason = M.install_quest_reset_trace_hooks(self)
+    self.capabilities.quest_reset_trace = trace_ready
+    self.capabilities.quest_reset_trace_reason = trace_reason
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
     M.install_startup_flow_hooks(self)
     M.dump_in_place_reset_metadata(self)
