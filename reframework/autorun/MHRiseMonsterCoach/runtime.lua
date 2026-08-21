@@ -34,34 +34,6 @@ local function enum_value(type_name, field_name)
     return field and safe(function() return field:get_data(nil) end) or nil
 end
 
-local function read_quest_list_item_id(item)
-    local direct = tonumber(item)
-    if direct ~= nil then return direct end
-    if item == nil or sdk.is_managed_object(item) ~= true then return nil end
-
-    local type_def = safe(function() return item:get_type_definition() end)
-    if type_def == nil then return nil end
-    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
-        local name = string.lower(tostring(safe(function() return method:get_name() end) or ""))
-        local parameter_count = safe(function() return #method:get_params() end)
-        if parameter_count == 0 and string.sub(name, 1, 4) == "get_"
-            and (string.find(name, "questno", 1, true)
-                or string.find(name, "questid", 1, true)) then
-            local value = safe(function() return method:call(item) end)
-            if tonumber(value) ~= nil then return tonumber(value), name end
-        end
-    end
-    for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
-        local name = string.lower(tostring(safe(function() return field:get_name() end) or ""))
-        if string.find(name, "questno", 1, true)
-            or string.find(name, "questid", 1, true) then
-            local value = safe(function() return field:get_data(item) end)
-            if tonumber(value) ~= nil then return tonumber(value), name end
-        end
-    end
-    return nil
-end
-
 function M.new(config, profile)
     local self = {
         config = config,
@@ -88,12 +60,6 @@ function M.new(config, profile)
         quest_posting = {
             active = false,
             direct_session = false,
-            counter_state_initialized = false,
-            counter_input_attempts = 0,
-            counter_input_frames = 0,
-            counter_input_node = nil,
-            counter_observe_frames = 0,
-            quest_menu_selected = false,
             action = nil,
             action_arg = nil,
             hooks = {},
@@ -451,16 +417,10 @@ function M.quest_restart_api(self)
 
     function api:open_counter()
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
-        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
-        if facility == nil or gui == nil or scene_id == nil then
-            return false, "Quest counter API unavailable"
-        end
+        if facility == nil or scene_id == nil then return false, "Quest counter API unavailable" end
         self.runtime.quest_posting.active = true
-        local ok = pcall(function()
-            gui:call("set_IsActivateQuestCounterFromQuestBoard", true)
-            facility:call("activateOnly", scene_id)
-        end)
+        local ok = pcall(function() facility:call("activateOnly", scene_id) end)
         return ok, ok and nil or "Failed to open quest counter"
     end
 
@@ -468,208 +428,31 @@ function M.quest_restart_api(self)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
-        if self.runtime.quest_posting.counter_state_initialized ~= true then
-            local state_ok, state_error = pcall(function()
-                counter:setOpenQuestCounterOnState()
-            end)
-            if not state_ok then
-                return false, "Failed to initialize quest counter input state: "
-                    .. tostring(state_error)
-            end
-            self.runtime.quest_posting.counter_state_initialized = true
-            return nil
-        end
-        if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
-        local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
-        if string.find(tostring(current_node or ""), "OpenWithAnim", 1, true) then
-            return nil
-        end
-        local posting = self.runtime.quest_posting
-        if posting.counter_input_node ~= current_node then
-            posting.counter_input_node = current_node
-            posting.counter_input_frames = 0
-            posting.counter_input_attempts = 0
-            posting.counter_observe_frames = 0
-        end
-        if current_node == "QuestLevelMenuSelect"
-            and self.runtime.quest_posting.level_menu_selected ~= true then
-            local target = enum_value(
-                "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterLevelMenuType",
-                "Lv_04_MR")
-            local list = safe(function() return counter:get_QuestLevelMenuList() end)
-            local cursor = safe(function() return counter:get_LevelMenuCursor() end)
-            local count = list and safe(function() return list:call("get_Count") end) or 0
-            local target_index
-            for index = 0, (tonumber(count) or 0) - 1 do
-                local value = safe(function() return list:call("get_Item", index) end)
-                if tonumber(value) == tonumber(target) then target_index = index break end
-            end
-            if target == nil or cursor == nil or target_index == nil then
-                return false, "MR 4-star quest level entry unavailable"
-            end
-            local selected_ok, selected_error = pcall(function()
-                cursor:setIndex(target_index)
-            end)
-            if not selected_ok then
-                return false, "Failed to select MR 4-star quest level: "
-                    .. tostring(selected_error)
-            end
-            local selected = safe(function() return counter:getQuestCounterSelectedLevelMenu() end)
-            if tonumber(selected) ~= tonumber(target) then
-                return false, "MR 4-star quest level verification failed"
-            end
-            self.runtime.quest_posting.level_menu_selected = true
-        end
-        if current_node == "QuestOrderListMenuSelect"
-            and posting.quest_menu_selected ~= true then
-            local list = safe(function() return counter:get_QuestMenuList() end)
-            local cursor = safe(function() return counter:get_QuestMenuCursor() end)
-            local count = list and safe(function() return list:call("get_Count") end) or 0
-            local target_id = tonumber(self.runtime.profile.training_quest.id)
-            local quest_manager = sdk.get_managed_singleton("snow.QuestManager")
-            local target_data = quest_manager and self.runtime.methods.quest_data
-                and safe(function()
-                    return self.runtime.methods.quest_data:call(quest_manager, target_id)
-                end) or nil
-            local target_address = target_data and safe(function() return target_data:get_address() end)
-            local target_index
-            local observed = {}
-            for index = 0, (tonumber(count) or 0) - 1 do
-                local item = safe(function() return list:call("get_Item", index) end)
-                local quest_id, source = read_quest_list_item_id(item)
-                local item_address = item and safe(function() return item:get_address() end)
-                observed[#observed + 1] = {
-                    index = index,
-                    quest_id = quest_id,
-                    source = source or (tonumber(item) and "numeric_item" or nil),
-                    matches_target_object = target_address ~= nil and item_address == target_address,
-                    item_type = tostring(safe(function()
-                        return item:get_type_definition():get_full_name()
-                    end) or type(item)),
-                }
-                if quest_id == target_id
-                    or (target_address ~= nil and item_address == target_address) then
-                    target_index = index
-                    break
-                end
-            end
-            if cursor == nil or target_data == nil or target_index == nil then
-                safe(function()
-                    json.dump_file("MHRiseMonsterCoach/runtime_quest_list_probe.json", {
-                        schema_version = 1,
-                        target_quest_id = target_id,
-                        count = count,
-                        observed = observed,
-                    })
-                end)
-                return false, "Training quest ID unavailable in MR 4-star quest list"
-            end
-            local selected_ok, selected_error = pcall(function() cursor:setIndex(target_index) end)
-            local verified_index = safe(function() return cursor:getIndex() end)
-            if not selected_ok or tonumber(verified_index) ~= tonumber(target_index) then
-                return false, "Failed to select training quest: " .. tostring(selected_error)
-            end
-            posting.quest_menu_selected = true
-        end
-        if current_node == "QuestMenuTop" or current_node == "QuestLevelMenuSelect"
-            or current_node == "QuestOrderListMenuSelect"
-            or current_node == "CreateQuestSession" then
-            if posting.top_menu_selected ~= true then
-                local target = enum_value(
-                    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterTopMenuType",
-                    "Normal_Hall_Master")
-                local list = safe(function() return counter:get_QuestCounterTopMenuList() end)
-                local cursor = safe(function() return counter:get_TopMenuCursor() end)
-                local count = list and safe(function() return list:call("get_Count") end) or 0
-                local target_index
-                for index = 0, (tonumber(count) or 0) - 1 do
-                    local value = safe(function() return list:call("get_Item", index) end)
-                    if tonumber(value) == tonumber(target) then target_index = index break end
-                end
-                if target == nil or cursor == nil or target_index == nil then
-                    return false, "Master Rank quest top-menu entry unavailable"
-                end
-                local selected_ok, selected_error = pcall(function()
-                    cursor:setIndex(target_index)
-                end)
-                if not selected_ok then
-                    return false, "Failed to select Master Rank quest menu: "
-                        .. tostring(selected_error)
-                end
-                local selected = safe(function() return counter:getQuestCounterSelectedTopMenu() end)
-                if tonumber(selected) ~= tonumber(target) then
-                    return false, "Master Rank top-menu verification failed"
-                end
-                posting.top_menu_selected = true
-            end
-            posting.counter_input_frames = posting.counter_input_frames + 1
-            if posting.counter_input_frames < 180 then return nil end
-            posting.counter_input_frames = 0
-            posting.counter_input_attempts = posting.counter_input_attempts + 1
-            if posting.counter_input_attempts > 5 then
-                return false, tostring(current_node)
-                    .. " did not accept five verified confirm inputs"
-            end
-            local request = safe(function()
-                return json.load_file("MHRiseMonsterCoach/dev_probe_request.json")
-            end) or {}
-            safe(function()
-                json.dump_file("MHRiseMonsterCoach/quest_counter_input_request.json", {
-                    schema_version = 1,
-                    session_id = request.session_id,
-                    status = "input_required",
-                    action = {
-                        id = tostring(request.session_id or "") .. ":quest_counter:"
-                            .. tostring(current_node) .. ":"
-                            .. tostring(posting.counter_input_attempts),
-                        kind = "press_key",
-                        virtual_key = 0x46,
-                        node = current_node,
-                        attempt = posting.counter_input_attempts,
-                        delay_ms = 750,
-                    },
-                })
-            end)
-            return nil
-        end
-        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
-        local confirmation_open = gui and (
-            safe(function() return gui:call("isOpenYNInfo") end) == true
-            or safe(function() return gui:call("isOpenServantSelectInfoWindow") end) == true
-            or safe(function() return gui:call("isOpenSelectInfo") end) == true)
-        if confirmation_open then
-            posting.direct_session = true
-            return true
-        end
-        posting.counter_observe_frames = posting.counter_observe_frames + 1
-        if posting.counter_observe_frames < 600 then return nil end
-        local nodes = {}
-        for index = 0, 7 do
-            nodes[index + 1] = safe(function()
-                return counter:call("getCurrentNodeName", index)
-            end)
-        end
-        local cursor_index = function(getter)
-            local cursor = safe(function() return counter:call(getter) end)
-            return cursor and safe(function() return cursor:getIndex() end) or nil
-        end
-        safe(function()
-            json.dump_file("MHRiseMonsterCoach/runtime_quest_counter_live_probe.json", {
-                schema_version = 1,
-                policy = "read_only_live_fsm_snapshot_before_any_action_injection",
-                nodes = nodes,
-                quest_counter_state = safe(function() return counter:get_QuestCounterState() end),
-                top_menu_type = safe(function() return counter:get_QuestTopMenuType() end),
-                sub_menu_type = safe(function() return counter:get_QuestSubMenuType() end),
-                top_cursor_index = cursor_index("get_TopMenuCursor"),
-                sub_cursor_index = cursor_index("get_SubMenuCursor"),
-                level_cursor_index = cursor_index("get_LevelMenuCursor"),
-                rank_cursor_index = cursor_index("get_RankMenuCursor"),
-                quest_cursor_index = cursor_index("get_QuestMenuCursor"),
-                quest_menu_open = safe(function() return counter:isOpenQuestCounterMenu() end),
-            })
+        local identifier_ok, identifier_error = pcall(function()
+            counter:call("setQuestIdentifierQuestNo", self.runtime.profile.training_quest.id)
         end)
-        return false, "Quest counter live FSM probe captured"
+        if not identifier_ok then
+            return false, "Failed to set training quest identifier: " .. tostring(identifier_error)
+        end
+        local action = safe(function()
+            return sdk.create_instance(
+                "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
+        end)
+        if action == nil then return false, "Failed to create quest session Action" end
+        local info_ok, info_error = pcall(function() action:setQuestInfoToQuestManager() end)
+        if not info_ok then
+            safe(function() action:release() end)
+            return false, "Failed to copy quest info to QuestManager: " .. tostring(info_error)
+        end
+        local create_ok, create_error = pcall(function() action:routine_CreateSession() end)
+        if not create_ok then
+            safe(function() action:release() end)
+            return false, "Failed to create native quest session: " .. tostring(create_error)
+        end
+        self.runtime.quest_posting.action = action
+        self.runtime.quest_posting.action_arg = nil
+        self.runtime.quest_posting.direct_session = true
+        return true
     end
 
     function api:select_quest()
@@ -780,14 +563,6 @@ function M.clear_quest_posting(self, close_windows)
     local posting = self.quest_posting
     posting.active = false
     posting.direct_session = false
-    posting.counter_state_initialized = false
-    posting.counter_input_attempts = 0
-    posting.counter_input_frames = 0
-    posting.counter_input_node = nil
-    posting.counter_observe_frames = 0
-    posting.top_menu_selected = false
-    posting.level_menu_selected = false
-    posting.quest_menu_selected = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
