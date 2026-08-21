@@ -44,7 +44,7 @@ $request = [ordered]@{
     source_version = $sourceVersion
     auto_load_save = $true
     require_combat_area = [bool]$RequireCombatArea
-    auto_native_arena_transfer = [bool]$RequireCombatArea
+    auto_native_arena_transfer = $false
 }
 $request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Encoding utf8
 [ordered]@{

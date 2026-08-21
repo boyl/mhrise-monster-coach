@@ -1871,25 +1871,7 @@ function M.area_snapshot(self)
 end
 
 function M.request_arena_transfer(self)
-    local context = self.last_context or {}
-    if not context.in_quest or context.is_online
-        or tonumber(context.quest_no) ~= self.profile.training_quest.id then
-        return false, "Arena transfer is limited to the offline training quest"
-    end
-    local focus = self.arena_transfer_focus
-    if focus == nil or focus.marker == nil then
-        return false, "Move to the arena transfer prompt first", true
-    end
-    local accessible = safe(function() return focus.marker:call("get_IsAccessible") end)
-    if accessible ~= true then return false, "Arena transfer prompt is not accessible", true end
-    local ok, reason = pcall(function()
-        local stage = sdk.get_managed_singleton("snow.stage.StageManager")
-        if stage == nil then error("StageManager unavailable") end
-        stage:call("callAreaMoveQuest")
-    end)
-    if not ok then return false, "Native arena transfer request failed: " .. tostring(reason) end
-    self.arena_transfer_focus = nil
-    return true, "Native arena warp flow executed"
+    return false, "Automatic arena transfer disabled pending verified request initialization"
 end
 
 function M.capture_anchors(self)
