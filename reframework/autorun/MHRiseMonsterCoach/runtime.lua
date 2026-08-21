@@ -74,6 +74,7 @@ function M.new(config, profile)
         },
         arena_transfer_focus = nil,
         arena_transfer_trace = {},
+        arena_transfer_stage_trace = {},
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
@@ -138,12 +139,77 @@ function M.new(config, profile)
     local transfer_ready, transfer_reason = M.install_arena_transfer_focus_hook(self)
     self.capabilities.arena_transfer = transfer_ready
     self.capabilities.arena_transfer_reason = transfer_reason
+    local stage_trace_ready, stage_trace_reason = M.install_arena_transfer_stage_trace_hooks(self)
+    self.capabilities.arena_transfer_stage_trace = stage_trace_ready
+    self.capabilities.arena_transfer_stage_trace_reason = stage_trace_reason
     self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
     M.install_startup_flow_hooks(self)
     M.dump_in_place_reset_metadata(self)
     M.dump_in_place_type_candidates(self)
     M.dump_title_flow_metadata(self)
     return setmetatable(self, { __index = M })
+end
+
+local function trace_enum_value(value)
+    if value == nil then return nil end
+    return safe(function() return tonumber(value:get_field("value__")) end) or tonumber(value)
+end
+
+local function trace_area_move_request(request)
+    if request == nil then return nil end
+    local function read(name)
+        return trace_enum_value(safe(function() return request:call(name) end))
+    end
+    return {
+        address = tostring(safe(function() return request:get_address() end)),
+        area_move_type = read("get_AreaMoveType"),
+        area_no_type = read("get_AreaNoType"),
+        player_area_move_type = read("get_PlayerAreaMoveType"),
+        warp_type = read("get_WarpType"),
+    }
+end
+
+function M.install_arena_transfer_stage_trace_hooks(self)
+    local candidates = {
+        { "snow.stage.StageManager", "setWarpAreaMove" },
+        { "snow.stage.StageManager", "requestAreaMoveQuest" },
+        { "snow.stage.StageManager", "callAreaMoveQuest" },
+        { "snow.stage.StageManager", "notifyAreaMove" },
+        { "snow.access.QuestAreaMovePopManager", "notifyAreaMove" },
+    }
+    local installed = 0
+    local errors = {}
+    for _, candidate in ipairs(candidates) do
+        local type_name, method_name = candidate[1], candidate[2]
+        local method = find_method(type_name, method_name)
+        if method then
+            local ok, reason = pcall(function()
+                sdk.hook(method, function(args)
+                    local request = safe(function() return sdk.to_managed_object(args[3]) end)
+                    local marker = safe(function() return sdk.to_managed_object(args[4]) end)
+                    local event = {
+                        sequence = #self.arena_transfer_stage_trace + 1,
+                        clock = os.clock(),
+                        name = type_name .. "." .. method_name,
+                        request = trace_area_move_request(request),
+                        marker_address = marker and tostring(safe(function() return marker:get_address() end)) or nil,
+                    }
+                    self.arena_transfer_stage_trace[#self.arena_transfer_stage_trace + 1] = event
+                    while #self.arena_transfer_stage_trace > 64 do table.remove(self.arena_transfer_stage_trace, 1) end
+                    safe(function()
+                        json.dump_file("MHRiseMonsterCoach/runtime_arena_transfer_stage_trace.json", {
+                            schema_version = 1,
+                            policy = "passive_native_stage_area_transfer_trace",
+                            events = self.arena_transfer_stage_trace,
+                        })
+                    end)
+                end, function(retval) return retval end)
+            end)
+            if ok then installed = installed + 1 else errors[#errors + 1] = tostring(reason) end
+        end
+    end
+    return installed > 0, installed > 0 and nil
+        or (errors[1] or "Stage area transfer trace hooks unavailable")
 end
 
 function M.install_arena_transfer_focus_hook(self)
