@@ -92,6 +92,7 @@ function M.new(config, profile)
             counter_input_attempts = 0,
             counter_input_frames = 0,
             counter_input_node = nil,
+            counter_observe_frames = 0,
             quest_menu_selected = false,
             action = nil,
             action_arg = nil,
@@ -488,6 +489,7 @@ function M.quest_restart_api(self)
             posting.counter_input_node = current_node
             posting.counter_input_frames = 0
             posting.counter_input_attempts = 0
+            posting.counter_observe_frames = 0
         end
         if current_node == "QuestLevelMenuSelect"
             and self.runtime.quest_posting.level_menu_selected ~= true then
@@ -630,6 +632,17 @@ function M.quest_restart_api(self)
             end)
             return nil
         end
+        local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
+        local confirmation_open = gui and (
+            safe(function() return gui:call("isOpenYNInfo") end) == true
+            or safe(function() return gui:call("isOpenServantSelectInfoWindow") end) == true
+            or safe(function() return gui:call("isOpenSelectInfo") end) == true)
+        if confirmation_open then
+            posting.direct_session = true
+            return true
+        end
+        posting.counter_observe_frames = posting.counter_observe_frames + 1
+        if posting.counter_observe_frames < 600 then return nil end
         local nodes = {}
         for index = 0, 7 do
             nodes[index + 1] = safe(function()
@@ -771,6 +784,7 @@ function M.clear_quest_posting(self, close_windows)
     posting.counter_input_attempts = 0
     posting.counter_input_frames = 0
     posting.counter_input_node = nil
+    posting.counter_observe_frames = 0
     posting.top_menu_selected = false
     posting.level_menu_selected = false
     posting.quest_menu_selected = false
