@@ -119,6 +119,7 @@ public static class MonsterCoachInput {
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
 $combatEntryAttemptedForStates = [Collections.Generic.HashSet[string]]::new()
+$lastCombatPulse = [DateTime]::MinValue
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 do {
@@ -165,13 +166,17 @@ do {
         if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -in @('wait_stable', 'verify_restart') -and
             [int]$report.areas.player -eq 0 -and
-            -not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
+            $report.areas.arena_transfer_ready -ne $true -and
+            ((Get-Date) - $lastCombatPulse).TotalMilliseconds -ge 750) {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($game) {
                 $game.Refresh()
-                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 10000)) {
-                    [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                    Write-Host "Combat entry ready during $($report.state): waiting for native automatic transfer"
+                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 350)) {
+                    $lastCombatPulse = Get-Date
+                    if (-not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
+                        [void]$combatEntryAttemptedForStates.Add([string]$report.state)
+                        Write-Host "Approaching combat entry during $($report.state) with short movement pulses"
+                    }
                 }
             }
         }

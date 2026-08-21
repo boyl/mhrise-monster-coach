@@ -1864,6 +1864,9 @@ function M.area_snapshot(self)
         same_area = player_area ~= nil and enemy_area ~= nil and player_area == enemy_area,
         player_position = serializable_vector(player_position, false),
         enemy_position = serializable_vector(enemy_position, false),
+        arena_transfer_ready = self.arena_transfer_focus ~= nil
+            and self.arena_transfer_focus.marker ~= nil
+            and safe(function() return self.arena_transfer_focus.marker:call("get_IsAccessible") end) == true,
     }
 end
 
