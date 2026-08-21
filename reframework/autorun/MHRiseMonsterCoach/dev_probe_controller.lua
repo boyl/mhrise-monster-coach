@@ -132,7 +132,8 @@ function M:update()
         local areas = self.api:area_snapshot()
         local combat_ready = self.request.require_combat_area ~= true
             or (areas.player ~= nil and areas.player ~= 0)
-        if self.request.require_combat_area == true and not combat_ready
+        if self.request.require_combat_area == true and self.request.auto_native_arena_transfer == true
+            and not combat_ready
             and self.state_frames % 30 == 1 then
             local ok, reason, retry = self.api:request_arena_transfer()
             self.arena_transfer = { attempted = true, ok = ok, reason = reason, retry = retry }
@@ -188,7 +189,8 @@ function M:update()
         local areas = self.api:area_snapshot()
         local combat_ready = self.request.require_combat_area ~= true
             or (areas.player ~= nil and areas.player ~= 0)
-        if self.request.require_combat_area == true and not combat_ready
+        if self.request.require_combat_area == true and self.request.auto_native_arena_transfer == true
+            and not combat_ready
             and self.state_frames % 30 == 1 then
             local ok, reason, retry = self.api:request_arena_transfer()
             self.arena_transfer = { attempted = true, ok = ok, reason = reason, retry = retry }

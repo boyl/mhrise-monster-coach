@@ -170,7 +170,7 @@ do {
                 $game.Refresh()
                 if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 10000)) {
                     [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                    Write-Host "Automatic combat entry: reached transfer prompt during $($report.state); native interaction requested by the mod"
+                    Write-Host "Combat entry ready during $($report.state): press F once in the game to capture the native transfer sequence"
                 }
             }
         }

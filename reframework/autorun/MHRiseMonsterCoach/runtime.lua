@@ -73,6 +73,7 @@ function M.new(config, profile)
             lifecycle_hook_failures = {},
         },
         arena_transfer_focus = nil,
+        arena_transfer_trace = {},
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
@@ -151,11 +152,20 @@ function M.install_arena_transfer_focus_hook(self)
         { "snow.access.ObjectPopMarker", "eventIntoFocus" },
         { "snow.access.ObjectPopMarker", "eventIntoAccessable" },
         { "snow.access.ObjectPopMarker", "eventOnAccessable" },
+        { "snow.access.ObjectPopMarker", "eventAccessStart" },
+        { "snow.access.ObjectPopMarker", "eventAccess" },
+        { "snow.access.ObjectPopMarker", "eventAccessEnd" },
+        { "snow.access.ObjectPopMarker", "callBeforeAccessMethod" },
+        { "snow.access.ObjectPopMarker", "callAccessStartMethod" },
+        { "snow.access.ObjectPopMarker", "callAccessMethod" },
+        { "snow.access.ObjectPopMarker", "callAccessEndMethod" },
     }
     local installed = 0
     local errors = {}
     for _, candidate in ipairs(candidates) do
-        local method = find_method(candidate[1], candidate[2])
+        local candidate_type = candidate[1]
+        local candidate_method = candidate[2]
+        local method = find_method(candidate_type, candidate_method)
         if method then
             local ok, reason = pcall(function()
                 sdk.hook(method, function(args)
@@ -167,11 +177,27 @@ function M.install_arena_transfer_focus_hook(self)
                     local second = safe(function() return sdk.to_managed_object(args[4]) end)
                     if string.find(tostring(marker_type), "QuestAreaMovePopMarker", 1, true)
                         and first and second then
+                        self.arena_transfer_trace[#self.arena_transfer_trace + 1] = {
+                            sequence = #self.arena_transfer_trace + 1,
+                            clock = os.clock(),
+                            name = candidate_type .. "." .. candidate_method,
+                            marker_address = tostring(safe(function() return marker:get_address() end)),
+                            first_address = tostring(safe(function() return first:get_address() end)),
+                            second_address = tostring(safe(function() return second:get_address() end)),
+                        }
+                        while #self.arena_transfer_trace > 128 do table.remove(self.arena_transfer_trace, 1) end
+                        safe(function()
+                            json.dump_file("MHRiseMonsterCoach/runtime_arena_transfer_trace.json", {
+                                schema_version = 1,
+                                policy = "passive_native_area_transfer_trace",
+                                events = self.arena_transfer_trace,
+                            })
+                        end)
                         self.arena_transfer_focus = {
                             marker = marker,
                             first = first,
                             second = second,
-                            source = candidate[1] .. "." .. candidate[2],
+                            source = candidate_type .. "." .. candidate_method,
                             clock = os.clock(),
                         }
                     end
