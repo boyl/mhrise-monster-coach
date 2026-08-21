@@ -32,6 +32,7 @@ function M.new(api, quest_id, options)
         completed_sessions = {},
         arena_transfer = { attempted = false },
         monster_respawn = { attempted = false, state = "idle" },
+        respawn_failure = nil,
     }, { __index = M })
 end
 
@@ -98,6 +99,8 @@ function M:accept_request(request, context)
     if request.auto_load_save == true and context.in_quest ~= true
         and context.player_found ~= true then return false end
     self.request = request
+    self.monster_respawn = { attempted = false, state = "idle" }
+    self.respawn_failure = nil
     if context.is_online or context.build_supported == false then
         return self:fail("Developer probe requires a supported offline runtime")
     end
@@ -194,7 +197,27 @@ function M:update()
         }
         if self.state_frames % 15 == 0 then self:report("running") end
         if state == "complete" then return self:complete() end
-        if state == "failed" then return self:fail(reason or "Monster respawn lifecycle failed") end
+        if state == "failed" then
+            self.respawn_failure = reason or "Monster respawn lifecycle failed"
+            self.quest_flow:reset_terminal()
+            local ok, recovery_reason = self.quest_flow:start(context)
+            if not ok then
+                return self:fail(self.respawn_failure .. "; F7 recovery failed: "
+                    .. tostring(recovery_reason))
+            end
+            self:set_state("monster_respawn_recovery")
+        end
+    elseif self.state == "monster_respawn_recovery" then
+        self.quest_flow:update(context)
+        if self.state_frames % 30 == 0 then self:report("running") end
+        if self.quest_flow.state == "failed" then
+            return self:fail(self.respawn_failure .. "; F7 recovery failed: "
+                .. tostring(self.quest_flow.error))
+        end
+        if self.quest_flow.state == "complete" then
+            self.monster_respawn.recovered = true
+            return self:fail(self.respawn_failure .. "; F7 recovery completed")
+        end
     elseif self.state == "wait_collection" then
         if self.state_frames % 15 == 0 then self.api:observe_environment() end
         if self.state_frames >= self.collect_wait_frames then

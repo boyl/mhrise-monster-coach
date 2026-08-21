@@ -48,6 +48,14 @@
 
 `tools/run_probe_session.ps1` 写入带随机 Session ID 的显式开发请求。稳定引导层可在运行中读取新请求，并自动完成大厅接任务、进入陪练任务、只读基线采样、F7 原生任务重开和重开后采样，最终写入 `dev_probe_report.json`。正常启动且没有请求文件时不会触发；不调用尚未验证的 F9 原位重置路径，也不自动关闭游戏。
 
+自动进场采用 `Shift + W` 冲刺短脉冲，并以 `QuestAreaMovePopMarker` 的真实焦点生命周期作为停车门禁；提示可交互后通过聚焦游戏窗口发送原生 F 输入。该流程不会调用或覆盖 StageManager 缓存的区域移动请求。
+
+## 单体轰龙重生探针结论
+
+已验证旧实例可通过 `EnemyManager.destroyEnemy` 与 `EnemySetInfo.destroyEnemy` 安全销毁。活动任务内即使重新创建并注册 EnemySetInfo，且 `SetStatus=0`、`DestroyStatus=0`、`_IsReceiveCreateEnemy=true`，`createEnemyFromSetInfo`、`createEnemyFromSetInfoNetSend` 与 `notifyCreateEnemy` 均未产生 OwnerEnemy。说明大怪生成还依赖任务启动阶段建立的更高层上下文，不能把这些公共方法拼接成可靠的局内重生。
+
+因此 F9 用户入口继续锁定。开发探针保留失败关闭、唯一调用、注册表数量诊断与超时门禁；失败后必须自动走已验证的 F7 流程恢复任务，不能把游戏留在无怪物状态。
+
 主动生成环境生物不再属于默认自动验收。当前运行时的 `_EcPrefabList` 容器与旧版 SpiritBirds 使用的 `mItems` 布局不一致；一次尝试通用集合读取导致原生进程退出，因此该写入候选保持显式关闭。自动验收只调用场景组件枚举和标量字段读取。
 
 ### 怪物原生重建候选筛选
