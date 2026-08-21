@@ -1766,6 +1766,16 @@ read_area_no = function(self, character)
     return safe(function() return tonumber(value:get_field("value__")) end)
 end
 
+function M.area_snapshot(self)
+    local player_area = read_area_no(self, self.player)
+    local enemy_area = read_area_no(self, self.enemy)
+    return {
+        player = player_area,
+        enemy = enemy_area,
+        same_area = player_area ~= nil and enemy_area ~= nil and player_area == enemy_area,
+    }
+end
+
 function M.capture_anchors(self)
     if self.player == nil or self.enemy == nil then return false, "Player or Tigrex unavailable" end
     local player_transform = get_transform(self.player)

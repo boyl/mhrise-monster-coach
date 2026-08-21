@@ -54,6 +54,9 @@ function M.start()
     function probe_api:environment_evidence()
         return runtime:environment_creature_evidence()
     end
+    function probe_api:area_snapshot()
+        return runtime:area_snapshot()
+    end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end

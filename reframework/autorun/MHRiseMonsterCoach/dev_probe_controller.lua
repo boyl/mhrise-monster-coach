@@ -59,6 +59,7 @@ function M:report(status, reason)
             error = self.quest_flow.error,
         },
         environment = evidence,
+        areas = self.api:area_snapshot(),
     }
     self.api:write_report(report)
     if report.session_id then self.completed_sessions[report.session_id] = true end
