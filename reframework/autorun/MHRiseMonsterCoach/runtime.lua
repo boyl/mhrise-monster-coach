@@ -450,7 +450,7 @@ function M.quest_restart_api(self)
         end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
         local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
-        if current_node == "QuestMenuTop" or current_node == "QuestMenuSub" then
+        if current_node == "QuestMenuTop" then
             local posting = self.runtime.quest_posting
             posting.counter_input_frames = posting.counter_input_frames + 1
             if posting.counter_input_frames < 180 then return nil end
@@ -727,6 +727,10 @@ local TITLE_FLOW_TYPES = {
     "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu",
     "snow.gui.fsm.title.GuiTitleFsmLoadSaveData",
     "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterTopMenuType",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterSubMenuType",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterLevelMenuType",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterRankMenuType",
     "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
     "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction",
 }
