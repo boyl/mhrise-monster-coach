@@ -431,36 +431,33 @@ function M.quest_restart_api(self)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
-        local identifier_ok, identifier_error = pcall(function()
-            counter:call("setQuestIdentifierQuestNo", self.runtime.profile.training_quest.id)
+        local nodes = {}
+        for index = 0, 7 do
+            nodes[index + 1] = safe(function()
+                return counter:call("getCurrentNodeName", index)
+            end)
+        end
+        local cursor_index = function(getter)
+            local cursor = safe(function() return counter:call(getter) end)
+            return cursor and safe(function() return cursor:getIndex() end) or nil
+        end
+        safe(function()
+            json.dump_file("MHRiseMonsterCoach/runtime_quest_counter_live_probe.json", {
+                schema_version = 1,
+                policy = "read_only_live_fsm_snapshot_before_any_action_injection",
+                nodes = nodes,
+                quest_counter_state = safe(function() return counter:get_QuestCounterState() end),
+                top_menu_type = safe(function() return counter:get_QuestTopMenuType() end),
+                sub_menu_type = safe(function() return counter:get_QuestSubMenuType() end),
+                top_cursor_index = cursor_index("get_TopMenuCursor"),
+                sub_cursor_index = cursor_index("get_SubMenuCursor"),
+                level_cursor_index = cursor_index("get_LevelMenuCursor"),
+                rank_cursor_index = cursor_index("get_RankMenuCursor"),
+                quest_cursor_index = cursor_index("get_QuestMenuCursor"),
+                quest_menu_open = safe(function() return counter:isOpenQuestCounterMenu() end),
+            })
         end)
-        if not identifier_ok then
-            return false, "Failed to set training quest identifier: " .. tostring(identifier_error)
-        end
-        local action = safe(function()
-            return sdk.create_instance(
-                "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction"):add_ref()
-        end)
-        if action == nil then return false, "Failed to create quest session Action" end
-        local info_ok, info_error = pcall(function() action:setQuestInfoToQuestManager() end)
-        if not info_ok then
-            safe(function() action:release() end)
-            return false, "Failed to copy quest info to QuestManager: " .. tostring(info_error)
-        end
-        local create_ok, create_error = pcall(function() action:routine_CreateSession() end)
-        if not create_ok then
-            safe(function() action:release() end)
-            return false, "Failed to create native quest session: " .. tostring(create_error)
-        end
-        local order_ok, order_error = pcall(function() action:routine_NomarlQuestOrderFlow() end)
-        if not order_ok then
-            safe(function() action:release() end)
-            return false, "Failed to open native quest order flow: " .. tostring(order_error)
-        end
-        self.runtime.quest_posting.action = action
-        self.runtime.quest_posting.action_arg = nil
-        self.runtime.quest_posting.direct_session = true
-        return true
+        return false, "Quest counter live FSM probe captured"
     end
 
     function api:select_quest()
