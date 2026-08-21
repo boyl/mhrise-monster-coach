@@ -367,6 +367,14 @@ function M.install_quest_posting_hooks(self)
                 "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterAccessType", "HallCounter")
             if counter and access ~= nil then counter:call("set_QuestCounterType", access) end
         end },
+        { "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
+            "update(via.behaviortree.ActionArg)", nil, function()
+                local counter = sdk.get_managed_singleton(
+                    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
+                local success = enum_value(
+                    "snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
+                if counter and success ~= nil then counter:setBaseBranchValue(success) end
+            end },
         { "snow.gui.GuiManager", "IsPlayerAllInputDisable()", nil, true_post },
         { "snow.gui.GuiManager", "IsCanFieldObjectAccessSub()", nil, true_post },
         { "snow.gui.GuiManager", "isDisplayForHeadMessage(System.Boolean)", nil, true_post },
@@ -428,6 +436,8 @@ function M.quest_restart_api(self)
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
         if safe(function() return counter:isOpenQuestCounterMenu() end) ~= true then return nil end
+        local current_node = safe(function() return counter:call("getCurrentNodeName", 0) end)
+        if current_node == "QuestMenuTop" then return nil end
         local nodes = {}
         for index = 0, 7 do
             nodes[index + 1] = safe(function()
