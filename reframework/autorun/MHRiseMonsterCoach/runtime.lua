@@ -629,6 +629,10 @@ function M.quest_restart_api(self)
             end)
             return nil
         end
+        if current_node == "CreateQuestSession" then
+            posting.direct_session = true
+            return true
+        end
         local nodes = {}
         for index = 0, 7 do
             nodes[index + 1] = safe(function()
