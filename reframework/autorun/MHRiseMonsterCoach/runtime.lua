@@ -457,6 +457,7 @@ function M.quest_restart_api(self)
             return false, "Quest posting hooks unavailable: "
                 .. tostring(self.runtime.capabilities.quest_posting_reason)
         end
+        M.start_quest_reset_trace(self.runtime, self.runtime.last_context)
         return M.request_native_quest_reset(self.runtime)
     end
 
@@ -592,10 +593,12 @@ function M.quest_restart_api(self)
     end
 
     function api:finish_posting()
+        M.flush_quest_reset_trace(self.runtime, self.runtime.last_context, true)
         self.runtime:clear_quest_posting(false)
     end
 
     function api:cancel_posting()
+        M.flush_quest_reset_trace(self.runtime, self.runtime.last_context, true)
         self.runtime:clear_quest_posting(true)
     end
 
@@ -1602,6 +1605,7 @@ function M.context(self)
         game_name = self.game_name,
         tdb_version = self.tdb_version,
     }
+    M.flush_quest_reset_trace(self, self.last_context, false)
     return self.last_context
 end
 
