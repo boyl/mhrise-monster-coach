@@ -75,6 +75,7 @@ function M.new(config, profile)
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
         enemy_spawn_contract_address = nil,
+        enemy_spawn_contract_history = {},
         startup_flow = {
             phase = nil,
             hooks = {},
@@ -1315,6 +1316,7 @@ function M.capture_enemy_spawn_contract(self, enemy)
     local payload = {
         schema_version = 1,
         policy = "read_only_current_enemy_spawn_contract",
+        clock = os.clock(),
         quest_id = self.last_context and self.last_context.quest_no or self.profile.training_quest.id,
         enemy = {
             address = tostring(enemy_address),
@@ -1344,6 +1346,15 @@ function M.capture_enemy_spawn_contract(self, enemy)
     }
     local written = safe(function()
         json.dump_file("MHRiseMonsterCoach/runtime_enemy_spawn_contract.json", payload)
+        self.enemy_spawn_contract_history[#self.enemy_spawn_contract_history + 1] = payload
+        while #self.enemy_spawn_contract_history > 16 do
+            table.remove(self.enemy_spawn_contract_history, 1)
+        end
+        json.dump_file("MHRiseMonsterCoach/runtime_enemy_spawn_contract_history.json", {
+            schema_version = 1,
+            policy = "read_only_enemy_spawn_contract_lifecycle",
+            samples = self.enemy_spawn_contract_history,
+        })
         return true
     end) == true
     if written then self.enemy_spawn_contract_address = set_info_address end
