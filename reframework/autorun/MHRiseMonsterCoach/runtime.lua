@@ -675,6 +675,9 @@ local TITLE_FLOW_TYPES = {
     "snow.gui.fsm.title.GuiTitleFsm_LoadDataSelectMenuEnd",
     "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu",
     "snow.gui.fsm.title.GuiTitleFsmLoadSaveData",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmTopMenuAction",
+    "snow.gui.fsm.questcounter.GuiQuestCounterFsmCreateQuestSessionAction",
 }
 
 function M.dump_title_flow_metadata(self)
@@ -715,7 +718,8 @@ function M.dump_title_flow_metadata(self)
             table.sort(entry.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
             if requested_name == "snow.gui.fsm.title.GuiTitleFsmManager"
                 or requested_name == "snow.gui.fsm.title.GuiTitleMenuFsmManager"
-                or requested_name == "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu" then
+                or requested_name == "snow.gui.fsm.title.GuiTitleFsmToLoadDataSelectMenu"
+                or string.find(requested_name, "GuiQuestCounterFsm", 1, true) ~= nil then
                 entry.hierarchy = {}
                 local current, depth = type_def, 0
                 while current and depth < 12 do
