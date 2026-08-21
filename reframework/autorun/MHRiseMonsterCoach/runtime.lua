@@ -570,7 +570,8 @@ function M.quest_restart_api(self)
             posting.quest_menu_selected = true
         end
         if current_node == "QuestMenuTop" or current_node == "QuestLevelMenuSelect"
-            or current_node == "QuestOrderListMenuSelect" then
+            or current_node == "QuestOrderListMenuSelect"
+            or current_node == "CreateQuestSession" then
             if posting.top_menu_selected ~= true then
                 local target = enum_value(
                     "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterTopMenuType",
@@ -628,10 +629,6 @@ function M.quest_restart_api(self)
                 })
             end)
             return nil
-        end
-        if current_node == "CreateQuestSession" then
-            posting.direct_session = true
-            return true
         end
         local nodes = {}
         for index = 0, 7 do
