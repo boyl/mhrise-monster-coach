@@ -1885,6 +1885,7 @@ function M.request_arena_transfer(self)
             focus.request,
             focus.marker
         )
+        stage:call("callAreaMoveQuest")
     end)
     if not ok then return false, "Native arena transfer request failed: " .. tostring(reason) end
     self.arena_transfer_focus = nil
