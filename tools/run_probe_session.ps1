@@ -169,8 +169,12 @@ do {
             if ($game) {
                 $game.Refresh()
                 if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x57, 10000)) {
+                    Start-Sleep -Milliseconds 500
+                    if (-not [MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
+                        throw "Reached the combat-area interaction point but failed to press F during $($report.state)."
+                    }
                     [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                    Write-Host "Automatic combat entry: held forward during $($report.state)"
+                    Write-Host "Automatic combat entry: held forward and pressed F during $($report.state)"
                 }
             }
         }
