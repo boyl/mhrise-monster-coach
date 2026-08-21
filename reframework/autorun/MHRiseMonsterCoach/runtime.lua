@@ -34,6 +34,34 @@ local function enum_value(type_name, field_name)
     return field and safe(function() return field:get_data(nil) end) or nil
 end
 
+local function read_quest_list_item_id(item)
+    local direct = tonumber(item)
+    if direct ~= nil then return direct end
+    if item == nil or sdk.is_managed_object(item) ~= true then return nil end
+
+    local type_def = safe(function() return item:get_type_definition() end)
+    if type_def == nil then return nil end
+    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+        local name = string.lower(tostring(safe(function() return method:get_name() end) or ""))
+        local parameter_count = safe(function() return #method:get_params() end)
+        if parameter_count == 0 and string.sub(name, 1, 4) == "get_"
+            and (string.find(name, "questno", 1, true)
+                or string.find(name, "questid", 1, true)) then
+            local value = safe(function() return method:call(item) end)
+            if tonumber(value) ~= nil then return tonumber(value), name end
+        end
+    end
+    for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+        local name = string.lower(tostring(safe(function() return field:get_name() end) or ""))
+        if string.find(name, "questno", 1, true)
+            or string.find(name, "questid", 1, true) then
+            local value = safe(function() return field:get_data(item) end)
+            if tonumber(value) ~= nil then return tonumber(value), name end
+        end
+    end
+    return nil
+end
+
 function M.new(config, profile)
     local self = {
         config = config,
@@ -63,6 +91,8 @@ function M.new(config, profile)
             counter_state_initialized = false,
             counter_input_attempts = 0,
             counter_input_frames = 0,
+            counter_input_node = nil,
+            quest_menu_selected = false,
             action = nil,
             action_arg = nil,
             hooks = {},
@@ -453,6 +483,12 @@ function M.quest_restart_api(self)
         if string.find(tostring(current_node or ""), "OpenWithAnim", 1, true) then
             return nil
         end
+        local posting = self.runtime.quest_posting
+        if posting.counter_input_node ~= current_node then
+            posting.counter_input_node = current_node
+            posting.counter_input_frames = 0
+            posting.counter_input_attempts = 0
+        end
         if current_node == "QuestLevelMenuSelect"
             and self.runtime.quest_posting.level_menu_selected ~= true then
             local target = enum_value(
@@ -482,8 +518,47 @@ function M.quest_restart_api(self)
             end
             self.runtime.quest_posting.level_menu_selected = true
         end
-        if current_node == "QuestMenuTop" or current_node == "QuestLevelMenuSelect" then
-            local posting = self.runtime.quest_posting
+        if current_node == "QuestOrderListMenuSelect"
+            and posting.quest_menu_selected ~= true then
+            local list = safe(function() return counter:get_QuestMenuList() end)
+            local cursor = safe(function() return counter:get_QuestMenuCursor() end)
+            local count = list and safe(function() return list:call("get_Count") end) or 0
+            local target_id = tonumber(self.runtime.profile.training_quest.id)
+            local target_index
+            local observed = {}
+            for index = 0, (tonumber(count) or 0) - 1 do
+                local item = safe(function() return list:call("get_Item", index) end)
+                local quest_id, source = read_quest_list_item_id(item)
+                observed[#observed + 1] = {
+                    index = index,
+                    quest_id = quest_id,
+                    source = source or (tonumber(item) and "numeric_item" or nil),
+                    item_type = tostring(safe(function()
+                        return item:get_type_definition():get_full_name()
+                    end) or type(item)),
+                }
+                if quest_id == target_id then target_index = index break end
+            end
+            if cursor == nil or target_index == nil then
+                safe(function()
+                    json.dump_file("MHRiseMonsterCoach/runtime_quest_list_probe.json", {
+                        schema_version = 1,
+                        target_quest_id = target_id,
+                        count = count,
+                        observed = observed,
+                    })
+                end)
+                return false, "Training quest ID unavailable in MR 4-star quest list"
+            end
+            local selected_ok, selected_error = pcall(function() cursor:setIndex(target_index) end)
+            local verified_index = safe(function() return cursor:getIndex() end)
+            if not selected_ok or tonumber(verified_index) ~= tonumber(target_index) then
+                return false, "Failed to select training quest: " .. tostring(selected_error)
+            end
+            posting.quest_menu_selected = true
+        end
+        if current_node == "QuestMenuTop" or current_node == "QuestLevelMenuSelect"
+            or current_node == "QuestOrderListMenuSelect" then
             if posting.top_menu_selected ~= true then
                 local target = enum_value(
                     "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager.QuestCounterTopMenuType",
@@ -682,8 +757,10 @@ function M.clear_quest_posting(self, close_windows)
     posting.counter_state_initialized = false
     posting.counter_input_attempts = 0
     posting.counter_input_frames = 0
+    posting.counter_input_node = nil
     posting.top_menu_selected = false
     posting.level_menu_selected = false
+    posting.quest_menu_selected = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
