@@ -56,6 +56,22 @@ assert(async.state == "complete" and async.result == async_owner,
 local invalid = MonsterRespawn.new(api)
 assert(invalid:start({}) == false, "missing runtime handles are rejected")
 
+local pending_calls = 0
+local pending_api = {}
+function pending_api:request_destroy() return true end
+function pending_api:is_enemy_absent() return true end
+function pending_api:request_create()
+    pending_calls = pending_calls + 1
+    if pending_calls < 3 then return nil, "settling" end
+    return true, { id = "settled-tigrex" }
+end
+function pending_api:find_created_enemy(_, candidate) return candidate end
+local pending = MonsterRespawn.new(pending_api, { stable_frames = 1, timeout_frames = 20 })
+assert(pending:start(contract))
+for _ = 1, 6 do pending:update() end
+assert(pending.state == "complete" and pending_calls == 3,
+    "pending native preparation is retried without failing or duplicating the lifecycle")
+
 local timeout_api = {}
 function timeout_api:request_destroy() return true end
 function timeout_api:is_enemy_absent() return false end

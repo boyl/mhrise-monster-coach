@@ -77,9 +77,11 @@ function M:update()
         end
     elseif self.state == M.states.REQUEST_CREATE then
         local ok, enemy_or_reason = self.api:request_create(self.contract)
-        if not ok then return self:fail(enemy_or_reason) end
-        self.result = enemy_or_reason
-        self:set_state(M.states.WAIT_PRESENT)
+        if ok == false then return self:fail(enemy_or_reason) end
+        if ok == true then
+            self.result = enemy_or_reason
+            self:set_state(M.states.WAIT_PRESENT)
+        end
     elseif self.state == M.states.WAIT_PRESENT then
         local enemy = self.api:find_created_enemy(self.contract, self.result)
         if enemy ~= nil then

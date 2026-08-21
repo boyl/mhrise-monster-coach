@@ -1640,17 +1640,31 @@ function M.monster_respawn_api(runtime)
             or runtime.methods.enemy_create_from_set == nil or contract.enemy_set_param == nil then
             return false, "Native monster create contract unavailable"
         end
-        local old_set_info = contract.set_info
-        local registry = safe(function() return manager:call("getEnemySetInfoList") end)
-            or safe(function() return manager:get_field("_EnemySetInfoList") end)
-        if registry == nil then return false, "EnemySetInfo registry unavailable" end
+        if contract.create_wait_frames ~= nil and contract.create_wait_frames > 0 then
+            contract.create_wait_frames = contract.create_wait_frames - 1
+            return nil, "Waiting for replacement EnemySetInfo to settle"
+        end
+        if contract.replacement_set_info == nil then
+            local old_set_info = contract.set_info
+            local registry = safe(function() return manager:call("getEnemySetInfoList") end)
+                or safe(function() return manager:get_field("_EnemySetInfoList") end)
+            if registry == nil then return false, "EnemySetInfo registry unavailable" end
+            local prepared, prepare_reason = pcall(function()
+                local removed = registry:call("Remove(snow.enemy.EnemySetInfo)", old_set_info)
+                if removed ~= true then error("destroyed EnemySetInfo was not removed from the registry") end
+                local replacement = runtime.methods.enemy_create_set_info:call(manager, contract.enemy_set_param)
+                if replacement == nil then error("createEnemySetInfo returned no replacement") end
+                contract.set_info = replacement
+                contract.replacement_set_info = replacement
+                contract.create_wait_frames = 60
+            end)
+            if not prepared then
+                return false, "Native monster SetInfo preparation failed: " .. tostring(prepare_reason)
+            end
+            return nil, "Replacement EnemySetInfo created"
+        end
         local created
         local ok, reason = pcall(function()
-            local removed = registry:call("Remove(snow.enemy.EnemySetInfo)", old_set_info)
-            if removed ~= true then error("destroyed EnemySetInfo was not removed from the registry") end
-            local new_set_info = runtime.methods.enemy_create_set_info:call(manager, contract.enemy_set_param)
-            if new_set_info == nil then error("createEnemySetInfo returned no replacement") end
-            contract.set_info = new_set_info
             created = runtime.methods.enemy_create_from_set:call(manager, contract.set_info, 0, -1)
         end)
         if not ok then
