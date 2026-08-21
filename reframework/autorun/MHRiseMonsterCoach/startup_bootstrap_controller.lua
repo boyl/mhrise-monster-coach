@@ -135,7 +135,6 @@ function M:update()
             and ack.action_id == self.pending_action.id then
             local name = self.pending_action.name
             self.pending_action = nil
-            if name == "choose_first_save" then self:set_state("wait_hub") end
             self:write_status("running")
         else
             self:write_status("input_required", nil, self.pending_action)
@@ -144,8 +143,8 @@ function M:update()
     end
 
     if self.state == "observing" and view.title_state == TITLE_STATE_INIT then
-        local ok, reason = self.api:advance_to_press_any()
-        if not ok then return self:fail(reason or "Unable to advance the title INIT state") end
+        -- Wait for the real game-start FSM. Forcing this state can race the
+        -- autosave caution, which is owned by a different FSM.
         self:write_status("running")
         return
     end
@@ -155,22 +154,15 @@ function M:update()
         return
     end
 
-    if self.state == "wait_save_menu" and view.save_menu_available == true then
-        local ok, reason = self.api:select_save_slot(FIRST_SAVE_SLOT)
-        if not ok then return self:fail(reason or "Unable to select the first save slot") end
-        local verified = self.api:observe() or {}
-        if tonumber(verified.current_save_slot) ~= FIRST_SAVE_SLOT then
-            return self:fail("First save slot verification failed")
-        end
+    if self.state == "wait_save_menu" and view.save_menu_active == true then
+        self:set_state("wait_hub")
         self:request_key("choose_first_save", 0x46)
         return
     end
 
     if self.state == "observing" and view.title_state == TITLE_STATE_PRESS_ANY then
-        local ok, reason = self.api:advance_to_title_menu()
-        if not ok then return self:fail(reason or "Unable to advance to the title menu") end
         self:set_state("wait_title_menu_ready")
-        self:write_status("running")
+        self:request_key("advance_press_any", 0x46)
         return
     end
 
@@ -184,10 +176,8 @@ function M:update()
         if tonumber(verified.title_cursor_index) ~= CONTINUE_INDEX then
             return self:fail("Continue cursor verification failed")
         end
-        local opened, reason = self.api:open_load_data_menu()
-        if not opened then return self:fail(reason or "Unable to open the load-data menu") end
         self:set_state("wait_save_menu")
-        self:write_status("running")
+        self:request_key("confirm_continue", 0x46)
         return
     end
 

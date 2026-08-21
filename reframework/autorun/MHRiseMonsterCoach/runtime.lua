@@ -839,6 +839,7 @@ function M.startup_bootstrap_observation(self)
         title_state = title_state,
         title_cursor_index = title_cursor_index,
         save_menu_available = phase == "save_menu" and save_menu ~= nil and slot_array ~= nil,
+        save_menu_active = phase == "save_menu",
         current_save_slot = current_save_slot,
         autosave_notice_active = autosave_notice_active,
         autosave_notice_seen = self.startup_flow.autosave_notice_seen == true,
