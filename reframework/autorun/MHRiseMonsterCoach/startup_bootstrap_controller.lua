@@ -59,12 +59,13 @@ function M:complete()
     return true
 end
 
-function M:request_key(action_name, virtual_key)
+function M:request_key(action_name, virtual_key, delay_ms)
     self.pending_action = {
         id = tostring(self.request.session_id) .. ":" .. action_name,
         name = action_name,
         kind = "press_key",
         virtual_key = virtual_key,
+        delay_ms = tonumber(delay_ms) or 0,
     }
     self:write_status("input_required", nil, self.pending_action)
 end
@@ -156,7 +157,7 @@ function M:update()
 
     if self.state == "wait_save_menu" and view.save_menu_active == true then
         self:set_state("wait_hub")
-        self:request_key("choose_first_save", 0x46)
+        self:request_key("choose_first_save", 0x46, 2000)
         return
     end
 

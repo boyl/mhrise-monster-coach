@@ -126,6 +126,10 @@ do {
                         Start-Sleep -Milliseconds 250
                         continue
                     }
+                    $inputDelay = [Math]::Max(0, [int]$bootstrap.action.delay_ms)
+                    if ($inputDelay -gt 0) {
+                        Start-Sleep -Milliseconds $inputDelay
+                    }
                     if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, [byte]$bootstrap.action.virtual_key)) {
                         [void]$sentBootstrapActions.Add([string]$bootstrap.action.id)
                         [ordered]@{
