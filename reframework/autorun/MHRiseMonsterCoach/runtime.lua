@@ -70,6 +70,7 @@ function M.new(config, profile)
             events = {},
             next_sequence = 0,
             hooks = {},
+            lifecycle_hook_failures = {},
         },
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
@@ -285,11 +286,15 @@ function M.install_quest_reset_trace_hooks(self)
     end
     for requested_type, method_names in pairs(RESET_TRACE_LIFECYCLE_METHODS) do
         local type_def = safe(function() return sdk.find_type_definition(requested_type) end)
+        if type_def == nil then
+            self.quest_reset_trace.lifecycle_hook_failures[#self.quest_reset_trace.lifecycle_hook_failures + 1]
+                = requested_type .. ": type unavailable"
+        end
         for _, method_name in ipairs(method_names) do
             local method = type_def and safe(function() return type_def:get_method(method_name) end)
             if method then
                 local event_name = requested_type .. "." .. method_name
-                local ok = pcall(function()
+                local ok, reason = pcall(function()
                     sdk.hook(method, function()
                         append_reset_trace_event(self, "lifecycle_pre", event_name)
                     end, function(retval)
@@ -298,6 +303,15 @@ function M.install_quest_reset_trace_hooks(self)
                     end)
                 end)
                 if ok then self.quest_reset_trace.hooks[#self.quest_reset_trace.hooks + 1] = event_name end
+                if not ok then
+                    self.quest_reset_trace.lifecycle_hook_failures[
+                        #self.quest_reset_trace.lifecycle_hook_failures + 1]
+                        = event_name .. ": " .. tostring(reason)
+                end
+            elseif type_def then
+                self.quest_reset_trace.lifecycle_hook_failures[
+                    #self.quest_reset_trace.lifecycle_hook_failures + 1]
+                    = requested_type .. "." .. method_name .. ": method unavailable"
             end
         end
     end
@@ -334,6 +348,7 @@ function M.flush_quest_reset_trace(self, context, stop)
                 schema_version = 1,
                 policy = "hook_observation_only_no_gameplay_method_invocation",
                 hooks = trace.hooks,
+                lifecycle_hook_failures = trace.lifecycle_hook_failures,
                 active = not stop,
                 events = trace.events,
             })
