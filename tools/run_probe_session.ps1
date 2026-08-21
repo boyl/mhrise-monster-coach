@@ -119,6 +119,7 @@ public static class MonsterCoachInput {
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
 $combatEntryAttemptedForStates = [Collections.Generic.HashSet[string]]::new()
+$combatTransferSentForStates = [Collections.Generic.HashSet[string]]::new()
 $lastCombatPulse = [DateTime]::MinValue
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -163,6 +164,20 @@ do {
     }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
+        if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -in @('wait_stable', 'verify_restart') -and
+            [int]$report.areas.player -eq 0 -and
+            $report.areas.arena_transfer_ready -eq $true -and
+            -not $combatTransferSentForStates.Contains([string]$report.state)) {
+            $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($game) {
+                $game.Refresh()
+                if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
+                    [void]$combatTransferSentForStates.Add([string]$report.state)
+                    Write-Host "Automatic native F interaction sent during $($report.state)"
+                }
+            }
+        }
         if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -in @('wait_stable', 'verify_restart') -and
             [int]$report.areas.player -eq 0 -and
