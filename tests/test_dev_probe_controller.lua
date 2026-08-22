@@ -140,6 +140,12 @@ function forced_api:request_forced_action(action)
     return true
 end
 function forced_api:current_action() return forced_current end
+function forced_api:behavior_tree_snapshot()
+    return { layers = { { layer = 0, active_nodes = {
+        { id = tostring(forced_current.action), index = forced_current.action,
+            name = "Attack.Test." .. tostring(forced_current.action), status1 = 2, status2 = 2 },
+    } } } }
+end
 local forced_probe = Probe.new(forced_api, 200032001, { stable_frames = 1 })
 forced_probe.request = { session_id = "forced-sequence", kind = "forced_action_sequence" }
 forced_probe.forced_actions = { 19, 20 }
@@ -161,6 +167,8 @@ assert(forced_reports[#forced_reports].forced_actions.results[1].status == "comp
     "forced report retains per-action verification evidence")
 assert(forced_reports[#forced_reports].forced_actions.results[1].exit_to.action == 0,
     "forced report records the live successor observed when the requested root exits")
+assert(#forced_reports[#forced_reports].forced_actions.results[1].behavior_path.events >= 2,
+    "forced report records deduplicated FSM and Action transitions for the complete root action")
 
 local batch_probe = Probe.new(forced_api, 200032001, { stable_frames = 1 })
 batch_probe.request = {

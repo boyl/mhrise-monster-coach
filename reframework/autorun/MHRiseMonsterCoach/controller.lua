@@ -1,3 +1,5 @@
+local BehaviorPathTracker = require("MHRiseMonsterCoach.behavior_path_tracker")
+
 local M = {}
 
 local function now()
@@ -46,6 +48,8 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         training_next_request_frame = 0,
         training_preview_scenario_id = nil,
         training_preview_tree = nil,
+        training_behavior_tracker = nil,
+        training_last_behavior_path = nil,
     }, { __index = M })
 end
 
@@ -74,6 +78,8 @@ function M.set_training_state(self, state, status, scenario)
         status = status,
         completed_rounds = self.training_completed_rounds,
         target_rounds = self.training_target_rounds,
+        actual_path = self.training_behavior_tracker and self.training_behavior_tracker:result()
+            or self.training_last_behavior_path,
     }
 end
 
@@ -111,6 +117,7 @@ function M.issue_training_scenario(self)
     end
     self.training_started_frame = self.frame_counter
     self.training_matched_frame = nil
+    self.training_behavior_tracker = BehaviorPathTracker.new(128)
     M.set_training_state(self, "requested", "已请求，等待怪物进入“"
         .. tostring(scenario.name_zh or scenario.name) .. "”", scenario)
     return true
@@ -131,6 +138,8 @@ function M.start_training_scenario(self, scenario)
     self.training_target_rounds = math.max(1, math.min(20,
         math.floor(tonumber(self.config.training_repeat_count) or 1)))
     self.training_completed_rounds = 0
+    self.training_behavior_tracker = nil
+    self.training_last_behavior_path = nil
     self.training_next_request_frame = self.frame_counter
     M.set_training_state(self, "waiting", "训练已开始，等待安全空档", scenario)
     M.issue_training_scenario(self)
@@ -139,6 +148,7 @@ end
 
 function M.cancel_training_scenario(self, status)
     self.training_next_request_frame = 0
+    self.training_behavior_tracker = nil
     M.set_training_state(self, "cancelled", status or "训练已停止")
 end
 
@@ -157,6 +167,10 @@ function M.update_training_scenario(self)
         return
     end
     local current = self.runtime:current_action_snapshot() or {}
+    if self.training_behavior_tracker and self.runtime.behavior_tree_snapshot then
+        self.training_behavior_tracker:sample(self.frame_counter,
+            self.runtime:behavior_tree_snapshot(), current)
+    end
     local action = self.training_scenario and self.training_scenario.actions
         and tonumber(self.training_scenario.actions[1]) or nil
     if self.training_state == "requested" then
@@ -171,6 +185,9 @@ function M.update_training_scenario(self)
     end
     local left_requested = tonumber(current.category) ~= 4 or tonumber(current.action) ~= action
     if self.frame_counter - (self.training_matched_frame or self.frame_counter) >= 10 and left_requested then
+        self.training_last_behavior_path = self.training_behavior_tracker
+            and self.training_behavior_tracker:result() or nil
+        self.training_behavior_tracker = nil
         self.training_completed_rounds = self.training_completed_rounds + 1
         if self.training_completed_rounds >= self.training_target_rounds then
             M.set_training_state(self, "completed", string.format("训练完成：%d/%d",
@@ -307,6 +324,8 @@ function M.request_native_quest_reset(self)
     self.native_reset_requested = true
     self.training_completed_rounds = 0
     self.training_target_rounds = 1
+    self.training_behavior_tracker = nil
+    self.training_last_behavior_path = nil
     M.set_training_state(self, "idle", "任务重开中，已清除指定招式状态")
     self.restart_state = restart.state
     self.reset_status = restart.status

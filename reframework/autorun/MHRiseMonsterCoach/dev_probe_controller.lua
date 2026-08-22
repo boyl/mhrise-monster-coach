@@ -1,4 +1,5 @@
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
+local BehaviorPathTracker = require("MHRiseMonsterCoach.behavior_path_tracker")
 
 local M = {}
 
@@ -46,6 +47,7 @@ function M.new(api, quest_id, options)
         forced_error = nil,
         forced_failure_count = 0,
         training_acceptance = nil,
+        behavior_path = nil,
     }, { __index = M })
 end
 
@@ -289,6 +291,7 @@ function M:update()
                 requested_at_frame = self.frame,
                 status = "requested",
             }
+            self.behavior_path = BehaviorPathTracker.new(128)
             self:set_state("forced_verify")
         elseif not retry or self.state_frames > 600 then
             self.forced_error = "Action " .. tostring(action) .. " request failed: " .. tostring(reason)
@@ -303,6 +306,9 @@ function M:update()
         if self.state_frames % 15 == 0 then self:report("running") end
         local result = self.forced_results[self.forced_index]
         local current = self.api:current_action() or {}
+        if self.behavior_path and self.api.behavior_tree_snapshot then
+            self.behavior_path:sample(self.frame, self.api:behavior_tree_snapshot(), current)
+        end
         if tonumber(current.category) == 4 and tonumber(current.action) == tonumber(result.action) then
             result.status = "matched"
             result.matched_at_frame = self.frame
@@ -322,6 +328,9 @@ function M:update()
         if self.state_frames % 30 == 0 then self:report("running") end
         local result = self.forced_results[self.forced_index]
         local current = self.api:current_action() or {}
+        if self.behavior_path and self.api.behavior_tree_snapshot then
+            self.behavior_path:sample(self.frame, self.api:behavior_tree_snapshot(), current)
+        end
         local left_requested = tonumber(current.category) ~= 4
             or tonumber(current.action) ~= tonumber(result.action)
         if self.state_frames >= 10 and left_requested then
@@ -333,6 +342,8 @@ function M:update()
                 action = current.action,
                 motion_name = current.motion_name,
             }
+            result.behavior_path = self.behavior_path and self.behavior_path:result() or nil
+            self.behavior_path = nil
             self.forced_index = self.forced_index + 1
             self:set_state("forced_prepare")
         elseif self.state_frames > 900 then

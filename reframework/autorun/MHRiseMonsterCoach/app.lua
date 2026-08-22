@@ -131,6 +131,7 @@ function M.start()
             scenario_id = controller.training_scenario and controller.training_scenario.id or nil,
             completed_rounds = controller.training_completed_rounds,
             target_rounds = controller.training_target_rounds,
+            actual_path = model.training_scenario and model.training_scenario.actual_path or nil,
         }
     end
     function probe_api:finish_training_acceptance()

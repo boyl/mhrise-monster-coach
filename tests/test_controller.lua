@@ -166,6 +166,13 @@ runtime.request_training_scenario = function(_, requested)
     assert(requested == scenario) training_requests = training_requests + 1 return true
 end
 runtime.current_action_snapshot = function() return training_snapshot end
+runtime.behavior_tree_snapshot = function()
+    return { layers = { { layer = 0, active_nodes = {
+        { id = tostring(training_snapshot.action), index = training_snapshot.action,
+            name = training_snapshot.action == 19 and "Attack.Roar.Phase00" or "Move.Dash",
+            status1 = 2, status2 = 2 },
+    } } } }
+end
 controller.frame_counter = 100
 assert(not controller:start_training_scenario(scenario),
     "training cannot start before the user-facing branch preview gate")
@@ -200,6 +207,8 @@ controller.frame_counter = 196
 controller:update_training_scenario()
 assert(controller.training_state == "completed" and controller.training_completed_rounds == 3
     and training_requests == 3, "repeat training completes exactly the configured number of rounds")
+assert(model.training_scenario.actual_path.events[1].node.name == "Attack.Roar.Phase00",
+    "completed product training exposes its actual semantic FSM path to the overlay model")
 model.current_metadata = { action_category = 4 }
 model.coaching_state = function() return { phase = "startup" } end
 controller.training_state = "idle"

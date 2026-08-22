@@ -162,11 +162,21 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     local training = model.training_scenario
     if type(training) == "table" and training.state ~= "idle" then
         local label = training.name and ("Training " .. tostring(training.name) .. ": ") or "Training: "
-        local progress = type(training.completed_rounds) == "number" and type(training.target_rounds) == "number"
-            and string.format(" [%d/%d]", training.completed_rounds, training.target_rounds) or ""
+        local round_text = type(training.completed_rounds) == "number" and type(training.target_rounds) == "number"
+            and string.format("%d/%d", training.completed_rounds, training.target_rounds) or nil
+        local progress = round_text and not string.find(tostring(training.status or ""), round_text, 1, true)
+            and (" [" .. round_text .. "]") or ""
         lines[#lines + 1] = { truncate(label .. tostring(training.status or training.state) .. progress, 88),
             result_color(training.state == "completed" and "success"
                 or (training.state == "failed" and "failure" or "running")) }
+        local events = training.actual_path and training.actual_path.events or {}
+        if #events > 0 then
+            local names, first = {}, math.max(1, #events - 2)
+            for index = first, #events do
+                names[#names + 1] = tostring(events[index].node and events[index].node.name or "?")
+            end
+            lines[#lines + 1] = { truncate("Actual path / 实际路径: " .. table.concat(names, " > "), 88), COLORS.muted }
+        end
     end
     local hit_result = last_hit_text(model.last_hit_event)
     if hit_result then lines[#lines + 1] = { truncate(hit_result, 88), COLORS.failure } end
