@@ -405,7 +405,8 @@ function M.draw_training_menu(self)
     imgui.text("Specified Move / 指定出招")
     local changed = checkbox("Enable specified-move training / 启用指定出招",
         self.config, "forced_action_training_enabled")
-    ui_text_wrapped("选择次数后点击招式；怪物攻击或判定生效期间会自动等待，不会强行打断。")
+    ui_text_wrapped("先查看派生树，再选择次数并开始训练。")
+    ui_text_wrapped("攻击或判定期间自动等待，不强行打断怪物。")
     imgui.text("Repeat / 次数：" .. tostring(self.config.training_repeat_count))
     for index, count in ipairs({ 1, 3, 5, 10 }) do
         if index > 1 then imgui.same_line() end

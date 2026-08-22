@@ -47,6 +47,19 @@
       "complete the real Tigrex roar training controller path 3/3"
     ]
   },
+  "automated_visual_acceptance": {
+    "mod_version": "0.34.3-branch-preview-layout",
+    "session_id": "e5b1f102961f4186b301e9e2cb786627",
+    "resolution": "2560x1440",
+    "method": "focus-verified game-window capture after automated REFramework menu expansion and scrolling",
+    "result": "passed",
+    "checks": [
+      "two-line training guidance is fully visible without clipping",
+      "view branch tree and start buttons are visible in one viewport",
+      "root action, no-verified-successor message and completion status are readable",
+      "overlay completion state remains readable while the menu is open"
+    ]
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",
