@@ -129,6 +129,26 @@ public static class MonsterCoachInput {
         keybd_event(0, secondScan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
         return true;
     }
+    public static bool BeginHoldKeys(IntPtr gameWindow, byte firstKey, byte secondKey) {
+        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+        System.Threading.Thread.Sleep(300);
+        if (GetForegroundWindow() != gameWindow) return false;
+        byte firstScan = (byte)MapVirtualKey(firstKey, 0);
+        byte secondScan = (byte)MapVirtualKey(secondKey, 0);
+        if (firstScan == 0 || secondScan == 0) return false;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        keybd_event(0, secondScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        keybd_event(0, firstScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        return true;
+    }
+    public static void ReleaseKeys(byte firstKey, byte secondKey) {
+        byte firstScan = (byte)MapVirtualKey(firstKey, 0);
+        byte secondScan = (byte)MapVirtualKey(secondKey, 0);
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        if (firstScan != 0) keybd_event(0, firstScan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+        if (secondScan != 0) keybd_event(0, secondScan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
 }
 '@
 }
@@ -138,9 +158,10 @@ $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
 $combatEntryAttemptedForStates = [Collections.Generic.HashSet[string]]::new()
 $combatTransferLastSent = @{}
 $combatTransferAttempts = @{}
-$lastCombatPulse = [DateTime]::MinValue
+$combatRunHeld = $false
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+try {
 do {
     if (Test-Path -LiteralPath $bootstrapStatusPath) {
         try { $bootstrap = Get-Content -LiteralPath $bootstrapStatusPath -Raw | ConvertFrom-Json } catch { $bootstrap = $null }
@@ -182,6 +203,15 @@ do {
     }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
+        $shouldRunToTransfer = $RequireCombatArea -and $report -and
+            $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -in @('wait_stable', 'verify_restart') -and
+            [int]$report.areas.player -eq 0 -and
+            $report.areas.arena_transfer_ready -ne $true
+        if ($combatRunHeld -and -not $shouldRunToTransfer) {
+            [MonsterCoachInput]::ReleaseKeys(0x57, 0x10)
+            $combatRunHeld = $false
+        }
         if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -in @('wait_stable', 'verify_restart') -and
             [int]$report.areas.player -eq 0 -and
@@ -200,19 +230,15 @@ do {
                 }
             }
         }
-        if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
-            $report.state -in @('wait_stable', 'verify_restart') -and
-            [int]$report.areas.player -eq 0 -and
-            $report.areas.arena_transfer_ready -ne $true -and
-            ((Get-Date) - $lastCombatPulse).TotalMilliseconds -ge 750) {
+        if ($shouldRunToTransfer -and -not $combatRunHeld) {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
             if ($game) {
                 $game.Refresh()
-                if ([MonsterCoachInput]::HoldKeys($game.MainWindowHandle, 0x57, 0x10, 100)) {
-                    $lastCombatPulse = Get-Date
+                if ([MonsterCoachInput]::BeginHoldKeys($game.MainWindowHandle, 0x57, 0x10)) {
+                    $combatRunHeld = $true
                     if (-not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
                         [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                        Write-Host "Approaching combat entry during $($report.state) with short movement pulses"
+                        Write-Host "Sprinting continuously to combat entry during $($report.state)"
                     }
                 }
             }
@@ -232,3 +258,10 @@ do {
 } while ((Get-Date) -lt $deadline)
 
 throw "Probe session timed out after $TimeoutSeconds seconds. Request retained at $requestPath"
+}
+finally {
+    if ($combatRunHeld) {
+        [MonsterCoachInput]::ReleaseKeys(0x57, 0x10)
+        $combatRunHeld = $false
+    }
+}
