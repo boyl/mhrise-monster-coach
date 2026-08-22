@@ -21,14 +21,10 @@ function M.start()
     local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
     local probe_api = { quest_api = runtime:quest_restart_api() }
     local function load_required_data_file(name)
-        local path = "reframework/data/MHRiseMonsterCoach/" .. name
-        local file = io.open(path, "rb")
-        if file == nil then return nil end
-        local size = file:seek("end")
-        file:close()
-        if size == nil or size == 0 then return nil end
+        local contents = fs.read("MHRiseMonsterCoach/" .. name)
+        if type(contents) ~= "string" or contents == "" then return nil end
         local ok, value = pcall(function()
-            return json.load_file("MHRiseMonsterCoach/" .. name)
+            return json.load_string(contents)
         end)
         return ok and value or nil
     end
@@ -115,6 +111,7 @@ function M.start()
         }
         config.forced_action_training_enabled = true
         config.training_repeat_count = math.max(1, math.min(20, math.floor(tonumber(repeat_count) or 1)))
+        controller:preview_training_scenario(scenario)
         local ok = controller:start_training_scenario(scenario)
         if not ok then
             config.forced_action_training_enabled = training_acceptance_config.enabled
@@ -198,7 +195,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.34.0-repeat-training loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.34.2-branch-preview-gate loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

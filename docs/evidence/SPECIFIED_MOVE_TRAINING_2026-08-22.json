@@ -34,10 +34,54 @@
       "temporary training configuration restoration"
     ]
   },
+  "branch_preview_gate_acceptance": {
+    "mod_version": "0.34.2-branch-preview-gate",
+    "session_id": "bc8261f2a41949e9bbab7851f0ffe721",
+    "status": "completed",
+    "completed_rounds": 3,
+    "target_rounds": 3,
+    "verified_path": [
+      "build structured branch tree for the selected scenario",
+      "record that the current scenario tree was viewed",
+      "allow training only after the preview gate",
+      "complete the real Tigrex roar training controller path 3/3"
+    ]
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",
     "distance, facing and rage preconditions are not yet modeled",
     "only verified scenarios may be exposed in the user-facing menu"
+  ],
+  "next_scenario_candidates": [
+    {
+      "id": "tigrex_bite_min_single",
+      "action_no": 20,
+      "name": "小咬",
+      "enum_name": "BiteMin",
+      "motion": "MinBite_IdleD_R",
+      "prior_probe_duration_frames": 228,
+      "acceptance_session_id": "9c69df9674a0429e9ce753524e85e451",
+      "acceptance_result": "failed after completing 1/3; a later Action 20 request did not exit within 900 frames",
+      "decision": "withheld; one-shot injection evidence is insufficient for a repeatable training contract"
+    },
+    {
+      "id": "tigrex_bite_max_single",
+      "action_no": 21,
+      "name": "大咬",
+      "enum_name": "BiteMax",
+      "motion": "MaxBite_IdleD_R",
+      "prior_probe_duration_frames": 339,
+      "acceptance_result": "not run after the small-bite safety gate failed",
+      "decision": "withheld until a stable monster-idle entry contract exists"
+    },
+    {
+      "action_no": 26,
+      "decision": "withheld because motion semantics remain a raw resource name"
+    },
+    {
+      "action_no": 29,
+      "decision": "withheld because the observed motion is a combo start rather than a complete standalone move"
+    }
   ]
 }

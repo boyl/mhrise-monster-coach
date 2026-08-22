@@ -162,6 +162,45 @@ function M.current_monster_phase(self)
     return monster_phase(self)
 end
 
+function M.training_branch_tree(self, scenario, max_depth)
+    max_depth = math.max(1, math.min(5, math.floor(tonumber(max_depth) or 3)))
+    local root = type(scenario) == "table" and type(scenario.actions) == "table"
+        and tostring(scenario.actions[1]) or nil
+    if root == nil then return nil end
+    local path = {}
+    local function build(action, depth)
+        action = tostring(action)
+        local move = self.moves[action]
+            or (self.static_ai.moves and self.static_ai.moves[action]) or {}
+        local row = self.static_ai.actions and self.static_ai.actions[action] or nil
+        local node = {
+            action = action,
+            name = move.short_name or move.name or ("Action " .. action),
+            kind = row and row.kind or "unverified",
+            candidates = {},
+        }
+        if path[action] then node.cycle = true return node end
+        if depth >= max_depth or type(row) ~= "table" or type(row.next) ~= "table" then
+            node.truncated = depth >= max_depth and type(row) == "table" and #(row.next or {}) > 0
+            return node
+        end
+        path[action] = true
+        for _, edge in ipairs(row.next) do
+            local target = edge and edge.action
+            if target ~= nil then
+                node.candidates[#node.candidates + 1] = {
+                    evidence_count = tonumber(edge.evidence_count) or 0,
+                    condition = edge.condition,
+                    node = build(target, depth + 1),
+                }
+            end
+        end
+        path[action] = nil
+        return node
+    end
+    return build(root, 0)
+end
+
 function M.coaching_state(self)
     local phase, source = monster_phase(self)
     local state = { phase = phase, source = source }

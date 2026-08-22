@@ -94,6 +94,11 @@ local static_ai = {
 }
 local static_model = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
 equal(static_model.scenarios[1].id, "roar", "static AI contributes deployable training scenarios")
+local branch_tree = static_model:training_branch_tree({ actions = { 15 } }, 3)
+equal(branch_tree.name, "Drift", "training tree labels its root from monster knowledge")
+equal(branch_tree.kind, "fixed", "training tree preserves fixed branch semantics")
+equal(branch_tree.candidates[1].node.action, "2", "training tree exposes the verified successor")
+equal(branch_tree.candidates[1].node.kind, "conditional", "nested branch keeps its own semantics")
 static_model:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
 static_model:observe_action("15", 1, { action_category = 4 })
 equal(static_model.current_move.name, "Drift turn", "static move labels current ActionNo")

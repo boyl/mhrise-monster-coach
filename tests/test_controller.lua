@@ -158,11 +158,18 @@ model.context = { in_quest = true, quest_no = 200032001, is_online = false,
     build_supported = true, target_found = true }
 model.current_metadata = { action_category = 0 }
 model.coaching_state = function() return { phase = "unknown" } end
+model.training_branch_tree = function(_, requested)
+    assert(requested == scenario)
+    return { action = "19", name = "咆哮", kind = "unverified", candidates = {} }
+end
 runtime.request_training_scenario = function(_, requested)
     assert(requested == scenario) training_requests = training_requests + 1 return true
 end
 runtime.current_action_snapshot = function() return training_snapshot end
 controller.frame_counter = 100
+assert(not controller:start_training_scenario(scenario),
+    "training cannot start before the user-facing branch preview gate")
+assert(controller:preview_training_scenario(scenario), "verified scenario exposes its branch tree")
 assert(controller:start_training_scenario(scenario), "verified scenario starts from a safe entry state")
 training_snapshot = { category = 4, action = 19 }
 controller.frame_counter = 101

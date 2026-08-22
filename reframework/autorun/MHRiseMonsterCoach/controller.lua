@@ -44,7 +44,22 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         training_target_rounds = 1,
         training_completed_rounds = 0,
         training_next_request_frame = 0,
+        training_preview_scenario_id = nil,
+        training_preview_tree = nil,
     }, { __index = M })
+end
+
+function M.preview_training_scenario(self, scenario)
+    local tree = self.model:training_branch_tree(scenario, 3)
+    if tree == nil then
+        self.training_status = "无法读取该场景的派生树"
+        return false
+    end
+    self.training_preview_scenario_id = tostring(scenario.id)
+    self.training_preview_tree = tree
+    self.training_status = "已查看“" .. tostring(scenario.name_zh or scenario.name)
+        .. "”派生树，可开始训练"
+    return true
 end
 
 function M.set_training_state(self, state, status, scenario)
@@ -106,6 +121,10 @@ function M.start_training_scenario(self, scenario)
         or self.training_state == "waiting" then
         M.set_training_state(self, self.training_state,
             "当前训练仍在进行；可点击“停止训练”或按 F7", self.training_scenario)
+        return false
+    end
+    if self.training_preview_scenario_id ~= tostring(scenario.id) then
+        M.set_training_state(self, "unavailable", "开始前请先查看该招式的派生树", scenario)
         return false
     end
     self.training_scenario = scenario
@@ -398,10 +417,36 @@ function M.draw_training_menu(self)
     for _, scenario in ipairs(self.model.scenarios or {}) do
         local verified = scenario.verification and scenario.verification.status == "verified"
         local name = tostring(scenario.name_zh or scenario.name or scenario.id)
-        if verified and imgui.button("开始：" .. name .. " × "
-            .. tostring(self.config.training_repeat_count) .. "##" .. tostring(scenario.id)) then
-            M.start_training_scenario(self, scenario)
+        if verified then
+            if imgui.button("查看派生树：" .. name .. "##branch_" .. tostring(scenario.id)) then
+                M.preview_training_scenario(self, scenario)
+            end
+            if self.training_preview_scenario_id == tostring(scenario.id) then
+                imgui.same_line()
+                if imgui.button("开始：" .. name .. " × "
+                    .. tostring(self.config.training_repeat_count) .. "##" .. tostring(scenario.id)) then
+                    M.start_training_scenario(self, scenario)
+                end
+            end
         end
+    end
+    local function draw_branch(node, depth, relation)
+        if type(node) ~= "table" then return end
+        local prefix = string.rep("  ", depth) .. (depth == 0 and "起手: " or "-> ")
+        local kind = depth == 0 and "" or ("[" .. tostring(relation or node.kind) .. "] ")
+        local suffix = node.cycle and "（循环）" or (node.truncated and "（更多…）" or "")
+        ui_text_wrapped(prefix .. kind .. tostring(node.name) .. " [Action "
+            .. tostring(node.action) .. "]" .. suffix)
+        for _, edge in ipairs(node.candidates or {}) do
+            draw_branch(edge.node, depth + 1, node.kind)
+        end
+        if depth == 0 and #(node.candidates or {}) == 0 then
+            ui_text_wrapped("  暂无已验证后续派生；当前按独立单招训练。")
+        end
+    end
+    if self.training_preview_tree ~= nil then
+        imgui.text("Branch Tree / 派生树")
+        draw_branch(self.training_preview_tree, 0, nil)
     end
     if self.training_state == "waiting" or self.training_state == "requested"
         or self.training_state == "running" then
