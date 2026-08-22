@@ -117,6 +117,7 @@ function M.new(config, profile)
         enemy_set_info = find_method("snow.enemy.EnemyCharacterBase", "get_SetInfo"),
         enemy_destroy = find_method("snow.enemy.EnemyManager", "destroyEnemy(snow.enemy.EnemyCharacterBase)"),
         set_info_destroy = find_method("snow.enemy.EnemySetInfo", "destroyEnemy(System.Int32, snow.enemy.EnemyManager.DestroyStatus)"),
+        set_info_repop = find_method("snow.enemy.EnemySetInfo", "repop"),
         enemy_create_from_set = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfo(snow.enemy.EnemySetInfo, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
         enemy_create_from_set_runtime = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfoNetSend(snow.enemy.EnemySetInfo, System.Boolean, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
         enemy_notify_create = find_method("snow.enemy.EnemyManager", "notifyCreateEnemy(snow.enemy.EnemySetInfo)"),
@@ -1637,45 +1638,16 @@ function M.monster_respawn_api(runtime)
     end
 
     function api:request_create(contract)
-        local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
-        if manager == nil or runtime.methods.enemy_create_set_info == nil
-            or runtime.methods.enemy_notify_create == nil or contract.enemy_set_param == nil then
-            return false, "Native monster create contract unavailable"
+        if runtime.methods.set_info_repop == nil then
+            return false, "EnemySetInfo.repop unavailable"
         end
-        if contract.create_wait_frames ~= nil and contract.create_wait_frames > 0 then
-            contract.create_wait_frames = contract.create_wait_frames - 1
-            return nil, "Waiting for replacement EnemySetInfo to settle"
-        end
-        if contract.replacement_set_info == nil then
-            local old_set_info = contract.set_info
-            local registry = safe(function() return manager:call("getEnemySetInfoList") end)
-                or safe(function() return manager:get_field("_EnemySetInfoList") end)
-            if registry == nil then return false, "EnemySetInfo registry unavailable" end
-            local prepared, prepare_reason = pcall(function()
-                local removed = registry:call("Remove(snow.enemy.EnemySetInfo)", old_set_info)
-                if removed ~= true then error("destroyed EnemySetInfo was not removed from the registry") end
-                local replacement = runtime.methods.enemy_create_set_info:call(manager, contract.enemy_set_param)
-                if replacement == nil then error("createEnemySetInfo returned no replacement") end
-                contract.set_info = replacement
-                contract.replacement_set_info = replacement
-                contract.create_wait_frames = 60
-            end)
-            if not prepared then
-                return false, "Native monster SetInfo preparation failed: " .. tostring(prepare_reason)
-            end
-            return nil, "Replacement EnemySetInfo created"
-        end
-        local created
         local ok, reason = pcall(function()
-            runtime.methods.enemy_notify_create:call(manager, contract.set_info)
+            runtime.methods.set_info_repop:call(contract.set_info)
         end)
         if not ok then
-            return false, "Native monster create request failed: " .. tostring(reason)
+            return false, "Native monster repop request failed: " .. tostring(reason)
         end
-        -- The native quest-start trace does not expose a synchronous return
-        -- instance. EnemySetInfo.OwnerEnemy and the boss registry are the
-        -- authoritative asynchronous completion signals.
-        return true, created
+        return true, nil
     end
 
     function api:find_created_enemy(contract, candidate)
@@ -1754,7 +1726,7 @@ function M.monster_respawn_diagnostics(self)
             return manager:get_field("_IsReceiveCreateEnemy")
         end) or nil,
         create_wait_frames = contract and contract.create_wait_frames or nil,
-        replacement_created = contract and contract.replacement_set_info ~= nil or false,
+        replacement_created = false,
     }
 end
 
