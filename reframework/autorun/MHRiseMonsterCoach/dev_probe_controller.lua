@@ -80,6 +80,7 @@ function M:report(status, reason)
             evidence = self.api.action_request_evidence and self.api:action_request_evidence() or nil,
         },
         training_acceptance = self.training_acceptance,
+        behavior_tree = self.api.behavior_tree_snapshot and self.api:behavior_tree_snapshot() or nil,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then

@@ -87,6 +87,8 @@ app (composition root)
 
 首个 `native_branch` MVP 的完成定义是：选择根动作 → 必须先查看该根动作的派生树 → 用户确认开始 → 成功进入根动作 → 原生续接至少一层 → Overlay 在转换后一帧内显示当前路径和下一候选 → 固定边准确、条件/随机边不伪装为唯一答案 → 达到停止条件后给出本轮路径并可重试。未查看当前场景派生树时，Controller 本身拒绝开始，不能只依赖按钮隐藏。
 
+运行时派生观测采用两层证据：Action Reader 提供战斗动作编号与动画，Behavior Tree Reader 从怪物 `GameObject` 的 `via.motion.MotionFsm2` 逐层读取树及活动节点。后者只读 `getLayer/get_tree_object/get_node/status/name`，不调用 `setCurrentNode`。实机已在轰龙咆哮期间解析出 `Attack.Roar` 与 `Attack.Roar.End`，因此后续根动作和实际路径应优先用 FSM 节点语义关联，Action ID 仅作为兼容与时序辅助信号。
+
 ## 新增怪物的最小改动
 
 已确定会变化的只有三条边界：怪物知识、游戏运行时、训练场景。新增怪物时：

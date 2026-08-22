@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $script = Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\tools\deploy_dev.ps1') -Raw
 
 $required = @(
+    "'autorun\MHRiseMonsterCoach\behavior_tree_reader.lua'",
     "'autorun\MHRiseMonsterCoach\font.lua'",
     "'autorun\MHRiseMonsterCoach\hitbox_provider.lua'",
     "'autorun\MHRiseMonsterCoach\hitbox_provider_hitboxviewer.lua'",

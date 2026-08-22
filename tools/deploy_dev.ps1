@@ -63,6 +63,7 @@ $files = @(
     'autorun\MHRiseMonsterCoach.lua',
     'autorun\MHRiseMonsterCoach\action_reader.lua',
     'autorun\MHRiseMonsterCoach\app.lua',
+    'autorun\MHRiseMonsterCoach\behavior_tree_reader.lua',
     'autorun\MHRiseMonsterCoach\config.lua',
     'autorun\MHRiseMonsterCoach\controller.lua',
     'autorun\MHRiseMonsterCoach\dev_probe_controller.lua',

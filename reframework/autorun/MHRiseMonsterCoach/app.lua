@@ -78,6 +78,9 @@ function M.start()
     function probe_api:current_action()
         return runtime:current_action_snapshot()
     end
+    function probe_api:behavior_tree_snapshot()
+        return runtime:behavior_tree_snapshot()
+    end
     function probe_api:action_request_evidence()
         local trace = runtime.action_request_trace or {}
         local method_counts = {}

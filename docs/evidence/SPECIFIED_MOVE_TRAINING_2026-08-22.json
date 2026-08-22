@@ -89,6 +89,20 @@
     ],
     "conclusion": "No candidate is eligible for the user-facing native_branch menu. Direct Action ID injection does not preserve enough AI/FSM context to validate a static successor; the next experiment must target a higher-level Combo/FSM entry or observe a naturally selected root."
   },
+  "behavior_tree_reader_acceptance": {
+    "session_id": "0232e32c1f8545898b655cd295c4fa05",
+    "policy": "read-only MotionFsm2 inspection; no setCurrentNode call",
+    "host_path": "EnemyCharacter -> GameObject -> via.motion.MotionFsm2",
+    "layer_count": 1,
+    "node_count": 1060,
+    "observed_semantic_nodes": [
+      "Attack.Roar",
+      "Attack.Roar.End",
+      "Move.Dash",
+      "Move.Dash.End"
+    ],
+    "result": "passed: the runtime can now correlate Action/motion evidence with named AI/FSM nodes"
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",

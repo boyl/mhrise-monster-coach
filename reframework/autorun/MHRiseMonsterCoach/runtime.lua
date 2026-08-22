@@ -5,6 +5,7 @@ local HitboxProvider = require("MHRiseMonsterCoach.hitbox_provider")
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 local EnvironmentCreatureRecorder = require("MHRiseMonsterCoach.environment_creature_recorder")
 local MonsterRespawn = require("MHRiseMonsterCoach.monster_respawn")
+local BehaviorTreeReader = require("MHRiseMonsterCoach.behavior_tree_reader")
 
 local M = {}
 local NATIVE_IN_PLACE_RESET_VALIDATED = false
@@ -2204,6 +2205,10 @@ end
 function M.read_action(self)
     if self.enemy == nil then return nil end
     return self.reader:read(self.enemy)
+end
+
+function M.behavior_tree_snapshot(self)
+    return BehaviorTreeReader.read(self.enemy)
 end
 
 local FORCED_ACTION_PROBE_ALLOWLIST = {
