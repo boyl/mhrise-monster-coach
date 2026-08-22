@@ -159,6 +159,8 @@ assert(forced_reports[#forced_reports].status == "completed",
     "forced sequence produces one aggregate completion report")
 assert(forced_reports[#forced_reports].forced_actions.results[1].status == "completed",
     "forced report retains per-action verification evidence")
+assert(forced_reports[#forced_reports].forced_actions.results[1].exit_to.action == 0,
+    "forced report records the live successor observed when the requested root exits")
 
 local batch_probe = Probe.new(forced_api, 200032001, { stable_frames = 1 })
 batch_probe.request = {

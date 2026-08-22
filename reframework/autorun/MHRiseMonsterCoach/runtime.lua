@@ -2207,6 +2207,7 @@ function M.read_action(self)
 end
 
 local FORCED_ACTION_PROBE_ALLOWLIST = {
+    [15] = true, [16] = true, [18] = true,
     [19] = true, [20] = true, [21] = true, [22] = true, [23] = true,
     [26] = true, [29] = true, [5004] = true, [5005] = true,
 }

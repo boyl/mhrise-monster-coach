@@ -60,6 +60,35 @@
       "overlay completion state remains readable while the menu is open"
     ]
   },
+  "native_branch_root_probe": {
+    "mod_version": "0.34.3-branch-preview-layout",
+    "session_id": "e5dd46e108664aee86a40d57d7fe51f6",
+    "static_hypothesis": "Actions 15, 16 and 18 each have a fixed attack-action successor to category 4/action 2 in the extracted graph",
+    "results": [
+      {
+        "action_no": 15,
+        "status": "completed",
+        "duration_frames": 111,
+        "exit_to": "category 1/action 8",
+        "decision": "rejected: runtime successor did not match the static fixed edge"
+      },
+      {
+        "action_no": 16,
+        "status": "failed and automatically recovered",
+        "observed_motion": "TigDashLoop_New",
+        "reason": "did not finish within 900 frames",
+        "decision": "rejected: unsafe as a bounded root action"
+      },
+      {
+        "action_no": 18,
+        "status": "completed",
+        "duration_frames": 52,
+        "exit_to": "category 1/action 8",
+        "decision": "rejected: runtime successor did not match the static fixed edge"
+      }
+    ],
+    "conclusion": "No candidate is eligible for the user-facing native_branch menu. Direct Action ID injection does not preserve enough AI/FSM context to validate a static successor; the next experiment must target a higher-level Combo/FSM entry or observe a naturally selected root."
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",

@@ -327,6 +327,11 @@ function M:update()
             result.status = "completed"
             result.completed_at_frame = self.frame
             result.duration_frames = self.frame - result.matched_at_frame
+            result.exit_to = {
+                category = current.category,
+                action = current.action,
+                motion_name = current.motion_name,
+            }
             self.forced_index = self.forced_index + 1
             self:set_state("forced_prepare")
         elseif self.state_frames > 900 then
