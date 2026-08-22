@@ -16,6 +16,7 @@ $required = @(
     "'autorun\MHRiseMonsterCoach\response_long_sword.lua'",
     "'data\MHRiseMonsterCoach\long_sword_knowledge.json'",
     "'data\MHRiseMonsterCoach\tigrex_static_ai.json'",
+    "'data\MHRiseMonsterCoach\arena_navigation_defaults.json'",
     "'quests\q200032001.json'"
 )
 foreach ($entry in $required) {

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-22",
+  "runtime": {
+    "game": "mhrise",
+    "tdb": 71,
+    "training_quest_id": 200032001,
+    "map_id": 14
+  },
+  "sources": {
+    "public_map_data": "https://mhrise.mhrice.info/map/14.html",
+    "extractor": "https://github.com/wwylele/mhrice",
+    "monster_id_cross_check": "https://raw.githubusercontent.com/HunterPie/HunterPie-legacy/master/HunterPie/Languages/zh-tw.xml"
+  },
+  "arena_transfer": {
+    "marker_type": "snow.access.QuestAreaMovePopMarker",
+    "marker_position": {
+      "x": 2.6479101181030273,
+      "y": 569.2852172851563,
+      "z": -43.371891021728516
+    },
+    "focus_player_position": {
+      "x": 4.7543287,
+      "y": 569.0946,
+      "z": -40.421524
+    },
+    "post_transfer_player_position": {
+      "x": 3.4405799,
+      "y": 0.4643497,
+      "z": -107.3732986
+    },
+    "native_area_ids_reliable": false,
+    "completion_signal": "player_enemy_vertical_gap <= 50",
+    "verified_behaviors": [
+      "coordinate navigation reaches the marker",
+      "only one interaction is sent per transfer attempt",
+      "movement remains locked while transfer is pending",
+      "F7 recovery can re-enter the combat layer automatically"
+    ]
+  },
+  "forced_action_probe": {
+    "policy": "allowlisted actions only; isolate timeout with F7 and continue the batch",
+    "verified_results": [
+      { "action": 19, "motion": "TigRoar_R", "duration_frames": 344 },
+      { "action": 20, "motion": "MinBite_IdleD_R", "duration_frames": 228 },
+      { "action": 21, "motion": "MaxBite_IdleD_R", "duration_frames": 339 },
+      { "action": 26, "motion": "em032_00_08050", "duration_frames": 332 },
+      { "action": 29, "motion": "FrontContainBite_Start_R", "duration_frames": 129 }
+    ],
+    "interpretation_limit": "A successful native request and observed exit validate injection mechanics, not every distance, direction, rage or branch precondition required for a user-facing training scenario."
+  },
+  "invalidated_evidence": {
+    "motion": "em042_00_00003_Loop",
+    "reason": "The Action reader cached a Motion component by enemy type only. F7 replaced the enemy instance, so Action came from the new em032 object while Motion metadata could come from a stale component or a reused MotionInfo output buffer. The cache now keys by type and managed-object address, and failed MotionInfo lookups cannot publish their output buffer.",
+    "cross_check": "HunterPie identifies em032 as Tigrex and em042 as Barioth; em042 is not a Tigrex special event."
+  }
+}

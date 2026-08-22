@@ -57,9 +57,10 @@ local motion_info = {
         if name == "get_MotionEndFrame" then return self.values.end_frame end
     end,
 }
-local motion = { call = function(_, name, bank, motion_id, info)
+local motion = { resolve = true, call = function(self, name, bank, motion_id, info)
     if string.find(name, "getLayer", 1, true) then return layer end
     if string.find(name, "getMotionInfo", 1, true) then
+        if self.resolve == false then return false end
         info.values = { name = "em032_attack_" .. tostring(motion_id), end_frame = 48.0 }
         return true
     end
@@ -73,6 +74,8 @@ local motion_type_def = {
 local motion_enemy = {
     get_type_definition = function() return motion_type_def end,
     call = function(_, name) if name == "get_GameObject" then return game_object end end,
+    get_address = function(self) return self.address end,
+    address = 1001,
 }
 sdk = {
     typeof = function(name) return name end,
@@ -92,6 +95,16 @@ assert(motion_reader:description().motion_name == "em032_attack_41", "motion fal
 local _, metadata = motion_reader:read(motion_enemy)
 assert(metadata.motion_name == "em032_attack_41", "motion metadata is returned with state key")
 assert(metadata.end_frame == 48.0, "motion metadata includes animation end frame")
+motion_enemy.address = 1002
+motion_reader:read(motion_enemy)
+assert(motion_reader.target_address == "1002" and motion_reader.samples == 1,
+    "same-type replacement enemy rebuilds instance-bound Motion candidates")
+motion.resolve = false
+motion_enemy.address = 1003
+motion_info.values = { name = "em042_stale", end_frame = 380.0 }
+local _, unresolved_metadata = motion_reader:read(motion_enemy)
+assert(unresolved_metadata.motion_name == nil and unresolved_metadata.end_frame == nil,
+    "failed MotionInfo lookup cannot leak a stale animation name")
 motion_reader:shutdown()
 
 local action_param_values = { 2, 2, 10 }

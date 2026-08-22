@@ -16,6 +16,13 @@ local function safe(fn)
     return nil
 end
 
+local function plain_vector(value)
+    if value == nil then return nil end
+    return safe(function()
+        return { x = tonumber(value.x), y = tonumber(value.y), z = tonumber(value.z) }
+    end)
+end
+
 local function find_method(type_name, method_name)
     return safe(function()
         local type_def = sdk.find_type_definition(type_name)
@@ -36,6 +43,30 @@ local function enum_value(type_name, field_name)
 end
 
 function M.new(config, profile)
+    local default_arena_navigation = safe(function()
+        return json.load_file("MHRiseMonsterCoach/arena_navigation_defaults.json")
+    end)
+    local saved_arena_navigation = safe(function()
+        return json.load_file("MHRiseMonsterCoach/arena_navigation_anchors.json")
+    end)
+    local saved_markers = {}
+    local function merge_marker_document(document, source_prefix)
+        if type(document) ~= "table" then return end
+        local marker_document = document
+        if type(document.maps) == "table" then
+            marker_document = document.maps[tostring(profile.training_quest.map_id)]
+        elseif tonumber(document.map_id) ~= tonumber(profile.training_quest.map_id) then
+            return
+        end
+        if type(marker_document) ~= "table" or type(marker_document.markers) ~= "table" then return end
+        for index, entry in ipairs(marker_document.markers) do
+            if type(entry) == "table" and type(entry.position) == "table" then
+                saved_markers[tostring(entry.key or (source_prefix .. ":" .. tostring(index)))] = entry
+            end
+        end
+    end
+    merge_marker_document(default_arena_navigation, "default")
+    merge_marker_document(saved_arena_navigation, "learned")
     local self = {
         config = config,
         profile = profile,
@@ -73,8 +104,18 @@ function M.new(config, profile)
             hooks = {},
             lifecycle_hook_failures = {},
         },
+        action_request_trace = {
+            installed = false,
+            dirty = false,
+            calls = 0,
+            events = {},
+        },
         arena_transfer_focus = nil,
         arena_transfer_trace = {},
+        arena_transfer_marker_cache = saved_markers,
+        arena_transfer_access_count = 0,
+        arena_transfer_last_access_clock = nil,
+        arena_transfer_focus_sequence = 0,
         environment_creature_recorder = EnvironmentCreatureRecorder.new(256),
         environment_creature_field_cache = {},
         environment_creature_saved_revision = 0,
@@ -122,6 +163,10 @@ function M.new(config, profile)
         enemy_create_from_set_runtime = find_method("snow.enemy.EnemyManager", "createEnemyFromSetInfoNetSend(snow.enemy.EnemySetInfo, System.Boolean, snow.enemy.EnemyDef.EnemySetType, System.Int32)"),
         enemy_notify_create = find_method("snow.enemy.EnemyManager", "notifyCreateEnemy(snow.enemy.EnemySetInfo)"),
         enemy_create_set_info = find_method("snow.enemy.EnemyManager", "createEnemySetInfo(snow.quest.EnemySetParam)"),
+        enemy_set_action_unique = find_method("snow.enemy.em032.Em032CharacterBase",
+            "setActionUnique(snow.enemy.EnemyDef.EmActCategory, System.UInt16)"),
+        enemy_request_no_change_action = find_method("snow.enemy.EnemyCharacterBase",
+            "requestNoChangeTargetActionSet(snow.enemy.SetupActionBaseData)"),
     }
     self.player_state_reader = PlayerStateReader.new(self.game_name, self.tdb_version)
     if self.methods.enemy_physical then
@@ -154,7 +199,118 @@ function M.new(config, profile)
     M.dump_in_place_reset_metadata(self)
     M.dump_in_place_type_candidates(self)
     M.dump_title_flow_metadata(self)
+    M.dump_action_request_metadata(self)
+    local action_observer_ready, action_observer_reason = M.install_action_request_observer(self)
+    self.capabilities.action_request_observer = action_observer_ready
+    self.capabilities.action_request_observer_reason = action_observer_reason
     return setmetatable(self, { __index = M })
+end
+
+function M.install_action_request_observer(self)
+    local function owner_type_name(args)
+        local owner = safe(function() return sdk.to_managed_object(args[2]) end)
+        return owner and safe(function()
+            local definition = owner:get_type_definition()
+            return definition and definition:get_full_name() or nil
+        end) or nil
+    end
+    local function snapshot_payload(value)
+        local payload = safe(function() return sdk.to_managed_object(value) end)
+        if payload == nil then return nil end
+        local result = { type = safe(function()
+            local definition = payload:get_type_definition()
+            return definition and definition:get_full_name() or nil
+        end), fields = {} }
+        local type_def = safe(function() return payload:get_type_definition() end)
+        local seen, depth = {}, 0
+        while type_def and depth < 8 do
+            local current_name = safe(function() return type_def:get_full_name() end) or "unknown"
+            if seen[current_name] then break end
+            seen[current_name] = true
+            for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+                local name = safe(function() return field:get_name() end)
+                local field_value = safe(function() return field:get_data(payload) end)
+                if type(field_value) == "number" or type(field_value) == "boolean"
+                    or type(field_value) == "string" then
+                    result.fields[current_name .. "." .. tostring(name)] = field_value
+                end
+            end
+            type_def = safe(function() return type_def:get_parent_type() end)
+            depth = depth + 1
+        end
+        return result
+    end
+    local function record(method_name, args, payload_index, category_index, action_index)
+        local owner_type = owner_type_name(args)
+        if not owner_type or not string.find(string.lower(owner_type), "em032", 1, true) then return end
+        local trace = self.action_request_trace
+        trace.calls = trace.calls + 1
+        local event = {
+            sequence = trace.calls,
+            method = method_name,
+            owner_type = owner_type,
+            source = trace.request_tag or "game",
+        }
+        if payload_index then event.payload = snapshot_payload(args[payload_index]) end
+        if category_index then
+            event.category = tonumber(safe(function() return sdk.to_int64(args[category_index]) end)
+                or safe(function() return sdk.to_int(args[category_index]) end))
+        end
+        if action_index then
+            event.action_no = tonumber(safe(function() return sdk.to_int64(args[action_index]) end)
+                or safe(function() return sdk.to_int(args[action_index]) end))
+        end
+        trace.events[#trace.events + 1] = event
+        if #trace.events > 512 then table.remove(trace.events, 1) end
+        trace.dirty = true
+    end
+    local candidates = {
+        { "snow.enemy.em032.Em032CharacterBase", "setActionUnique(snow.enemy.EnemyDef.EmActCategory, System.UInt16)", nil, 3, 4 },
+        { "snow.enemy.EnemyCharacterBase", "requestActionSet(snow.enemy.SetupActionBaseData)", 3 },
+        { "snow.enemy.EnemyCharacterBase", "requestNoChangeTargetActionSet(snow.enemy.SetupActionBaseData)", 3 },
+        { "snow.enemy.EnemyCharacterBase", "setAction(snow.enemy.SetupActionBaseData)", 3 },
+        { "snow.enemy.EnemyCharacterBase", "setActionParam(snow.enemy.SetupActionBaseData)", 3 },
+        { "snow.enemy.EnemyCharacterBase", "startActionTable", nil },
+    }
+    local installed, failures = 0, {}
+    for _, candidate in ipairs(candidates) do
+        local method = find_method(candidate[1], candidate[2])
+        if method then
+            local ok, reason = pcall(function()
+                sdk.hook(method, function(args)
+                    record(candidate[2], args, candidate[3], candidate[4], candidate[5])
+                end, function(retval) return retval end)
+            end)
+            if ok then installed = installed + 1
+            else failures[#failures + 1] = candidate[2] .. ": " .. tostring(reason) end
+        else
+            failures[#failures + 1] = candidate[2] .. ": unavailable"
+        end
+    end
+    self.action_request_trace.installed = installed > 0
+    self.action_request_trace.hook_count = installed
+    self.action_request_trace.hook_failures = failures
+    return installed > 0, table.concat(failures, "; ")
+end
+
+function M.persist_action_request_trace(self)
+    local trace = self.action_request_trace
+    if not trace or not trace.dirty then return false end
+    local written = safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_action_request_trace.json", {
+            schema_version = 1,
+            policy = "observe_natural_action_request_pipeline_only",
+            runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
+            installed = trace.installed,
+            hook_count = trace.hook_count,
+            hook_failures = trace.hook_failures,
+            calls = trace.calls,
+            events = trace.events,
+        })
+        return true
+    end) == true
+    if written then trace.dirty = false end
+    return written
 end
 
 function M.install_arena_transfer_focus_hook(self)
@@ -192,11 +348,36 @@ function M.install_arena_transfer_focus_hook(self)
                     local first = safe(function() return sdk.to_managed_object(args[3]) end)
                     local second = safe(function() return sdk.to_managed_object(args[4]) end)
                     if string.find(tostring(marker_type), "QuestAreaMovePopMarker", 1, true) then
+                        local event_clock = os.clock()
+                        local marker_position = get_position(get_transform(marker))
+                        local marker_key = tostring(safe(function() return marker:get_address() end) or marker)
+                        if marker_position ~= nil then
+                            self.arena_transfer_marker_cache[marker_key] = {
+                                key = marker_key,
+                                type_name = marker_type,
+                                position = plain_vector(marker_position),
+                                cached = true,
+                            }
+                            safe(function()
+                                local persisted = {}
+                                for _, entry in pairs(self.arena_transfer_marker_cache) do
+                                    persisted[#persisted + 1] = entry
+                                end
+                                json.dump_file("MHRiseMonsterCoach/arena_navigation_anchors.json", {
+                                    schema_version = 1,
+                                    map_id = self.profile.training_quest.map_id,
+                                    source = "native_QuestAreaMovePopMarker_focus",
+                                    markers = persisted,
+                                })
+                            end)
+                        end
                         self.arena_transfer_trace[#self.arena_transfer_trace + 1] = {
                             sequence = #self.arena_transfer_trace + 1,
-                            clock = os.clock(),
+                            clock = event_clock,
                             name = candidate_type .. "." .. candidate_method,
                             marker_address = tostring(safe(function() return marker:get_address() end)),
+                            marker_position = plain_vector(marker_position),
+                            player_position = plain_vector(get_position(get_transform(self.player))),
                             first_address = first and tostring(safe(function() return first:get_address() end)) or nil,
                             second_address = second and tostring(safe(function() return second:get_address() end)) or nil,
                         }
@@ -210,6 +391,19 @@ function M.install_arena_transfer_focus_hook(self)
                         end)
                         local leaving_focus = candidate_method == "outOfFocus"
                             or candidate_method == "eventOutOfFocus"
+                        local entering_focus = candidate_method == "intoFocus"
+                            or candidate_method == "eventIntoFocus"
+                        local access_start = candidate_method == "eventAccessStart"
+                            or candidate_method == "onAccessStart"
+                            or candidate_method == "callAccessStartMethod"
+                        if entering_focus then
+                            self.arena_transfer_focus_sequence = self.arena_transfer_focus_sequence + 1
+                        end
+                        if access_start and (self.arena_transfer_last_access_clock == nil
+                            or event_clock - self.arena_transfer_last_access_clock > 0.25) then
+                            self.arena_transfer_access_count = self.arena_transfer_access_count + 1
+                            self.arena_transfer_last_access_clock = event_clock
+                        end
                         if leaving_focus then
                             if self.arena_transfer_focus == nil
                                 or self.arena_transfer_focus.marker == marker then
@@ -856,6 +1050,102 @@ local IN_PLACE_RESET_TYPES = {
     "snow.quest.QuestData",
 }
 
+local function type_name(type_def)
+    return type_def and safe(function() return type_def:get_full_name() end) or nil
+end
+
+local ACTION_REQUEST_TYPES = {
+    "snow.enemy.em032.Em032_00Character",
+    "snow.enemy.em032.Em032CharacterBase",
+    "snow.enemy.EnemyCharacterBase",
+    "snow.enemy.EnemyActionParam",
+    "snow.enemy.EnemyThinkParam",
+    "snow.enemy.SetupActionData",
+    "snow.enemy.SetupActionBaseData",
+    "snow.enemy.EnemyActionParamData.ActionInfo",
+}
+
+local ACTION_REQUEST_FULL_TYPES = {
+    ["snow.enemy.SetupActionData"] = true,
+    ["snow.enemy.SetupActionBaseData"] = true,
+    ["snow.enemy.EnemyActionParamData.ActionInfo"] = true,
+}
+
+local ACTION_REQUEST_METHODS = {
+    setActionUnique = true,
+    setAction = true,
+    requestActionSet = true,
+    requestNoChangeTargetActionSet = true,
+    setActionParam = true,
+    setActionThinkParam = true,
+    startActionTable = true,
+    finishActionTable = true,
+    requestRestartThinkFsmInEndAction = true,
+    restartThinkFsmCore = true,
+    forceResetThink = true,
+    CreateSetupActionData = true,
+    setProgActionData = true,
+}
+
+function M.dump_action_request_metadata(self)
+    if self.game_name ~= self.config.supported_game_name
+        or self.tdb_version ~= self.config.supported_tdb_version then return false end
+    local types = {}
+    for _, requested_name in ipairs(ACTION_REQUEST_TYPES) do
+        local type_def = safe(function() return sdk.find_type_definition(requested_name) end)
+        local entry = { requested_type = requested_name, found = type_def ~= nil, levels = {} }
+        local include_all = ACTION_REQUEST_FULL_TYPES[requested_name] == true
+        local seen, depth = {}, 0
+        while type_def and depth < 10 do
+            local current_name = type_name(type_def) or "unknown"
+            if seen[current_name] then break end
+            seen[current_name] = true
+            local level = { type = current_name, methods = {}, fields = {} }
+            for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+                local name = safe(function() return method:get_name() end)
+                if include_all or ACTION_REQUEST_METHODS[tostring(name)] then
+                    local params = {}
+                    for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                        params[#params + 1] = type_name(param_type) or "unknown"
+                    end
+                    level.methods[#level.methods + 1] = {
+                        name = name,
+                        return_type = type_name(safe(function() return method:get_return_type() end)),
+                        param_types = params,
+                    }
+                end
+            end
+            for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+                local name = safe(function() return field:get_name() end)
+                local lower = string.lower(tostring(name or ""))
+                if include_all or string.find(lower, "action", 1, true)
+                    or string.find(lower, "think", 1, true) then
+                    level.fields[#level.fields + 1] = {
+                        name = name,
+                        type = type_name(safe(function() return field:get_type() end)),
+                        is_static = safe(function() return field:is_static() end) == true,
+                    }
+                end
+            end
+            table.sort(level.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
+            table.sort(level.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
+            entry.levels[#entry.levels + 1] = level
+            type_def = safe(function() return type_def:get_parent_type() end)
+            depth = depth + 1
+        end
+        types[#types + 1] = entry
+    end
+    return safe(function()
+        json.dump_file("MHRiseMonsterCoach/runtime_action_request_probe.json", {
+            schema_version = 1,
+            policy = "metadata_only_no_action_method_invocation",
+            runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
+            types = types,
+        })
+        return true
+    end) == true
+end
+
 local IN_PLACE_RESET_FULL_TYPES = {
     ["snow.enemy.EnemySetInfo"] = true,
     ["snow.quest.EnemySetParam"] = true,
@@ -878,10 +1168,6 @@ local function matches_reset_keyword(name)
         if string.find(lower, keyword, 1, true) then return true end
     end
     return false
-end
-
-local function type_name(type_def)
-    return type_def and safe(function() return type_def:get_full_name() end) or nil
 end
 
 local function mentions_enemy_spawn_contract(type_def)
@@ -1920,6 +2206,56 @@ function M.read_action(self)
     return self.reader:read(self.enemy)
 end
 
+local FORCED_ACTION_PROBE_ALLOWLIST = {
+    [19] = true, [20] = true, [21] = true, [22] = true, [23] = true,
+    [26] = true, [29] = true, [5004] = true, [5005] = true,
+}
+
+function M.current_action_snapshot(self)
+    local description = self.reader:description() or {}
+    return {
+        action = tonumber(description.action_no),
+        category = tonumber(description.action_category),
+        motion_name = description.motion_name,
+    }
+end
+
+function M.request_forced_action_probe(self, action_no)
+    action_no = tonumber(action_no)
+    local context = self.last_context or {}
+    if not context.in_quest or context.is_online or context.build_supported == false
+        or tonumber(context.quest_no) ~= tonumber(self.profile.training_quest.id)
+        or not context.target_found then
+        return false, "Forced action probe requires the supported offline training quest"
+    end
+    if not FORCED_ACTION_PROBE_ALLOWLIST[action_no] then
+        return false, "Action is outside the forced-probe allowlist"
+    end
+    if self.enemy == nil or self.methods.enemy_request_no_change_action == nil then
+        return false, "native action request target is unavailable"
+    end
+    local hitboxes = self.hitbox_provider:poll(self.enemy)
+    if hitboxes and hitboxes.active then
+        return false, "Waiting for active monster hitboxes to close", true
+    end
+    self.action_request_trace.request_tag = "forced_probe"
+    local payload = safe(function()
+        return sdk.create_instance("snow.enemy.SetupActionData"):add_ref()
+    end)
+    if payload == nil then
+        self.action_request_trace.request_tag = nil
+        return false, "Failed to create SetupActionData"
+    end
+    local ok, reason = pcall(function()
+        payload:call(".ctor(snow.enemy.EnemyDef.EmActCategory, System.UInt16)", 4, action_no)
+        self.methods.enemy_request_no_change_action:call(self.enemy, payload)
+    end)
+    safe(function() payload:release() end)
+    self.action_request_trace.request_tag = nil
+    if not ok then return false, tostring(reason) end
+    return true
+end
+
 function M.read_hitboxes(self)
     return self.hitbox_provider:poll(self.enemy)
 end
@@ -2002,15 +2338,137 @@ function M.area_snapshot(self)
     local enemy_area = read_area_no(self, self.enemy)
     local player_position = get_position(get_transform(self.player))
     local enemy_position = get_position(get_transform(self.enemy))
+    local player_enemy_vertical_gap = nil
+    if player_position ~= nil and enemy_position ~= nil then
+        local player_y = tonumber(player_position.y)
+        local enemy_y = tonumber(enemy_position.y)
+        if player_y ~= nil and enemy_y ~= nil then
+            player_enemy_vertical_gap = math.abs(player_y - enemy_y)
+        end
+    end
+    local scene = M.get_scene(self)
+    local markers = {}
+    local marker_candidates = {}
+    local nearest_marker = nil
+    local nearest_distance_sq = nil
+    local seen_markers = {}
+    local marker_type_names = {
+        "snow.access.QuestAreaMovePopMarker",
+        "snow.access.ObjectPopMarker",
+    }
+    for _, marker_type_name in ipairs(marker_type_names) do
+        local marker_type = safe(function() return sdk.typeof(marker_type_name) end)
+        local marker_components = scene and marker_type and safe(function()
+            return scene:call("findComponents(System.Type)", marker_type)
+        end) or nil
+        local marker_elements = marker_components and safe(function()
+            return marker_components:get_elements()
+        end) or nil
+        for _, marker in ipairs(type(marker_elements) == "table" and marker_elements or {}) do
+            local address = tostring(safe(function() return marker:get_address() end) or marker)
+            if not seen_markers[address] then
+                seen_markers[address] = true
+                local runtime_type = safe(function()
+                    return marker:get_type_definition():get_full_name()
+                end) or marker_type_name
+                local position = get_position(get_transform(marker))
+                marker_candidates[#marker_candidates + 1] = {
+                    key = address,
+                    type_name = runtime_type,
+                    position = serializable_vector(position, false),
+                }
+                if string.find(tostring(runtime_type), "QuestAreaMovePopMarker", 1, true)
+                    and position ~= nil then
+                    local dx = player_position and tonumber(position.x) - tonumber(player_position.x) or nil
+                    local dz = player_position and tonumber(position.z) - tonumber(player_position.z) or nil
+                    local distance_sq = dx and dz and (dx * dx + dz * dz) or nil
+                    local entry = {
+                        key = address,
+                        type_name = runtime_type,
+                        position = serializable_vector(position, false),
+                        distance = distance_sq and math.sqrt(distance_sq) or nil,
+                        accessible = safe(function() return marker:call("get_IsAccessible") end) == true,
+                    }
+                    markers[#markers + 1] = entry
+                    self.arena_transfer_marker_cache[entry.key] = {
+                        key = entry.key,
+                        position = entry.position,
+                        accessible = entry.accessible,
+                        cached = true,
+                    }
+                    if distance_sq ~= nil
+                        and (nearest_distance_sq == nil or distance_sq < nearest_distance_sq) then
+                        nearest_marker = entry
+                        nearest_distance_sq = distance_sq
+                    end
+                end
+            end
+        end
+    end
+    if #markers == 0 then
+        for _, entry in pairs(self.arena_transfer_marker_cache) do
+            local dx = player_position and tonumber(entry.position.x) - tonumber(player_position.x) or nil
+            local dz = player_position and tonumber(entry.position.z) - tonumber(player_position.z) or nil
+            local distance_sq = dx and dz and (dx * dx + dz * dz) or nil
+            markers[#markers + 1] = {
+                key = entry.key,
+                position = entry.position,
+                distance = distance_sq and math.sqrt(distance_sq) or nil,
+                accessible = false,
+                cached = true,
+            }
+        end
+    end
+    nearest_marker = nil
+    nearest_distance_sq = nil
+    for _, entry in ipairs(markers) do
+        local distance = tonumber(entry.distance)
+        local distance_sq = distance and distance * distance or nil
+        if distance_sq ~= nil and (nearest_distance_sq == nil or distance_sq < nearest_distance_sq) then
+            nearest_marker = entry
+            nearest_distance_sq = distance_sq
+        end
+    end
+    table.sort(markers, function(a, b)
+        return tonumber(a.distance or math.huge) < tonumber(b.distance or math.huge)
+    end)
+
+    local camera_forward, camera_right = nil, nil
+    local camera = safe(function() return sdk.get_primary_camera() end)
+    local camera_matrix = camera and safe(function() return camera:get_WorldMatrix() end) or nil
+    local camera_rotation = camera_matrix and safe(function() return camera_matrix:to_quat() end) or nil
+    if camera_rotation then
+        camera_forward = safe(function()
+            return camera_rotation * Vector3f.new(0, 0, -1)
+        end)
+        camera_right = safe(function()
+            return camera_rotation * Vector3f.new(1, 0, 0)
+        end)
+    end
+
     return {
         player = player_area,
         enemy = enemy_area,
         same_area = player_area ~= nil and enemy_area ~= nil and player_area == enemy_area,
+        -- Area numbers are not reliable in the Forlorn Arena: the live battle
+        -- state has reported player 0/1 while Tigrex remains -1.  Both actors
+        -- occupying the same vertical scene layer is the stable transfer signal.
+        combat_layer = player_enemy_vertical_gap ~= nil and player_enemy_vertical_gap <= 50.0,
+        player_enemy_vertical_gap = player_enemy_vertical_gap,
         player_position = serializable_vector(player_position, false),
         enemy_position = serializable_vector(enemy_position, false),
         arena_transfer_ready = self.arena_transfer_focus ~= nil
             and self.arena_transfer_focus.marker ~= nil
             and safe(function() return self.arena_transfer_focus.marker:call("get_IsAccessible") end) == true,
+        arena_navigation = {
+            markers = markers,
+            marker_candidates = marker_candidates,
+            target = nearest_marker,
+            camera_forward = serializable_vector(camera_forward, false),
+            camera_right = serializable_vector(camera_right, false),
+            focus_sequence = self.arena_transfer_focus_sequence,
+            access_count = self.arena_transfer_access_count,
+        },
     }
 end
 

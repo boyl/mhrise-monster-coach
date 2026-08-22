@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "maps": {
+    "14": {
+      "name": "Forlorn Arena",
+      "source": "MHRice map coordinates cross-checked with native QuestAreaMovePopMarker focus events",
+      "markers": [
+        {
+          "key": "map14:quest-area-move",
+          "type_name": "snow.access.QuestAreaMovePopMarker",
+          "position": {
+            "x": 2.6479101181030273,
+            "y": 569.2852172851563,
+            "z": -43.371891021728516
+          },
+          "cached": true
+        }
+      ]
+    }
+  }
+}

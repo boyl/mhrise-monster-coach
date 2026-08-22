@@ -106,6 +106,7 @@ function M.new(config)
     return setmetatable({
         config = config,
         target_type = nil,
+        target_address = nil,
         candidates = {},
         active = nil,
         samples = 0,
@@ -303,10 +304,14 @@ function M.discover(self, enemy)
     if enemy == nil then return false end
     local type_def = enemy:get_type_definition()
     local type_name = type_def:get_full_name()
-    if self.target_type == type_name then return #self.candidates > 0 end
+    local target_address = safe_call(function() return tostring(enemy:get_address()) end)
+    if self.target_type == type_name and self.target_address == target_address then
+        return #self.candidates > 0
+    end
 
     release_candidates(self.candidates)
     self.target_type = type_name
+    self.target_address = target_address
     self.candidates = {}
     self.active = nil
     self.samples = 0
@@ -348,7 +353,10 @@ local function read_candidate(candidate, enemy, shared)
                     candidate.motion_info
                 )
             end)
-            if resolved and found ~= false then
+            -- getMotionInfo returns a success flag and writes into a reused
+            -- MotionInfo instance.  Never read that output buffer after a
+            -- failed lookup: it can still contain another motion's name.
+            if resolved and found == true then
                 local name = safe_call(function() return candidate.motion_info:call("get_MotionName") end)
                 local end_frame = safe_call(function() return candidate.motion_info:call("get_MotionEndFrame") end)
                 if type(name) == "string" and name ~= "" then metadata.motion_name = name end
@@ -492,6 +500,8 @@ end
 function M.shutdown(self)
     release_candidates(self.candidates)
     self.candidates = {}
+    self.target_type = nil
+    self.target_address = nil
     self.active = nil
     self.last_metadata = nil
 end

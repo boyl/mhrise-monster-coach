@@ -228,6 +228,7 @@ function M.update(self)
     M.update_quest_restart(self)
     if self.model.context.in_quest and self.model.context.build_supported ~= false
         and not self.model.context.is_online then M.update_health(self) end
+    if self.runtime.persist_action_request_trace then self.runtime:persist_action_request_trace() end
     M.persist_runtime_evidence(self, not self.model.context.in_quest)
 end
 

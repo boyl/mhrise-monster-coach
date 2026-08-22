@@ -7,6 +7,13 @@ local function target_quest(context, quest_id)
         and not context.is_online and context.build_supported ~= false
 end
 
+-- Native area numbers are inconsistent in the Forlorn Arena (the player can
+-- report 0/1 while Tigrex remains -1 after a successful transfer).  Runtime
+-- therefore derives a scene-layer signal from the live actor transforms.
+local function combat_area_ready(areas)
+    return areas ~= nil and areas.combat_layer == true
+end
+
 function M.new(api, quest_id, options)
     options = options or {}
     return setmetatable({
@@ -33,6 +40,11 @@ function M.new(api, quest_id, options)
         arena_transfer = { attempted = false },
         monster_respawn = { attempted = false, state = "idle" },
         respawn_failure = nil,
+        forced_actions = {},
+        forced_index = 0,
+        forced_results = {},
+        forced_error = nil,
+        forced_failure_count = 0,
     }, { __index = M })
 end
 
@@ -61,6 +73,11 @@ function M:report(status, reason)
         areas = self.api:area_snapshot(),
         arena_transfer = self.arena_transfer,
         monster_respawn = self.monster_respawn,
+        forced_actions = {
+            requested = self.forced_actions,
+            results = self.forced_results,
+            evidence = self.api.action_request_evidence and self.api:action_request_evidence() or nil,
+        },
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -79,17 +96,36 @@ function M:fail(reason)
 end
 
 function M:complete()
-    self:report("completed")
+    local reason = nil
+    if self.forced_failure_count > 0 then
+        reason = tostring(self.forced_failure_count)
+            .. " forced action(s) were isolated and safely recovered"
+    end
+    self:report("completed", reason)
     self.request = nil
     self.probe_key = nil
     self:set_state("idle")
     return true
 end
 
+function M:mark_forced_failure(reason)
+    local action = self.forced_actions[self.forced_index]
+    local result = self.forced_results[self.forced_index]
+    if result == nil then
+        result = { action = action }
+        self.forced_results[self.forced_index] = result
+    end
+    if result.status ~= "failed" then self.forced_failure_count = self.forced_failure_count + 1 end
+    result.status = "failed"
+    result.reason = tostring(reason)
+    result.failed_at_frame = self.frame
+end
+
 function M:accept_request(request, context)
     if type(request) ~= "table"
         or (request.kind ~= "environment_creature_lifecycle"
-            and request.kind ~= "monster_respawn_lifecycle")
+            and request.kind ~= "monster_respawn_lifecycle"
+            and request.kind ~= "forced_action_sequence")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     if request.auto_load_save == true and context.in_quest ~= true
@@ -97,6 +133,21 @@ function M:accept_request(request, context)
     self.request = request
     self.monster_respawn = { attempted = false, state = "idle" }
     self.respawn_failure = nil
+    self.forced_actions = {}
+    self.forced_index = 0
+    self.forced_results = {}
+    self.forced_error = nil
+    self.forced_failure_count = 0
+    if request.kind == "forced_action_sequence" then
+        if type(request.forced_actions) ~= "table"
+            or #request.forced_actions == 0 or #request.forced_actions > 8 then
+            return self:fail("Forced action sequence must contain 1-8 actions")
+        end
+        for _, action in ipairs(request.forced_actions) do
+            if tonumber(action) == nil then return self:fail("Forced action sequence contains an invalid ID") end
+            self.forced_actions[#self.forced_actions + 1] = tonumber(action)
+        end
+    end
     if context.is_online or context.build_supported == false then
         return self:fail("Developer probe requires a supported offline runtime")
     end
@@ -134,7 +185,7 @@ function M:update()
     elseif self.state == "wait_stable" then
         local areas = self.api:area_snapshot()
         local combat_ready = self.request.require_combat_area ~= true
-            or (areas.player ~= nil and areas.player ~= 0)
+            or combat_area_ready(areas)
         if self.request.require_combat_area == true and self.request.auto_native_arena_transfer == true
             and not combat_ready
             and self.state_frames % 30 == 1 then
@@ -146,6 +197,11 @@ function M:update()
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 if self.request.allow_spawn_probe ~= true then
+                    if self.request.kind == "forced_action_sequence" then
+                        self.forced_index = 1
+                        self:set_state("forced_prepare")
+                        return true
+                    end
                     if self.request.kind == "monster_respawn_lifecycle" then
                         local ok, reason = self.api:start_monster_respawn()
                         self.monster_respawn = { attempted = true, state = "starting", reason = reason }
@@ -183,6 +239,98 @@ function M:update()
         else
             self.stable_frames = 0
         end
+    elseif self.state == "forced_prepare" then
+        if self.state_frames % 30 == 1 then self:report("running") end
+        local action = self.forced_actions[self.forced_index]
+        if action == nil then return self:complete() end
+        local ok, reason, retry = self.api:request_forced_action(action)
+        if ok then
+            self.forced_results[self.forced_index] = {
+                action = action,
+                requested_at_frame = self.frame,
+                status = "requested",
+            }
+            self:set_state("forced_verify")
+        elseif not retry or self.state_frames > 600 then
+            self.forced_error = "Action " .. tostring(action) .. " request failed: " .. tostring(reason)
+            self:mark_forced_failure(self.forced_error)
+            self.quest_flow:reset_terminal()
+            local recovered, recovery_reason = self.quest_flow:start(context)
+            if not recovered then return self:fail(self.forced_error .. "; recovery failed: "
+                .. tostring(recovery_reason)) end
+            self:set_state("forced_recovery")
+        end
+    elseif self.state == "forced_verify" then
+        if self.state_frames % 15 == 0 then self:report("running") end
+        local result = self.forced_results[self.forced_index]
+        local current = self.api:current_action() or {}
+        if tonumber(current.category) == 4 and tonumber(current.action) == tonumber(result.action) then
+            result.status = "matched"
+            result.matched_at_frame = self.frame
+            result.match_latency_frames = self.frame - result.requested_at_frame
+            result.motion_name = current.motion_name
+            self:set_state("forced_wait_exit")
+        elseif self.state_frames > 180 then
+            self.forced_error = "Action " .. tostring(result.action) .. " was not observed after request"
+            self:mark_forced_failure(self.forced_error)
+            self.quest_flow:reset_terminal()
+            local recovered, recovery_reason = self.quest_flow:start(context)
+            if not recovered then return self:fail(self.forced_error .. "; recovery failed: "
+                .. tostring(recovery_reason)) end
+            self:set_state("forced_recovery")
+        end
+    elseif self.state == "forced_wait_exit" then
+        if self.state_frames % 30 == 0 then self:report("running") end
+        local result = self.forced_results[self.forced_index]
+        local current = self.api:current_action() or {}
+        local left_requested = tonumber(current.category) ~= 4
+            or tonumber(current.action) ~= tonumber(result.action)
+        if self.state_frames >= 10 and left_requested then
+            result.status = "completed"
+            result.completed_at_frame = self.frame
+            result.duration_frames = self.frame - result.matched_at_frame
+            self.forced_index = self.forced_index + 1
+            self:set_state("forced_prepare")
+        elseif self.state_frames > 900 then
+            self.forced_error = "Action " .. tostring(result.action) .. " did not finish"
+            self:mark_forced_failure(self.forced_error)
+            self.quest_flow:reset_terminal()
+            local recovered, recovery_reason = self.quest_flow:start(context)
+            if not recovered then return self:fail(self.forced_error .. "; recovery failed: "
+                .. tostring(recovery_reason)) end
+            self:set_state("forced_recovery")
+        end
+    elseif self.state == "forced_recovery" then
+        self.quest_flow:update(context)
+        if self.state_frames % 30 == 0 then self:report("running") end
+        if self.quest_flow.state == "failed" then
+            return self:fail(self.forced_error .. "; F7 recovery failed: "
+                .. tostring(self.quest_flow.error))
+        end
+        if self.quest_flow.state == "complete" then
+            self:set_state("forced_recovery_verify")
+        end
+    elseif self.state == "forced_recovery_verify" then
+        local areas = self.api:area_snapshot()
+        local combat_ready = combat_area_ready(areas)
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if target_quest(context, self.quest_id) and context.target_found and combat_ready then
+            self.stable_frames = self.stable_frames + 1
+            if self.stable_frames >= self.stable_required then
+                if self.request.continue_on_action_failure == true then
+                    local result = self.forced_results[self.forced_index]
+                    if result ~= nil then result.recovered = true end
+                    self.forced_index = self.forced_index + 1
+                    self.forced_error = nil
+                    self:set_state("forced_prepare")
+                    return true
+                end
+                return self:fail(self.forced_error
+                    .. "; F7 recovery completed and combat area restored")
+            end
+        else
+            self.stable_frames = 0
+        end
     elseif self.state == "monster_respawn" then
         local state, reason, diagnostics = self.api:update_monster_respawn()
         self.monster_respawn = {
@@ -212,7 +360,20 @@ function M:update()
         end
         if self.quest_flow.state == "complete" then
             self.monster_respawn.recovered = true
-            return self:fail(self.respawn_failure .. "; F7 recovery completed")
+            self:set_state("monster_respawn_recovery_verify")
+        end
+    elseif self.state == "monster_respawn_recovery_verify" then
+        local areas = self.api:area_snapshot()
+        local combat_ready = combat_area_ready(areas)
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if target_quest(context, self.quest_id) and context.target_found and combat_ready then
+            self.stable_frames = self.stable_frames + 1
+            if self.stable_frames >= self.stable_required then
+                return self:fail(self.respawn_failure
+                    .. "; F7 recovery completed and combat area restored")
+            end
+        else
+            self.stable_frames = 0
         end
     elseif self.state == "wait_collection" then
         if self.state_frames % 15 == 0 then self.api:observe_environment() end
@@ -229,7 +390,7 @@ function M:update()
     elseif self.state == "verify_restart" then
         local areas = self.api:area_snapshot()
         local combat_ready = self.request.require_combat_area ~= true
-            or (areas.player ~= nil and areas.player ~= 0)
+            or combat_area_ready(areas)
         if self.request.require_combat_area == true and self.request.auto_native_arena_transfer == true
             and not combat_ready
             and self.state_frames % 30 == 1 then

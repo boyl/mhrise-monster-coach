@@ -70,6 +70,32 @@ function M.start()
             respawn and respawn.error or nil,
             runtime:monster_respawn_diagnostics()
     end
+    function probe_api:request_forced_action(action_no)
+        return runtime:request_forced_action_probe(action_no)
+    end
+    function probe_api:current_action()
+        return runtime:current_action_snapshot()
+    end
+    function probe_api:action_request_evidence()
+        local trace = runtime.action_request_trace or {}
+        local method_counts = {}
+        local forced_events = {}
+        for _, event in ipairs(trace.events or {}) do
+            local method = tostring(event.method or "unknown")
+            method_counts[method] = (method_counts[method] or 0) + 1
+            if event.source == "forced_probe" and #forced_events < 64 then
+                forced_events[#forced_events + 1] = event
+            end
+        end
+        return {
+            installed = trace.installed,
+            calls = trace.calls,
+            hook_count = trace.hook_count,
+            hook_failures = trace.hook_failures,
+            method_counts = method_counts,
+            forced_events = forced_events,
+        }
+    end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end
@@ -124,7 +150,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.31.1-active-title-branch loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.32.4-motion-metadata-ownership loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

@@ -5,11 +5,17 @@ param(
     [string]$GameRoot = 'C:\Program Files (x86)\Steam\steamapps\common\MonsterHunterRise',
     [int]$TimeoutSeconds = 900,
     [switch]$RequireCombatArea,
-    [switch]$MonsterRespawn
+    [switch]$MonsterRespawn,
+    [int[]]$ForcedActions = @(),
+    [switch]$ResumeExisting,
+    [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
+    [ValidateRange(5, 30)][int]$SurveyTimeoutSeconds = 12,
+    [ValidateRange(5, 60)][int]$TransferTimeoutSeconds = 15
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+Import-Module (Join-Path $PSScriptRoot 'ArenaNavigation.psm1') -Force
 $resolvedGameRoot = [IO.Path]::GetFullPath($GameRoot)
 $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
 $requestPath = Join-Path $dataRoot 'dev_probe_request.json'
@@ -20,6 +26,17 @@ $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
 $launchedGame = $false
+
+function Write-AtomicJson {
+    param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
+    $temporaryPath = "$Path.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
+    try {
+        $Value | ConvertTo-Json -Depth $Depth | Set-Content -LiteralPath $temporaryPath -Encoding utf8
+        Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
+    } finally {
+        Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+    }
+}
 
 if ($game) {
     $installedVersion = if (Test-Path -LiteralPath $receiptPath) {
@@ -36,35 +53,57 @@ if ($game) {
 if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
     New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
 }
-$sessionId = [Guid]::NewGuid().ToString('N')
-$request = [ordered]@{
-    schema_version = 1
-    session_id = $sessionId
-    kind = if ($MonsterRespawn) { 'monster_respawn_lifecycle' } else { 'environment_creature_lifecycle' }
-    requested_at = [DateTimeOffset]::Now.ToString('o')
-    source_version = $sourceVersion
-    auto_load_save = $true
-    require_combat_area = [bool]$RequireCombatArea
-    auto_native_arena_transfer = $false
+$sessionId = $null
+$request = $null
+if ($ResumeExisting) {
+    if (-not $game) { throw '-ResumeExisting requires a running game process.' }
+    try { $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json } catch {
+        throw '-ResumeExisting could not read the active probe request.'
+    }
+    try { $existingReport = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch {
+        throw '-ResumeExisting could not read the active probe report.'
+    }
+    if (-not $request.session_id -or $existingReport.session_id -ne $request.session_id -or
+        $existingReport.status -notin @('pending', 'running')) {
+        throw '-ResumeExisting found no matching pending or running probe session.'
+    }
+    $sessionId = [string]$request.session_id
+} else {
+    $sessionId = [Guid]::NewGuid().ToString('N')
+    $request = [ordered]@{
+        schema_version = 1
+        session_id = $sessionId
+        kind = if ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
+            elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
+            else { 'environment_creature_lifecycle' }
+        requested_at = [DateTimeOffset]::Now.ToString('o')
+        source_version = $sourceVersion
+        auto_load_save = $true
+        require_combat_area = [bool]$RequireCombatArea
+        auto_native_arena_transfer = $false
+        forced_actions = @($ForcedActions)
+        continue_on_action_failure = $ForcedActions.Count -gt 1
+    }
+    Write-AtomicJson -Value $request -Path $requestPath
+    Write-AtomicJson -Value ([ordered]@{
+        schema_version = 1
+        session_id = $sessionId
+        kind = $request.kind
+        status = 'pending'
+    }) -Path $reportPath
+    Write-AtomicJson -Value ([ordered]@{
+        schema_version = 1
+        session_id = $sessionId
+        action_id = ''
+    }) -Path $bootstrapAckPath
 }
-$request | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $requestPath -Encoding utf8
-[ordered]@{
-    schema_version = 1
-    session_id = $sessionId
-    kind = $request.kind
-    status = 'pending'
-} | ConvertTo-Json | Set-Content -LiteralPath $reportPath -Encoding utf8
-[ordered]@{
-    schema_version = 1
-    session_id = $sessionId
-    action_id = ''
-} | ConvertTo-Json | Set-Content -LiteralPath $bootstrapAckPath -Encoding utf8
 if (-not $game) {
     Start-Process -FilePath 'steam://run/1446780'
     $launchedGame = $true
     Write-Host 'Game launched. The probe will wait for the offline hub, then enter the training quest automatically.'
 } else {
-    Write-Host 'Probe request delivered to the running game.'
+    Write-Host $(if ($ResumeExisting) { 'Attached to the existing probe session.' }
+        else { 'Probe request delivered to the running game.' })
 }
 Write-Host "Session: $sessionId"
 
@@ -99,6 +138,9 @@ public static class MonsterCoachInput {
         System.Threading.Thread.Sleep(150);
         keybd_event(0, scanCode, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
         return true;
+    }
+    public static bool IsForeground(IntPtr gameWindow) {
+        return gameWindow != IntPtr.Zero && GetForegroundWindow() == gameWindow;
     }
     public static bool HoldKey(IntPtr gameWindow, byte virtualKey, int milliseconds) {
         if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
@@ -141,6 +183,31 @@ public static class MonsterCoachInput {
         keybd_event(0, firstScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
         return true;
     }
+    public static bool BeginHoldMovement(IntPtr gameWindow, byte primaryKey, byte secondaryKey) {
+        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+        System.Threading.Thread.Sleep(300);
+        if (GetForegroundWindow() != gameWindow) return false;
+        byte sprintScan = (byte)MapVirtualKey(0x10, 0);
+        byte primaryScan = (byte)MapVirtualKey(primaryKey, 0);
+        byte secondaryScan = secondaryKey == 0 ? (byte)0 : (byte)MapVirtualKey(secondaryKey, 0);
+        if (sprintScan == 0 || primaryScan == 0 || (secondaryKey != 0 && secondaryScan == 0)) return false;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        keybd_event(0, sprintScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        keybd_event(0, primaryScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        if (secondaryScan != 0 && secondaryScan != primaryScan) {
+            keybd_event(0, secondaryScan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
+        }
+        return true;
+    }
+    public static void ReleaseMovement() {
+        byte[] keys = new byte[] { 0x57, 0x41, 0x53, 0x44, 0x10 };
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        const uint KEYEVENTF_SCANCODE = 0x0008;
+        foreach (byte key in keys) {
+            byte scan = (byte)MapVirtualKey(key, 0);
+            if (scan != 0) keybd_event(0, scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, UIntPtr.Zero);
+        }
+    }
     public static void ReleaseKeys(byte firstKey, byte secondKey) {
         byte firstScan = (byte)MapVirtualKey(firstKey, 0);
         byte secondScan = (byte)MapVirtualKey(secondKey, 0);
@@ -155,10 +222,21 @@ public static class MonsterCoachInput {
 
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
-$combatEntryAttemptedForStates = [Collections.Generic.HashSet[string]]::new()
-$combatTransferLastSent = @{}
-$combatTransferAttempts = @{}
+$navigationGateStates = @('wait_stable', 'verify_restart', 'forced_recovery_verify', 'monster_respawn_recovery_verify')
+$arenaNavigation = $null
+$lastProbeState = $null
 $combatRunHeld = $false
+$combatRunKeys = $null
+
+$virtualKeys = @{ W = [byte]0x57; A = [byte]0x41; S = [byte]0x53; D = [byte]0x44 }
+
+function Stop-ArenaMovement {
+    if ($script:combatRunHeld) {
+        [MonsterCoachInput]::ReleaseMovement()
+        $script:combatRunHeld = $false
+        $script:combatRunKeys = $null
+    }
+}
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 try {
@@ -189,12 +267,12 @@ do {
                     }
                     if ([MonsterCoachInput]::PressKey($game.MainWindowHandle, [byte]$bootstrap.action.virtual_key)) {
                         [void]$sentBootstrapActions.Add([string]$bootstrap.action.id)
-                        [ordered]@{
+                        Write-AtomicJson -Value ([ordered]@{
                             schema_version = 1
                             session_id = $sessionId
                             action_id = [string]$bootstrap.action.id
                             sent_at = [DateTimeOffset]::Now.ToString('o')
-                        } | ConvertTo-Json | Set-Content -LiteralPath $bootstrapAckPath -Encoding utf8
+                        }) -Path $bootstrapAckPath
                         Write-Host "Automatic startup input: $($bootstrap.action.id)"
                     }
                 }
@@ -203,45 +281,116 @@ do {
     }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
-        $shouldRunToTransfer = $RequireCombatArea -and $report -and
+        $isNavigationReport = $RequireCombatArea -and $report -and
             $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
-            $report.state -in @('wait_stable', 'verify_restart') -and
-            [int]$report.areas.player -eq 0 -and
-            $report.areas.arena_transfer_ready -ne $true
-        if ($combatRunHeld -and -not $shouldRunToTransfer) {
-            [MonsterCoachInput]::ReleaseKeys(0x57, 0x10)
-            $combatRunHeld = $false
-        }
-        if ($RequireCombatArea -and $report -and $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
-            $report.state -in @('wait_stable', 'verify_restart') -and
-            [int]$report.areas.player -eq 0 -and
-            $report.areas.arena_transfer_ready -eq $true -and
-            (-not $combatTransferLastSent.ContainsKey([string]$report.state) -or
-                ((Get-Date) - $combatTransferLastSent[[string]$report.state]).TotalSeconds -ge 3) -and
-            ([int]($combatTransferAttempts[[string]$report.state] ?? 0)) -lt 5) {
-            $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($game) {
-                $game.Refresh()
-                if ([MonsterCoachInput]::HoldKey($game.MainWindowHandle, 0x46, 500)) {
-                    $stateKey = [string]$report.state
-                    $combatTransferLastSent[$stateKey] = Get-Date
-                    $combatTransferAttempts[$stateKey] = [int]($combatTransferAttempts[$stateKey] ?? 0) + 1
-                    Write-Host "Automatic native F interaction sent during $stateKey (attempt $($combatTransferAttempts[$stateKey])/5)"
+            $report.state -in $navigationGateStates
+        if (-not $isNavigationReport) {
+            Stop-ArenaMovement
+            $arenaNavigation = $null
+        } else {
+            $stateKey = [string]$report.state
+            if ($lastProbeState -ne $stateKey -or $null -eq $arenaNavigation) {
+                Stop-ArenaMovement
+                $arenaNavigation = [pscustomobject]@{
+                    state = $stateKey
+                    phase = 'navigate'
+                    started_at = [datetimeoffset]::Now
+                    interaction_sent_at = $null
+                    initial_access_count = [int]($report.areas.arena_navigation.access_count ?? 0)
+                    interaction_count = 0
+                    last_distance = $null
+                    best_distance = [double]::PositiveInfinity
+                    last_progress_at = [datetimeoffset]::Now
                 }
+                Write-Host "Coordinate navigation started during $stateKey"
             }
-        }
-        if ($shouldRunToTransfer -and -not $combatRunHeld) {
             $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($game) {
-                $game.Refresh()
-                if ([MonsterCoachInput]::BeginHoldKeys($game.MainWindowHandle, 0x57, 0x10)) {
-                    $combatRunHeld = $true
-                    if (-not $combatEntryAttemptedForStates.Contains([string]$report.state)) {
-                        [void]$combatEntryAttemptedForStates.Add([string]$report.state)
-                        Write-Host "Sprinting continuously to combat entry during $($report.state)"
+            if (-not $game) { throw 'Game process disappeared during arena navigation.' }
+            $game.Refresh()
+            if ($combatRunHeld -and -not [MonsterCoachInput]::IsForeground($game.MainWindowHandle)) {
+                Stop-ArenaMovement
+            }
+            $command = Get-ArenaNavigationCommand -Areas $report.areas `
+                -Phase $arenaNavigation.phase -InteractionSentAt $arenaNavigation.interaction_sent_at `
+                -TransferTimeoutSeconds $TransferTimeoutSeconds
+            switch ($command.Action) {
+                'complete' {
+                    Stop-ArenaMovement
+                }
+                'interact' {
+                    Stop-ArenaMovement
+                    if ($arenaNavigation.interaction_count -ne 0) {
+                        throw "Arena navigation invariant failed: F was already sent during $stateKey"
+                    }
+                    if (-not [MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
+                        throw "Could not focus the game and send the single native F interaction during $stateKey"
+                    }
+                    $arenaNavigation.phase = 'transfer_pending'
+                    $arenaNavigation.interaction_sent_at = [datetimeoffset]::Now
+                    $arenaNavigation.interaction_count = 1
+                    Write-Host "Single native F interaction sent during $stateKey; movement locked pending transfer"
+                }
+                'hold' {
+                    $elapsed = ([datetimeoffset]::Now - $arenaNavigation.started_at).TotalSeconds
+                    if ($elapsed -ge $NavigationTimeoutSeconds) {
+                        Stop-ArenaMovement
+                        throw "Coordinate navigation did not reach the transfer marker within $NavigationTimeoutSeconds seconds"
+                    }
+                    if ($command.Distance -lt $arenaNavigation.best_distance - 0.25) {
+                        $arenaNavigation.best_distance = $command.Distance
+                        $arenaNavigation.last_progress_at = [datetimeoffset]::Now
+                    } elseif (([datetimeoffset]::Now - $arenaNavigation.last_progress_at).TotalSeconds -ge 4) {
+                        Stop-ArenaMovement
+                        throw "Coordinate navigation made no progress for 4 seconds (distance $([Math]::Round($command.Distance, 2)))"
+                    }
+                    $desiredKeys = "$($command.Primary)+$($command.Secondary)"
+                    if (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys) {
+                        Stop-ArenaMovement
+                        $primaryKey = $virtualKeys[[string]$command.Primary]
+                        $secondaryKey = if ($command.Secondary) {
+                            $virtualKeys[[string]$command.Secondary]
+                        } else { [byte]0 }
+                        if (-not [MonsterCoachInput]::BeginHoldMovement(
+                            $game.MainWindowHandle, $primaryKey, $secondaryKey)) {
+                            throw "Could not focus the game and hold coordinate navigation input $desiredKeys"
+                        }
+                        $combatRunHeld = $true
+                        $combatRunKeys = $desiredKeys
+                        Write-Host "Arena navigation: $desiredKeys at $([Math]::Round($command.Distance, 2)) m"
+                    }
+                    $arenaNavigation.last_distance = $command.Distance
+                }
+                'survey' {
+                    $elapsed = ([datetimeoffset]::Now - $arenaNavigation.started_at).TotalSeconds
+                    if ($elapsed -ge $SurveyTimeoutSeconds) {
+                        Stop-ArenaMovement
+                        throw "No native area-move marker was discovered within the bounded $SurveyTimeoutSeconds-second map survey"
+                    }
+                    $desiredKeys = 'W+'
+                    if (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys) {
+                        Stop-ArenaMovement
+                        if (-not [MonsterCoachInput]::BeginHoldMovement(
+                            $game.MainWindowHandle, $virtualKeys.W, [byte]0)) {
+                            throw 'Could not focus the game and start the bounded map survey'
+                        }
+                        $combatRunHeld = $true
+                        $combatRunKeys = $desiredKeys
+                        Write-Host 'Arena map survey: W along the measured camera-forward ray'
                     }
                 }
+                'wait' {
+                    Stop-ArenaMovement
+                }
+                'fail' {
+                    Stop-ArenaMovement
+                    throw "Arena navigation failed: $($command.Reason)"
+                }
+                default {
+                    Stop-ArenaMovement
+                    throw "Unknown arena navigation action '$($command.Action)'"
+                }
             }
+            $lastProbeState = $stateKey
         }
         if ($report -and ($report.session_id -eq $sessionId) -and
             ($report.status -in @('completed', 'failed'))) {
@@ -260,8 +409,5 @@ do {
 throw "Probe session timed out after $TimeoutSeconds seconds. Request retained at $requestPath"
 }
 finally {
-    if ($combatRunHeld) {
-        [MonsterCoachInput]::ReleaseKeys(0x57, 0x10)
-        $combatRunHeld = $false
-    }
+    Stop-ArenaMovement
 }
