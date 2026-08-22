@@ -45,6 +45,7 @@ class TigrexActionCatalogTests(unittest.TestCase):
         self.assertEqual(scenario["execution_mode"], "natural_condition")
         self.assertEqual(scenario["actions"], [5000])
         self.assertEqual(scenario["expected_successor"], 5001)
+        self.assertEqual(scenario["max_verified_repeats"], 1)
         self.assertEqual(scenario["positioning"], {
             "metric": "horizontal_distance", "target": 7.0, "tolerance": 2.0,
         })

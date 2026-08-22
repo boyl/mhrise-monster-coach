@@ -20,6 +20,7 @@
       "name_zh": "咆哮",
       "actions": [19],
       "execution_mode": "forced_single",
+      "max_verified_repeats": 10,
       "entry_policy": "non_attack_or_recovery_without_active_hitbox",
       "positioning": "manual",
       "repeatable": true,
@@ -36,6 +37,7 @@
       "name_zh": "短距半回转钩咬",
       "actions": [5000],
       "execution_mode": "natural_condition",
+      "max_verified_repeats": 1,
       "expected_successor": 5001,
       "positioning": {
         "metric": "horizontal_distance",

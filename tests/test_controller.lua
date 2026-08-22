@@ -221,6 +221,7 @@ local natural = {
     id = "tigrex_half_turn_bite_short", name_zh = "短距半回转钩咬",
     actions = { 5000 }, execution_mode = "natural_condition", expected_successor = 5001,
     positioning = { metric = "horizontal_distance", target = 7, tolerance = 2 },
+    max_verified_repeats = 1,
     verification = { status = "verified" },
 }
 local distance = 12
@@ -233,14 +234,14 @@ model.training_branch_tree = function(_, requested)
     } }
 end
 runtime.target_geometry_snapshot = function() return { horizontal_distance = distance } end
-config.training_repeat_count = 1
+config.training_repeat_count = 5
 controller.training_state = "idle"
 assert(not controller:start_training_scenario(natural),
     "condition-guided training also requires branch preview")
 assert(controller:preview_training_scenario(natural))
 assert(controller:start_training_scenario(natural)
-    and controller.training_state == "positioning",
-    "natural scenario starts in positioning without writing an Action")
+    and controller.training_state == "positioning" and controller.training_target_rounds == 1,
+    "natural scenario starts without an Action write and clamps repeats to its verified limit")
 training_snapshot = { category = 0, action = 0 }
 controller.frame_counter = 210
 controller:update_training_scenario()

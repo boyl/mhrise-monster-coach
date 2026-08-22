@@ -84,6 +84,15 @@ function M.set_training_state(self, state, status, scenario)
     }
 end
 
+function M.training_repeat_count(self, scenario)
+    local requested = math.max(1, math.min(20,
+        math.floor(tonumber(self.config.training_repeat_count) or 1)))
+    local verified_limit = type(scenario) == "table"
+        and tonumber(scenario.max_verified_repeats) or nil
+    if verified_limit == nil then return requested end
+    return math.min(requested, math.max(1, math.floor(verified_limit)))
+end
+
 function M.training_entry_status(self)
     if self.config.forced_action_training_enabled ~= true then
         return false, "请先启用“指定出招训练”", false
@@ -145,8 +154,7 @@ function M.start_training_scenario(self, scenario)
         return false
     end
     self.training_scenario = scenario
-    self.training_target_rounds = math.max(1, math.min(20,
-        math.floor(tonumber(self.config.training_repeat_count) or 1)))
+    self.training_target_rounds = M.training_repeat_count(self, scenario)
     self.training_completed_rounds = 0
     self.training_behavior_tracker = nil
     self.training_last_behavior_path = nil
@@ -518,10 +526,16 @@ function M.draw_training_menu(self)
                 M.preview_training_scenario(self, scenario)
             end
             if self.training_preview_scenario_id == tostring(scenario.id) then
+                local effective_repeats = M.training_repeat_count(self, scenario)
                 imgui.same_line()
                 if imgui.button("开始：" .. name .. " × "
-                    .. tostring(self.config.training_repeat_count) .. "##" .. tostring(scenario.id)) then
+                    .. tostring(effective_repeats) .. "##" .. tostring(scenario.id)) then
                     M.start_training_scenario(self, scenario)
+                end
+                local repeat_limit = tonumber(scenario.max_verified_repeats)
+                if repeat_limit and tonumber(self.config.training_repeat_count) > repeat_limit then
+                    ui_text_wrapped("该场景当前仅开放 " .. tostring(repeat_limit)
+                        .. " 轮：更高重复次数尚未通过稳定性门禁。")
                 end
             end
         end
