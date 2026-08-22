@@ -89,6 +89,8 @@ app (composition root)
 
 运行时派生观测采用两层证据：Action Reader 提供战斗动作编号与动画，Behavior Tree Reader 从怪物 `GameObject` 的 `via.motion.MotionFsm2` 逐层读取树及活动节点。后者只读 `getLayer/get_tree_object/get_node/status/name`，不调用 `setCurrentNode`。实机已在轰龙咆哮期间解析出 `Attack.Roar` 与 `Attack.Roar.End`，因此后续根动作和实际路径应优先用 FSM 节点语义关联，Action ID 仅作为兼容与时序辅助信号。
 
+原生派生入口采用双证据门禁：首先在自然 AI 中观察到根节点与后继节点；随后只触发一次候选根入口，并确认在不追加动作写入时仍由引擎续接相同后继。轰龙 Action 5000 已形成关键反例：自然 AI 中出现 `BiteHookHalfTurnStartShortRange -> BiteHookHalfTurnAttackNormal`，直接 Action 请求却在起手结束后转入 `Move.Dash`。因此 `setActionUnique` 只可承担已验证独立单招，不得作为 `native_branch`/`native_combo` 的根入口；原生派生必须激活保留 Think/FSM 决策上下文的高层入口，或通过可复现的距离、朝向、状态条件诱导 AI 自行选择。
+
 ## 新增怪物的最小改动
 
 已确定会变化的只有三条边界：怪物知识、游戏运行时、训练场景。新增怪物时：

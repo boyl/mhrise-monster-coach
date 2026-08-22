@@ -9,6 +9,8 @@ param(
     [int[]]$ForcedActions = @(),
     [string]$TrainingScenarioId = '',
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
+    [switch]$BehaviorSurvey,
+    [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
     [ValidateRange(5, 30)][int]$SurveyTimeoutSeconds = 12,
@@ -77,6 +79,7 @@ if ($ResumeExisting) {
         session_id = $sessionId
         kind = if ($TrainingScenarioId) { 'training_scenario_acceptance' }
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
+            elseif ($BehaviorSurvey) { 'behavior_path_survey' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
         requested_at = [DateTimeOffset]::Now.ToString('o')
@@ -87,6 +90,7 @@ if ($ResumeExisting) {
         forced_actions = @($ForcedActions)
         training_scenario_id = $TrainingScenarioId
         training_repeat_count = $TrainingRepeatCount
+        behavior_survey_frames = $BehaviorSurveyFrames
         continue_on_action_failure = $ForcedActions.Count -gt 1
     }
     Write-AtomicJson -Value $request -Path $requestPath

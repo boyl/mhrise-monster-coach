@@ -1,5 +1,6 @@
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 local BehaviorPathTracker = require("MHRiseMonsterCoach.behavior_path_tracker")
+local BehaviorGraphRecorder = require("MHRiseMonsterCoach.behavior_graph_recorder")
 
 local M = {}
 
@@ -48,6 +49,7 @@ function M.new(api, quest_id, options)
         forced_failure_count = 0,
         training_acceptance = nil,
         behavior_path = nil,
+        behavior_survey = nil,
     }, { __index = M })
 end
 
@@ -83,6 +85,7 @@ function M:report(status, reason)
         },
         training_acceptance = self.training_acceptance,
         behavior_tree = self.api.behavior_tree_snapshot and self.api:behavior_tree_snapshot() or nil,
+        behavior_survey = self.behavior_survey and self.behavior_survey.recorder:result() or nil,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -135,7 +138,8 @@ function M:accept_request(request, context)
         or (request.kind ~= "environment_creature_lifecycle"
             and request.kind ~= "monster_respawn_lifecycle"
             and request.kind ~= "forced_action_sequence"
-            and request.kind ~= "training_scenario_acceptance")
+            and request.kind ~= "training_scenario_acceptance"
+            and request.kind ~= "behavior_path_survey")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     if request.auto_load_save == true and context.in_quest ~= true
@@ -149,6 +153,7 @@ function M:accept_request(request, context)
     self.forced_error = nil
     self.forced_failure_count = 0
     self.training_acceptance = nil
+    self.behavior_survey = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -164,6 +169,12 @@ function M:accept_request(request, context)
             or tonumber(request.training_repeat_count) == nil
             or tonumber(request.training_repeat_count) < 1 or tonumber(request.training_repeat_count) > 20 then
             return self:fail("Training acceptance requires a scenario ID and 1-20 repeats")
+        end
+    end
+    if request.kind == "behavior_path_survey" then
+        local frames = tonumber(request.behavior_survey_frames)
+        if frames == nil or frames < 300 or frames > 7200 then
+            return self:fail("Behavior survey requires 300-7200 frames")
         end
     end
     if context.is_online or context.build_supported == false then
@@ -228,6 +239,14 @@ function M:update()
                         self:set_state("forced_prepare")
                         return true
                     end
+                    if self.request.kind == "behavior_path_survey" then
+                        self.behavior_survey = {
+                            target_frames = tonumber(self.request.behavior_survey_frames),
+                            recorder = BehaviorGraphRecorder.new(1024),
+                        }
+                        self:set_state("behavior_survey")
+                        return true
+                    end
                     if self.request.kind == "monster_respawn_lifecycle" then
                         local ok, reason = self.api:start_monster_respawn()
                         self.monster_respawn = { attempted = true, state = "starting", reason = reason }
@@ -280,6 +299,12 @@ function M:update()
         if self.state_frames > 3600 then
             return self:fail("Training acceptance timed out")
         end
+    elseif self.state == "behavior_survey" then
+        local current = self.api:current_action() or {}
+        local snapshot = self.api:behavior_tree_snapshot()
+        self.behavior_survey.recorder:sample(self.frame, snapshot, current)
+        if self.state_frames % 120 == 0 then self:report("running") end
+        if self.state_frames >= self.behavior_survey.target_frames then return self:complete() end
     elseif self.state == "forced_prepare" then
         if self.state_frames % 30 == 1 then self:report("running") end
         local action = self.forced_actions[self.forced_index]

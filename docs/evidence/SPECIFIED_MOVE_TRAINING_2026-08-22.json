@@ -134,6 +134,39 @@
       ]
     }
   },
+  "natural_behavior_survey": {
+    "mod_version": "0.36.0-runtime-branch-survey",
+    "session_id": "1ee4e4763a734ff9a3431ba07a5fae93",
+    "frames": 3600,
+    "events": 47,
+    "nodes": 20,
+    "edges": 31,
+    "truncated": false,
+    "policy": "observed candidates only; no edge is promoted to deterministic from runtime frequency alone",
+    "native_combo_candidate": [
+      "Attack.BiteHookHalfTurnStartShortRange.Phase00 (Action 5000)",
+      "Attack.BiteHookHalfTurnStartShortRange.End",
+      "Attack.BiteHookHalfTurnAttackNormal.Phase00 (Action 5001)"
+    ]
+  },
+  "native_combo_root_injection_counterexample": {
+    "mod_version": "0.36.0-runtime-branch-survey",
+    "session_id": "c3ff8669726c4506ac9ac4022477e03b",
+    "root_action": 5000,
+    "writes_after_root": 0,
+    "observed_path": [
+      "Attack.BiteHookHalfTurnStartShortRange.Phase00",
+      "Attack.BiteHookHalfTurnStartShortRange.End",
+      "Move.Dash"
+    ],
+    "exit_to": "category 1/action 8",
+    "natural_reference": [
+      "Attack.BiteHookHalfTurnStartShortRange.Phase00",
+      "Attack.BiteHookHalfTurnStartShortRange.End",
+      "Attack.BiteHookHalfTurnAttackNormal.Phase00 (Action 5001)"
+    ],
+    "conclusion": "Direct root Action injection does not preserve the native Think/FSM continuation context. Action 5000 is withheld from the native_branch menu; the next write experiment must activate a higher-level Think/FSM entry or induce its native conditions."
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",

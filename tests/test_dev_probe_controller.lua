@@ -222,4 +222,34 @@ assert(training_reports[#training_reports].status == "completed"
     "product-path acceptance reports the controller's exact completed repeat count")
 assert(training_api.finished == true, "acceptance restores temporary training configuration")
 
+local survey_reports, survey_action = {}, 0
+local survey_api = { quest_api = quest_api }
+function survey_api:get_context() return forced_context end
+function survey_api:read_request() return nil end
+function survey_api:write_report(report) survey_reports[#survey_reports + 1] = report end
+function survey_api:environment_evidence() return {} end
+function survey_api:area_snapshot() return { combat_layer = true } end
+function survey_api:action_request_evidence() return {} end
+function survey_api:current_action()
+    survey_action = survey_action + 1
+    return { category = 4, action = survey_action, motion_name = "survey" }
+end
+function survey_api:behavior_tree_snapshot()
+    return { layers = { { layer = 0, active_nodes = {
+        { id = tostring(survey_action), index = survey_action,
+            name = "Attack.Survey." .. tostring(survey_action), status1 = 2, status2 = 2 },
+    } } } }
+end
+local survey_probe = Probe.new(survey_api, 200032001, { stable_frames = 1 })
+survey_probe.request = { session_id = "behavior-survey", kind = "behavior_path_survey",
+    require_combat_area = true, behavior_survey_frames = 300 }
+survey_probe:set_state("wait_stable")
+survey_probe:update()
+assert(survey_probe.state == "behavior_survey", "combat gate starts the natural FSM survey")
+for _ = 1, 300 do survey_probe:update() end
+local survey_report = survey_reports[#survey_reports]
+assert(survey_report.status == "completed" and survey_report.behavior_survey.samples == 300)
+assert(#survey_report.behavior_survey.edges == 299,
+    "natural survey reports observed candidate edges without declaring deterministic branches")
+
 print("test_dev_probe_controller.lua: PASS")
