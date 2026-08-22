@@ -117,6 +117,7 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         streak = 0,
         round_damage = 0,
         last_result = nil,
+        last_hit_event = nil,
         config = config,
         context = { in_quest = false, is_online = false, target_found = false },
     }, { __index = M })
@@ -640,6 +641,40 @@ function M.observe_damage(self, amount)
             progress = math.max(0, math.min(1, frame / end_frame))
         end
         local key = tostring(self.current_state_key or self.current_action)
+        local phase = M.coaching_state(self)
+        local relation, relative_frame = nil, nil
+        local confirmed = confirmed_evidence_move(self)
+        local windows = confirmed and confirmed.timing and confirmed.timing.active_windows or nil
+        if frame and type(windows) == "table" then
+            local final_end = nil
+            for _, window in ipairs(windows) do
+                local start_frame = tonumber(window.start_frame)
+                local end_frame_value = tonumber(window.end_frame)
+                if start_frame and end_frame_value then
+                    if frame < start_frame then
+                        relation, relative_frame = "before_active", frame - start_frame
+                        break
+                    elseif frame <= end_frame_value then
+                        relation, relative_frame = "inside_active", frame - start_frame
+                        break
+                    end
+                    final_end = final_end and math.max(final_end, end_frame_value) or end_frame_value
+                end
+            end
+            if relation == nil and final_end then
+                relation, relative_frame = "after_active", frame - final_end
+            end
+        end
+        self.last_hit_event = {
+            action = tostring(self.current_action),
+            state_key = key,
+            move_name = self.current_move and (self.current_move.short_name or self.current_move.name) or nil,
+            damage = amount,
+            frame = frame,
+            phase = phase.phase,
+            relation = relation,
+            relative_frame = relative_frame,
+        }
         local row = self.hit_timing_evidence[key]
         if row == nil then
             row = {
@@ -670,6 +705,7 @@ end
 
 function M.reset_round(self, reason)
     self.round_damage = 0
+    self.last_hit_event = nil
     self.last_result = reason or "Training round reset"
     self.state = self.current_action and M.states.RUNNING or M.states.READY
     self.status = self.last_result
@@ -686,6 +722,7 @@ function M.clear_round_runtime(self, reason)
     self.response_candidates = {}
     self.response_error = nil
     self.round_damage = 0
+    self.last_hit_event = nil
     self.live_hitbox_seen = false
     self.live_hitbox_state_key = nil
     self.last_result = reason or "Training round reset"

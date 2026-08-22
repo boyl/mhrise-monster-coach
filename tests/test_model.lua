@@ -154,6 +154,8 @@ readonly:observe_action("99", 1.5, {
     motion_progress = 0.5,
 })
 truthy(readonly:observe_damage(18), "read-only damage observation records timing evidence")
+equal(readonly.last_hit_event.damage, 18, "read-only mode exposes the latest hit result")
+equal(readonly.last_hit_event.frame, 30, "latest hit result records the action frame")
 readonly.current_metadata.current_frame = 36.0
 readonly.current_metadata.motion_progress = 0.6
 truthy(readonly:observe_damage(12), "repeated hit expands the observed timing range")
@@ -178,6 +180,7 @@ equal(readonly.current_action, nil, "quick reset clears the previous action prom
 equal(readonly.current_metadata, nil, "quick reset clears stale motion metadata")
 equal(readonly.prediction, nil, "quick reset clears stale branch prediction")
 equal(readonly.round_damage, 0, "quick reset clears current-round damage")
+equal(readonly.last_hit_event, nil, "quick reset clears the previous hit result")
 equal(readonly.status, "Round reset in place", "quick reset exposes an explicit result")
 
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })

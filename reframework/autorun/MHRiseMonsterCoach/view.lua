@@ -81,6 +81,23 @@ local function phase_text(model)
     return text, state.phase
 end
 
+local function last_hit_text(event)
+    if type(event) ~= "table" then return nil end
+    local move = event.move_name or ("Action " .. tostring(event.action or "?"))
+    local timing = ""
+    if event.relation == "inside_active" and event.relative_frame then
+        timing = string.format(" | 判定内 +%.1f 帧", event.relative_frame)
+    elseif event.relation == "before_active" and event.relative_frame then
+        timing = string.format(" | 判定前 %.1f 帧", math.abs(event.relative_frame))
+    elseif event.relation == "after_active" and event.relative_frame then
+        timing = string.format(" | 判定后 +%.1f 帧", event.relative_frame)
+    elseif event.frame then
+        timing = string.format(" | 动画 %.1f 帧", event.frame)
+    end
+    return string.format("Last hit / 上次受击: %s | %.1f 伤害%s",
+        tostring(move), tonumber(event.damage) or 0, timing)
+end
+
 function M.new(config, font)
     return setmetatable({ config = config, font = font }, { __index = M })
 end
@@ -142,6 +159,8 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     if model.context.outcome_tracking and model.last_result then
         lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
     end
+    local hit_result = last_hit_text(model.last_hit_event)
+    if hit_result then lines[#lines + 1] = { truncate(hit_result, 88), COLORS.failure } end
 
     local controls
     if model.context.build_supported == false then
