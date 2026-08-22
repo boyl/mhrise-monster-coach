@@ -1638,16 +1638,7 @@ function M.monster_respawn_api(runtime)
     end
 
     function api:request_create(contract)
-        if runtime.methods.set_info_repop == nil then
-            return false, "EnemySetInfo.repop unavailable"
-        end
-        local ok, reason = pcall(function()
-            runtime.methods.set_info_repop:call(contract.set_info)
-        end)
-        if not ok then
-            return false, "Native monster repop request failed: " .. tostring(reason)
-        end
-        return true, nil
+        return false, "No verified active-quest monster creation entrypoint"
     end
 
     function api:find_created_enemy(contract, candidate)
