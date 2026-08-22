@@ -2239,6 +2239,19 @@ function M.think_context_snapshot(self, include_catalog)
     return ThinkContextReader.read(self.enemy, include_catalog == true)
 end
 
+function M.request_think_reference_probe(self, path_suffix)
+    local context = self.last_context or {}
+    if not context.in_quest or context.is_online or context.build_supported == false
+        or tonumber(context.quest_no) ~= tonumber(self.profile.training_quest.id)
+        or not context.target_found then
+        return false, "Think branch probe requires the supported offline training quest", false
+    end
+    if path_suffix ~= "em032_combo_001.user" then
+        return false, "Think branch reference is not allowlisted", false
+    end
+    return ThinkContextReader.request_reference_state(self.enemy, path_suffix)
+end
+
 local FORCED_ACTION_PROBE_ALLOWLIST = {
     [15] = true, [16] = true, [18] = true,
     [19] = true, [20] = true, [21] = true, [22] = true, [23] = true,

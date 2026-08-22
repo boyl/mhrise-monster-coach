@@ -10,6 +10,7 @@ param(
     [string]$TrainingScenarioId = '',
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
     [switch]$BehaviorSurvey,
+    [switch]$NativeThinkBranch,
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
@@ -30,7 +31,7 @@ $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
 $launchedGame = $false
-$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $BehaviorSurvey)
+$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $BehaviorSurvey -or $NativeThinkBranch)
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
@@ -81,6 +82,7 @@ if ($ResumeExisting) {
         kind = if ($TrainingScenarioId) { 'training_scenario_acceptance' }
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
             elseif ($BehaviorSurvey) { 'behavior_path_survey' }
+            elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
         requested_at = [DateTimeOffset]::Now.ToString('o')
@@ -92,6 +94,8 @@ if ($ResumeExisting) {
         training_scenario_id = $TrainingScenarioId
         training_repeat_count = $TrainingRepeatCount
         behavior_survey_frames = $BehaviorSurveyFrames
+        think_reference = if ($NativeThinkBranch) { 'em032_combo_001.user' } else { $null }
+        expected_successor = if ($NativeThinkBranch) { 5001 } else { $null }
         continue_on_action_failure = $ForcedActions.Count -gt 1
     }
     Write-AtomicJson -Value $request -Path $requestPath

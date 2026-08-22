@@ -222,6 +222,39 @@
     },
     "result": "passed: runtime catalogs preserve full ThinkInfoData identity and correlate the native 5000 -> 5001 path with concrete state/action/transition contracts"
   },
+  "direct_think_activation_rejection": {
+    "versions": "0.37.0-0.37.4",
+    "policy": "developer-only allowlisted probes with automatic F7 recovery; never exposed in the user menu",
+    "experiments": [
+      {
+        "session_id": "e1db92d89d3a4c3086c3ee853706d70a",
+        "method": "setState on an active parent containing combo_001",
+        "result": "rejected before write: the inactive combo reference was absent from the active stack"
+      },
+      {
+        "session_id": "0f5f0ebad1d54f36a4a7daa23f46e922",
+        "method": "nextJumpThinkData(combo_001)",
+        "result": "returned an object but did not activate Action 5000/5002"
+      },
+      {
+        "session_id": "a7731d152e9f44b08b73cd42249aa6c5",
+        "method": "nextJumpThinkData followed by startActionTable",
+        "result": "did not activate Action 5000/5002"
+      },
+      {
+        "session_id": "b338c200acd04465869d4055a1fec27d",
+        "method": "validate returned ThinkInfoData before setState",
+        "result": "rejected before write: the returned object did not contain Action 5000/5001"
+      },
+      {
+        "session_id": "1d79060667804f08bf4fe6fa68a1855d",
+        "method": "resolve returned/current/active-stack ThinkInfoData after nextJump",
+        "result": "rejected before write: no active combo ThinkInfoData existed"
+      }
+    ],
+    "recovery": "all experiments completed an original F7 quest reconstruction; no crash occurred",
+    "conclusion": "Do not synthesize or directly activate inactive ThinkInfoData. Use native condition induction and observe/filter AI-selected roots, then stop intervention for the native successor."
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",

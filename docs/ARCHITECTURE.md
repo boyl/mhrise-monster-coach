@@ -93,6 +93,8 @@ app (composition root)
 
 Think Context Reader 以 `(ThinkInfoData 地址, StateNo, TreeNodeID)` 为运行时复合键，并只读导出每个状态的 Action 类型与编号、Condition 的 `_NextStateID`、引用子 ThinkData 路径。不能只用 `StateNo`：同一怪物同时存在多个子树且状态编号重复。轰龙半转身钩咬的 7200 帧验收已定位同一 12 状态子树中的状态 8（Action 5000）、状态 6（Action 5001）和状态 9（远距离 Action 5002）。任何高层写实验必须按完整子树身份匹配，并在调用前再次核对状态内 Action 契约。
 
+直接激活未进入活动栈的 ThinkData 已被实验否定：`nextJumpThinkData` 能返回对象，但不会单独完成活动栈切换；追加 `startActionTable` 也不能建立完整生命周期，而返回对象和当前活动栈均不是目标 12 状态子树。不得通过手工构造 `ThinkInfoData`、直接写活动栈或跳 Motion FSM 节点继续放大风险。指定原生派生改用“条件诱导 + AI 自选根动作 + 目标筛选”：自动维持距离/朝向/状态条件，要求引擎自然选中目标根动作，命中后停止干预并观察原生后继。
+
 ## 新增怪物的最小改动
 
 已确定会变化的只有三条边界：怪物知识、游戏运行时、训练场景。新增怪物时：

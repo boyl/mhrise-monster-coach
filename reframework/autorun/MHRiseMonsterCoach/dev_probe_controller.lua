@@ -50,6 +50,7 @@ function M.new(api, quest_id, options)
         training_acceptance = nil,
         behavior_path = nil,
         behavior_survey = nil,
+        native_branch = nil,
     }, { __index = M })
 end
 
@@ -87,6 +88,7 @@ function M:report(status, reason)
         behavior_tree = self.api.behavior_tree_snapshot and self.api:behavior_tree_snapshot() or nil,
         think_context = self.api.think_context_snapshot and self.api:think_context_snapshot(true) or nil,
         behavior_survey = self.behavior_survey and self.behavior_survey.recorder:result() or nil,
+        native_branch = self.native_branch,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -140,7 +142,8 @@ function M:accept_request(request, context)
             and request.kind ~= "monster_respawn_lifecycle"
             and request.kind ~= "forced_action_sequence"
             and request.kind ~= "training_scenario_acceptance"
-            and request.kind ~= "behavior_path_survey")
+            and request.kind ~= "behavior_path_survey"
+            and request.kind ~= "native_think_branch")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     if request.auto_load_save == true and context.in_quest ~= true
@@ -155,6 +158,7 @@ function M:accept_request(request, context)
     self.forced_failure_count = 0
     self.training_acceptance = nil
     self.behavior_survey = nil
+    self.native_branch = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -177,6 +181,18 @@ function M:accept_request(request, context)
         if frames == nil or frames < 300 or frames > 7200 then
             return self:fail("Behavior survey requires 300-7200 frames")
         end
+    end
+    if request.kind == "native_think_branch" then
+        if request.think_reference ~= "em032_combo_001.user"
+            or tonumber(request.expected_successor) ~= 5001 then
+            return self:fail("Native Think branch is not allowlisted")
+        end
+        self.native_branch = {
+            reference = request.think_reference,
+            expected_roots = { 5000, 5002 },
+            expected_successor = 5001,
+            status = "pending",
+        }
     end
     if context.is_online or context.build_supported == false then
         return self:fail("Developer probe requires a supported offline runtime")
@@ -248,6 +264,10 @@ function M:update()
                         self:set_state("behavior_survey")
                         return true
                     end
+                    if self.request.kind == "native_think_branch" then
+                        self:set_state("native_branch_request")
+                        return true
+                    end
                     if self.request.kind == "monster_respawn_lifecycle" then
                         local ok, reason = self.api:start_monster_respawn()
                         self.monster_respawn = { attempted = true, state = "starting", reason = reason }
@@ -309,6 +329,79 @@ function M:update()
         self.behavior_survey.recorder:sample(self.frame, snapshot, current, think)
         if self.state_frames % 120 == 0 then self:report("running") end
         if self.state_frames >= self.behavior_survey.target_frames then return self:complete() end
+    elseif self.state == "native_branch_request" then
+        if self.state_frames % 30 == 1 then self:report("running") end
+        local ok, result, retry = self.api:request_think_reference(self.native_branch.reference)
+        if ok then
+            self.native_branch.status = "requested"
+            self.native_branch.requested_at_frame = self.frame
+            self.native_branch.contract = result
+            self.behavior_path = BehaviorPathTracker.new(256)
+            self:set_state("native_branch_verify_root")
+        elseif not retry or self.state_frames > 600 then
+            self.native_branch.status = "failed"
+            self.native_branch.reason = tostring(result)
+            self.quest_flow:reset_terminal()
+            local recovered, reason = self.quest_flow:start(context)
+            if not recovered then return self:fail(self.native_branch.reason
+                .. "; recovery failed: " .. tostring(reason)) end
+            self:set_state("native_branch_recovery")
+        end
+    elseif self.state == "native_branch_verify_root" then
+        local current = self.api:current_action() or {}
+        if self.behavior_path then
+            self.behavior_path:sample(self.frame, self.api:behavior_tree_snapshot(), current)
+        end
+        local action = tonumber(current.action)
+        if tonumber(current.category) == 4 and (action == 5000 or action == 5002) then
+            self.native_branch.root_action = action
+            self.native_branch.root_observed_at_frame = self.frame
+            self.native_branch.status = "root_observed"
+            self:set_state("native_branch_verify_successor")
+        elseif self.state_frames > 240 then
+            self.native_branch.status = "failed"
+            self.native_branch.reason = "Native root 5000/5002 was not observed"
+            self.quest_flow:reset_terminal()
+            local recovered, reason = self.quest_flow:start(context)
+            if not recovered then return self:fail(self.native_branch.reason
+                .. "; recovery failed: " .. tostring(reason)) end
+            self:set_state("native_branch_recovery")
+        end
+    elseif self.state == "native_branch_verify_successor" then
+        local current = self.api:current_action() or {}
+        if self.behavior_path then
+            self.behavior_path:sample(self.frame, self.api:behavior_tree_snapshot(), current)
+        end
+        if tonumber(current.category) == 4
+            and tonumber(current.action) == self.native_branch.expected_successor then
+            self.native_branch.status = "passed"
+            self.native_branch.successor_observed_at_frame = self.frame
+            self.native_branch.behavior_path = self.behavior_path:result()
+            self.quest_flow:reset_terminal()
+            local recovered, reason = self.quest_flow:start(context)
+            if not recovered then return self:fail("Native branch passed but recovery failed: "
+                .. tostring(reason)) end
+            self:set_state("native_branch_recovery")
+        elseif self.state_frames > 900 then
+            self.native_branch.status = "failed"
+            self.native_branch.reason = "Expected native successor 5001 was not observed"
+            self.native_branch.behavior_path = self.behavior_path:result()
+            self.quest_flow:reset_terminal()
+            local recovered, reason = self.quest_flow:start(context)
+            if not recovered then return self:fail(self.native_branch.reason
+                .. "; recovery failed: " .. tostring(reason)) end
+            self:set_state("native_branch_recovery")
+        end
+    elseif self.state == "native_branch_recovery" then
+        self.quest_flow:update(context)
+        if self.state_frames % 30 == 0 then self:report("running") end
+        if self.quest_flow.state == "failed" then
+            return self:fail("Native branch recovery failed: " .. tostring(self.quest_flow.error))
+        end
+        if self.quest_flow.state == "complete" then
+            if self.native_branch.status == "passed" then return self:complete() end
+            return self:fail(self.native_branch.reason or "Native Think branch failed")
+        end
     elseif self.state == "forced_prepare" then
         if self.state_frames % 30 == 1 then self:report("running") end
         local action = self.forced_actions[self.forced_index]

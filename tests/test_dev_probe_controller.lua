@@ -252,4 +252,38 @@ assert(survey_report.status == "completed" and survey_report.behavior_survey.sam
 assert(#survey_report.behavior_survey.edges == 299,
     "natural survey reports observed candidate edges without declaring deterministic branches")
 
+local branch_action = 0
+local branch_api = { quest_api = quest_api }
+function branch_api:get_context() return forced_context end
+function branch_api:write_report() end
+function branch_api:environment_evidence() return {} end
+function branch_api:area_snapshot() return { combat_layer = true } end
+function branch_api:action_request_evidence() return {} end
+function branch_api:behavior_tree_snapshot() return { layers = {} } end
+function branch_api:think_context_snapshot() return {} end
+function branch_api:request_think_reference(path)
+    assert(path == "em032_combo_001.user")
+    branch_action = 5000
+    return true, { state_id = 6 }, false
+end
+function branch_api:current_action()
+    local value = branch_action
+    if branch_action == 5000 then branch_action = 5001 end
+    return { category = 4, action = value }
+end
+local branch_probe = Probe.new(branch_api, 200032001, { stable_frames = 1 })
+branch_probe.request = { session_id = "native-branch", kind = "native_think_branch",
+    think_reference = "em032_combo_001.user", expected_successor = 5001 }
+branch_probe.native_branch = { reference = "em032_combo_001.user",
+    expected_roots = { 5000, 5002 }, expected_successor = 5001, status = "pending" }
+branch_probe:set_state("native_branch_request")
+branch_probe:update()
+assert(branch_probe.state == "native_branch_verify_root")
+branch_probe:update()
+assert(branch_probe.state == "native_branch_verify_successor")
+branch_probe:update()
+assert(branch_probe.state == "native_branch_recovery"
+    and branch_probe.native_branch.status == "passed",
+    "native Think branch writes only the parent reference and observes the engine successor")
+
 print("test_dev_probe_controller.lua: PASS")
