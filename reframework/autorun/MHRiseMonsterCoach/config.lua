@@ -20,6 +20,7 @@ local DEFAULTS = {
     quick_reset_enabled = false,
     auto_capture_anchors = false,
     native_quest_reset_enabled = true,
+    forced_action_training_enabled = false,
     experimental_in_place_reset_enabled = true,
     quick_reset_cooldown_frames = 180,
     quick_reset_safe_frames = 15,

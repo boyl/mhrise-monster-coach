@@ -145,4 +145,36 @@ controller:update_health()
 controller:update_health()
 assert(writes == 1, "safe mode passively persists hit timing evidence")
 
+local training_requests = 0
+local training_snapshot = { category = 0, action = 0 }
+local scenario = {
+    id = "tigrex_roar_single", name_zh = "咆哮", actions = { 19 },
+    verification = { status = "verified" },
+}
+config.forced_action_training_enabled = true
+model.profile = { training_quest = { id = 200032001 } }
+model.context = { in_quest = true, quest_no = 200032001, is_online = false,
+    build_supported = true, target_found = true }
+model.current_metadata = { action_category = 0 }
+model.coaching_state = function() return { phase = "unknown" } end
+runtime.request_training_scenario = function(_, requested)
+    assert(requested == scenario) training_requests = training_requests + 1 return true
+end
+runtime.current_action_snapshot = function() return training_snapshot end
+controller.frame_counter = 100
+assert(controller:request_training_scenario(scenario), "verified scenario starts from a safe entry state")
+training_snapshot = { category = 4, action = 19 }
+controller.frame_counter = 101
+controller:update_training_scenario()
+assert(controller.training_state == "running", "live Action match confirms scenario execution")
+training_snapshot = { category = 0, action = 0 }
+controller.frame_counter = 112
+controller:update_training_scenario()
+assert(controller.training_state == "completed" and training_requests == 1,
+    "scenario reports one completion and never sends a duplicate request")
+model.current_metadata = { action_category = 4 }
+model.coaching_state = function() return { phase = "startup" } end
+assert(not controller:request_training_scenario(scenario) and training_requests == 1,
+    "active monster attack blocks a new specified-move request")
+
 print("test_controller.lua: PASS")

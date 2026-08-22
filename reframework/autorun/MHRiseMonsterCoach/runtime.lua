@@ -2220,16 +2220,13 @@ function M.current_action_snapshot(self)
     }
 end
 
-function M.request_forced_action_probe(self, action_no)
+local function issue_forced_action(self, action_no, request_tag)
     action_no = tonumber(action_no)
     local context = self.last_context or {}
     if not context.in_quest or context.is_online or context.build_supported == false
         or tonumber(context.quest_no) ~= tonumber(self.profile.training_quest.id)
         or not context.target_found then
-        return false, "Forced action probe requires the supported offline training quest"
-    end
-    if not FORCED_ACTION_PROBE_ALLOWLIST[action_no] then
-        return false, "Action is outside the forced-probe allowlist"
+        return false, "Forced action requires the supported offline training quest"
     end
     if self.enemy == nil or self.methods.enemy_request_no_change_action == nil then
         return false, "native action request target is unavailable"
@@ -2238,7 +2235,7 @@ function M.request_forced_action_probe(self, action_no)
     if hitboxes and hitboxes.active then
         return false, "Waiting for active monster hitboxes to close", true
     end
-    self.action_request_trace.request_tag = "forced_probe"
+    self.action_request_trace.request_tag = request_tag
     local payload = safe(function()
         return sdk.create_instance("snow.enemy.SetupActionData"):add_ref()
     end)
@@ -2254,6 +2251,30 @@ function M.request_forced_action_probe(self, action_no)
     self.action_request_trace.request_tag = nil
     if not ok then return false, tostring(reason) end
     return true
+end
+
+function M.request_forced_action_probe(self, action_no)
+    action_no = tonumber(action_no)
+    if not FORCED_ACTION_PROBE_ALLOWLIST[action_no] then
+        return false, "Action is outside the forced-probe allowlist"
+    end
+    return issue_forced_action(self, action_no, "forced_probe")
+end
+
+function M.request_training_scenario(self, scenario)
+    if self.config.forced_action_training_enabled ~= true then
+        return false, "Enable specified-move training in the Monster Coach menu first"
+    end
+    if type(scenario) ~= "table" or type(scenario.actions) ~= "table"
+        or #scenario.actions ~= 1 or type(scenario.verification) ~= "table"
+        or scenario.verification.status ~= "verified" then
+        return false, "Training scenario is not a verified single-action contract"
+    end
+    local areas = M.area_snapshot(self)
+    if areas.combat_layer ~= true then
+        return false, "Enter the monster area before starting specified-move training"
+    end
+    return issue_forced_action(self, scenario.actions[1], "training_scenario")
 end
 
 function M.read_hitboxes(self)

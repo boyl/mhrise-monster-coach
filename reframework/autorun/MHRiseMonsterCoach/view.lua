@@ -159,6 +159,13 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     if model.context.outcome_tracking and model.last_result then
         lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
     end
+    local training = model.training_scenario
+    if type(training) == "table" and training.state ~= "idle" then
+        local label = training.name and ("Training " .. tostring(training.name) .. ": ") or "Training: "
+        lines[#lines + 1] = { truncate(label .. tostring(training.status or training.state), 88),
+            result_color(training.state == "completed" and "success"
+                or (training.state == "failed" and "failure" or "running")) }
+    end
     local hit_result = last_hit_text(model.last_hit_event)
     if hit_result then lines[#lines + 1] = { truncate(hit_result, 88), COLORS.failure } end
 

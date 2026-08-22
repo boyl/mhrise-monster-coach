@@ -19,13 +19,16 @@ local function bounded_append(list, value, limit)
     if #list > limit then table.remove(list, 1) end
 end
 
-local function merge_profile(profile, calibration)
+local function merge_profile(profile, calibration, static_ai)
     local moves = {}
     for key, value in pairs(profile.moves or {}) do moves[tostring(key)] = value end
     for key, value in pairs(calibration.moves or {}) do moves[tostring(key)] = value end
 
     local scenarios = {}
     for _, value in ipairs(profile.scenarios or {}) do scenarios[#scenarios + 1] = value end
+    for _, value in ipairs((static_ai and static_ai.training_scenarios) or {}) do
+        scenarios[#scenarios + 1] = value
+    end
     for _, value in ipairs(calibration.scenarios or {}) do scenarios[#scenarios + 1] = value end
     return moves, scenarios
 end
@@ -79,13 +82,14 @@ local function rebuild_evidence_row(row)
 end
 
 function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
-    local moves, scenarios = merge_profile(profile, calibration)
+    local moves, scenarios = merge_profile(profile, calibration, static_ai)
     local self = setmetatable({
         state = M.states.INITIAL,
         status = "Waiting for a single-player quest",
         profile = profile,
         moves = moves,
         scenarios = scenarios,
+        calibration_scenarios = calibration.scenarios or {},
         static_ai = static_ai or { actions = {} },
         long_sword_knowledge = long_sword_knowledge or { actions = {} },
         player_combat_state = nil,
@@ -513,6 +517,9 @@ end
 function M.reload_static_ai(self, static_ai)
     if type(static_ai) ~= "table" or type(static_ai.actions) ~= "table" then return false end
     self.static_ai = static_ai
+    local _, scenarios = merge_profile(self.profile,
+        { moves = {}, scenarios = self.calibration_scenarios }, static_ai)
+    self.scenarios = scenarios
     if self.current_action ~= nil then
         local metadata = self.current_metadata
         self.current_move = is_coaching_action(self, metadata) and named_move(self, self.current_action, metadata) or nil
@@ -744,7 +751,7 @@ function M.export_calibration(self, reader)
         profile = self.profile.id,
         reader = reader,
         moves = self.moves,
-        scenarios = self.scenarios,
+        scenarios = self.calibration_scenarios,
         observed_unknown_actions = unknown,
         observed_transitions = self.transitions,
         observed_history = self.history,

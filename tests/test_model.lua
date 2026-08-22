@@ -83,6 +83,9 @@ model:observe_action("10", 1.75)
 local static_profile = { id = "static", name = "Static", moves = {}, scenarios = {} }
 local static_ai = {
     required_action_category = 4,
+    training_scenarios = {
+        { id = "roar", actions = { 19 }, verification = { status = "verified" } },
+    },
     moves = { ["15"] = { name = "Drift turn", short_name = "Drift", advice = "Wait" } },
     actions = {
         ["15"] = { kind = "fixed", evidence_count = 3, next = { { action = "2" } } },
@@ -90,6 +93,7 @@ local static_ai = {
     },
 }
 local static_model = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
+equal(static_model.scenarios[1].id, "roar", "static AI contributes deployable training scenarios")
 static_model:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
 static_model:observe_action("15", 1, { action_category = 4 })
 equal(static_model.current_move.name, "Drift turn", "static move labels current ActionNo")
@@ -107,6 +111,7 @@ equal(wrong_category.current_move.name, "Drift turn", "same ActionNo in attack c
 equal(wrong_category.current_state_key, "4:15", "state identity combines ActionCategory and ActionNo")
 truthy(static_model:reload_static_ai({ required_action_category = 4, actions = {} }), "static AI data reload succeeds")
 equal(static_model.prediction, nil, "static AI reload refreshes current prediction")
+equal(#static_model.scenarios, 0, "static AI reload refreshes training scenarios without duplication")
 
 model:observe_damage(12.5)
 model:observe_action("11", 2)

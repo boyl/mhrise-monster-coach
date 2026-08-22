@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-22",
+  "mod_version": "0.33.0-specified-move-training",
+  "scenario": {
+    "id": "tigrex_roar_single",
+    "display_name": "咆哮",
+    "monster": "Tigrex",
+    "action_category": 4,
+    "action_no": 19,
+    "observed_motion": "TigRoar_R"
+  },
+  "verified_path": [
+    "enable specified-move training",
+    "click execute roar",
+    "guard safe entry state",
+    "issue native action request",
+    "observe category 4 action 19",
+    "observe Tigrex roar in game"
+  ],
+  "result": "passed",
+  "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
+  "limits": [
+    "single successful product-path execution is not the 20-loop stability gate",
+    "distance, facing and rage preconditions are not yet modeled",
+    "only verified scenarios may be exposed in the user-facing menu"
+  ]
+}

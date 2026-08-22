@@ -13,6 +13,23 @@
     "common/act_tbl_user_data/action/",
     "common/act_tbl_user_data/combo/"
   ],
+  "training_scenarios": [
+    {
+      "id": "tigrex_roar_single",
+      "name": "Roar",
+      "name_zh": "咆哮",
+      "actions": [19],
+      "entry_policy": "non_attack_or_recovery_without_active_hitbox",
+      "positioning": "manual",
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "observed_motion": "TigRoar_R",
+        "completed_sessions": 2
+      }
+    }
+  ],
   "moves": {
     "2": {
       "name": "直线冲锋起步 / 连段过渡",
