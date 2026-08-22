@@ -32,6 +32,15 @@ restart:update(quest)
 assert(restart.state == "complete", "completes only after the target quest is loaded")
 assert(table.concat(calls, ",") == "reset,open,session,select,posted,depart,finish",
     "uses the bounded native workflow in order")
+local diagnostics = restart:diagnostics()
+assert(diagnostics.total_frames == 9 and diagnostics.state == "complete",
+    "diagnostics measure only active restart frames")
+assert(#diagnostics.transitions == 8
+    and diagnostics.transitions[1].state == "wait_hub"
+    and diagnostics.transitions[1].frames == 2
+    and diagnostics.transitions[8].state == "wait_quest"
+    and diagnostics.transitions[8].frames == 1,
+    "diagnostics preserve per-state transition timing")
 
 calls = {}
 local launch = QuestRestart.new(api, 200032001, { hub_stable_frames = 1, timeout_frames = 30 })

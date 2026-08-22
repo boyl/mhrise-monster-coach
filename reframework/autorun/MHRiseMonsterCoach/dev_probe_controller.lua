@@ -56,11 +56,7 @@ function M:report(status, reason)
         state = self.state,
         probe_key = self.probe_key,
         frames = self.frame,
-        quest_flow = {
-            state = self.quest_flow.state,
-            status = self.quest_flow.status,
-            error = self.quest_flow.error,
-        },
+        quest_flow = self.quest_flow:diagnostics(),
         environment = evidence,
         areas = self.api:area_snapshot(),
         arena_transfer = self.arena_transfer,

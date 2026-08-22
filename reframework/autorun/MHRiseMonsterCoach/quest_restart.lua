@@ -35,6 +35,8 @@ function M.new(api, quest_id, options)
         state = M.states.IDLE,
         status = "Waiting for training quest",
         state_frames = 0,
+        total_frames = 0,
+        transition_history = {},
         hub_stable_frames = 0,
         timeout_frames = options.timeout_frames or 3600,
         -- Runtime additionally requires GameStatePlayer.Lobby, an invokable quest
@@ -52,9 +54,40 @@ function M:is_active()
 end
 
 function M:set_state(state)
+    if self.state ~= state and self.state ~= M.states.IDLE then
+        self.transition_history[#self.transition_history + 1] = {
+            state = self.state,
+            frames = self.state_frames,
+            total_frame = self.total_frames,
+        }
+    end
     self.state = state
     self.status = LABELS[state] or state
     self.state_frames = 0
+end
+
+function M:diagnostics()
+    local transitions = {}
+    for index, transition in ipairs(self.transition_history) do
+        transitions[index] = {
+            state = transition.state,
+            frames = transition.frames,
+            total_frame = transition.total_frame,
+        }
+    end
+    return {
+        state = self.state,
+        status = self.status,
+        error = self.error,
+        state_frames = self.state_frames,
+        total_frames = self.total_frames,
+        transitions = transitions,
+    }
+end
+
+function M:reset_diagnostics()
+    self.total_frames = 0
+    self.transition_history = {}
 end
 
 function M:fail(reason)
@@ -73,6 +106,7 @@ function M:start(context)
     end
     local ok, reason = self.api:request_reset()
     if not ok then return false, reason end
+    self:reset_diagnostics()
     self.error = nil
     self.hub_stable_frames = 0
     self:set_state(M.states.WAIT_HUB)
@@ -84,6 +118,7 @@ function M:start_from_hub(context)
     if context.in_quest or context.is_online or context.build_supported == false then
         return false, "Wait for the supported offline hub"
     end
+    self:reset_diagnostics()
     self.error = nil
     self.hub_stable_frames = 0
     self:set_state(M.states.WAIT_HUB)
@@ -99,6 +134,7 @@ end
 
 function M:update(context)
     if not self:is_active() then return false end
+    self.total_frames = self.total_frames + 1
     self.state_frames = self.state_frames + 1
     if self.state_frames > self.timeout_frames then
         return self:fail("timeout in " .. self.state)
