@@ -326,7 +326,9 @@ function M:update()
         local include_catalog = self.state_frames % 30 == 1
         local think = self.api.think_context_snapshot
             and self.api:think_context_snapshot(include_catalog) or nil
-        self.behavior_survey.recorder:sample(self.frame, snapshot, current, think)
+        local geometry = self.api.target_geometry_snapshot
+            and self.api:target_geometry_snapshot() or nil
+        self.behavior_survey.recorder:sample(self.frame, snapshot, current, think, geometry)
         if self.state_frames % 120 == 0 then self:report("running") end
         if self.state_frames >= self.behavior_survey.target_frames then return self:complete() end
     elseif self.state == "native_branch_request" then

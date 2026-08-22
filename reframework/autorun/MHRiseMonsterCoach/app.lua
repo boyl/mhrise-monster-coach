@@ -59,6 +59,9 @@ function M.start()
     function probe_api:area_snapshot()
         return runtime:area_snapshot()
     end
+    function probe_api:target_geometry_snapshot()
+        return runtime:target_geometry_snapshot()
+    end
     function probe_api:request_arena_transfer()
         return runtime:request_arena_transfer()
     end

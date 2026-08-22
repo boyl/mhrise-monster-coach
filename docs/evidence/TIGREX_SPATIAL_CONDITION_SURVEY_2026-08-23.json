@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise / TDB 71",
+  "mod_version": "0.38.0-spatial-condition-survey",
+  "session_id": "0f325a1e43844d01b855eaa2a542a2c5",
+  "policy": "observed runtime evidence; ranges are not declared universal thresholds",
+  "method": {
+    "input": "normal player sprint input using measured player, enemy and camera geometry",
+    "schedule": ["near 7m", "far 28m", "near 7m"],
+    "writes": "no monster Action, Think, FSM, transform, health or time writes",
+    "samples": 7200
+  },
+  "result": {
+    "status": "passed",
+    "native_sequences_observed": 3,
+    "root": {
+      "action": 5000,
+      "name": "BiteHookHalfTurnStartShortRange",
+      "onset_distance_min": 4.874689442610862,
+      "onset_distance_max": 8.518990741681325,
+      "onset_distance_mean": 7.0170489080492
+    },
+    "successor": {
+      "action": 5001,
+      "name": "BiteHookHalfTurnAttackNormal",
+      "observed_without_successor_injection": true,
+      "onset_distance_min": 8.321141830934087,
+      "onset_distance_max": 11.767786215077459,
+      "onset_distance_mean": 9.699004653699197
+    },
+    "think_evidence": {
+      "known_root_context": "State 8 / TreeNodeID 4273570785",
+      "known_successor_context": "State 6 / TreeNodeID 2249374684",
+      "note": "Equivalent parent contexts also selected Action 5000; production matching must combine FSM node name, Action category/number and observed continuation instead of relying on StateNo alone."
+    }
+  },
+  "conclusion": "Normal movement can induce the AI to select the native branch root while preserving the engine-owned 5000 -> 5001 continuation. This validates condition induction as the safe foundation for specified-opening training."
+}

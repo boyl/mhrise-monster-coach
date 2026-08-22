@@ -2401,6 +2401,25 @@ read_area_no = function(self, character)
     return safe(function() return tonumber(value:get_field("value__")) end)
 end
 
+-- Lightweight actor geometry for per-frame behavior surveys.  Keep this
+-- separate from area_snapshot(): that path enumerates scene markers and is
+-- intentionally too expensive for continuous sampling.
+function M.target_geometry_snapshot(self)
+    local player_position = get_position(get_transform(self.player))
+    local enemy_position = get_position(get_transform(self.enemy))
+    if player_position == nil or enemy_position == nil then return nil end
+    local dx = tonumber(player_position.x) - tonumber(enemy_position.x)
+    local dy = tonumber(player_position.y) - tonumber(enemy_position.y)
+    local dz = tonumber(player_position.z) - tonumber(enemy_position.z)
+    if dx == nil or dy == nil or dz == nil then return nil end
+    return {
+        player_position = serializable_vector(player_position, false),
+        enemy_position = serializable_vector(enemy_position, false),
+        horizontal_distance = math.sqrt(dx * dx + dz * dz),
+        vertical_gap = math.abs(dy),
+    }
+end
+
 function M.area_snapshot(self)
     local player_area = read_area_no(self, self.player)
     local enemy_area = read_area_no(self, self.enemy)

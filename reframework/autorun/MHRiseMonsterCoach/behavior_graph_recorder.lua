@@ -16,7 +16,19 @@ function M.new(max_events)
     }, { __index = M })
 end
 
-function M:sample(frame, snapshot, action, think)
+local function observe_distance(stats, distance)
+    distance = tonumber(distance)
+    if distance == nil then return stats end
+    stats = stats or { observations = 0, sum = 0 }
+    stats.observations = stats.observations + 1
+    stats.sum = stats.sum + distance
+    stats.min = stats.min == nil and distance or math.min(stats.min, distance)
+    stats.max = stats.max == nil and distance or math.max(stats.max, distance)
+    stats.mean = stats.sum / stats.observations
+    return stats
+end
+
+function M:sample(frame, snapshot, action, think, geometry)
     if think and think.info_address and think.states then
         self.think_catalogs[tostring(think.info_address)] = {
             info_address = think.info_address,
@@ -26,6 +38,12 @@ function M:sample(frame, snapshot, action, think)
     end
     if not self.tracker:sample(frame, snapshot, action) then return false end
     local event = self.tracker.events[#self.tracker.events]
+    if geometry ~= nil then
+        event.geometry = {
+            horizontal_distance = tonumber(geometry.horizontal_distance),
+            vertical_gap = tonumber(geometry.vertical_gap),
+        }
+    end
     local key = node_key(event.node)
     local row = self.nodes[key] or {
         key = key, layer = event.node.layer, id = event.node.id,
@@ -35,6 +53,10 @@ function M:sample(frame, snapshot, action, think)
     local action_key = tostring(event.action and event.action.category) .. ":"
         .. tostring(event.action and event.action.action)
     row.action_contexts[action_key] = (row.action_contexts[action_key] or 0) + 1
+    row.distance = observe_distance(row.distance, geometry and geometry.horizontal_distance)
+    row.distance_by_action = row.distance_by_action or {}
+    row.distance_by_action[action_key] = observe_distance(
+        row.distance_by_action[action_key], geometry and geometry.horizontal_distance)
     row.think_contexts = row.think_contexts or {}
     local think_key = tostring(think and think.info_address) .. ":"
         .. tostring(think and think.current_state_no) .. ":"
@@ -65,7 +87,7 @@ end
 function M:result()
     local path = self.tracker:result()
     return {
-        schema_version = 1,
+        schema_version = 2,
         policy = "observed_candidates_only_not_deterministic",
         samples = path.samples,
         events = path.events,

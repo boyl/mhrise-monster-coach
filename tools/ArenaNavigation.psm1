@@ -5,6 +5,50 @@ function Get-PlanarLength {
     return [Math]::Sqrt($X * $X + $Z * $Z)
 }
 
+function Get-WorldVectorMovementCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Areas,
+        [Parameter(Mandatory)][double]$DeltaX,
+        [Parameter(Mandatory)][double]$DeltaZ
+    )
+    $navigation = $Areas.arena_navigation
+    $forward = $navigation.camera_forward
+    $right = $navigation.camera_right
+    if ($null -eq $forward -or $null -eq $right) {
+        return [pscustomobject]@{ Action = 'wait'; Reason = 'camera navigation basis is unavailable' }
+    }
+    $distance = Get-PlanarLength -X $DeltaX -Z $DeltaZ
+    $forwardLength = Get-PlanarLength -X ([double]$forward.x) -Z ([double]$forward.z)
+    $rightLength = Get-PlanarLength -X ([double]$right.x) -Z ([double]$right.z)
+    if ($distance -lt 0.001 -or $forwardLength -lt 0.001 -or $rightLength -lt 0.001) {
+        return [pscustomobject]@{ Action = 'wait'; Reason = 'navigation basis is degenerate'; Distance = $distance }
+    }
+    $directionX = $DeltaX / $distance
+    $directionZ = $DeltaZ / $distance
+    $forwardDot = $directionX * ([double]$forward.x / $forwardLength) +
+        $directionZ * ([double]$forward.z / $forwardLength)
+    $rightDot = $directionX * ([double]$right.x / $rightLength) +
+        $directionZ * ([double]$right.z / $rightLength)
+    $primary = if ($forwardDot -ge 0) { 'W' } else { 'S' }
+    $secondary = if ($rightDot -ge 0) { 'D' } else { 'A' }
+    if ([Math]::Abs($forwardDot) -lt 0.32) { $primary = $null }
+    if ([Math]::Abs($rightDot) -lt 0.32) { $secondary = $null }
+    if ($null -eq $primary -and $null -eq $secondary) {
+        $primary = if ([Math]::Abs($forwardDot) -ge [Math]::Abs($rightDot)) {
+            if ($forwardDot -ge 0) { 'W' } else { 'S' }
+        } else {
+            if ($rightDot -ge 0) { 'D' } else { 'A' }
+        }
+    }
+    if ($null -eq $primary) { $primary = $secondary; $secondary = $null }
+    return [pscustomobject]@{
+        Action = 'hold'; Primary = $primary; Secondary = $secondary; Sprint = $true
+        Distance = $distance; ForwardDot = $forwardDot; RightDot = $rightDot
+        Reason = 'move along measured world-space direction'
+    }
+}
+
 function Get-ArenaNavigationCommand {
     [CmdletBinding()]
     param(
@@ -85,42 +129,7 @@ function Get-ArenaNavigationCommand {
 
     $deltaX = [double]$target.x - [double]$player.x
     $deltaZ = [double]$target.z - [double]$player.z
-    $distance = Get-PlanarLength -X $deltaX -Z $deltaZ
-    $forwardLength = Get-PlanarLength -X ([double]$forward.x) -Z ([double]$forward.z)
-    $rightLength = Get-PlanarLength -X ([double]$right.x) -Z ([double]$right.z)
-    if ($distance -lt 0.001 -or $forwardLength -lt 0.001 -or $rightLength -lt 0.001) {
-        return [pscustomobject]@{ Action = 'wait'; Reason = 'navigation basis is degenerate'; Distance = $distance }
-    }
-
-    $directionX = $deltaX / $distance
-    $directionZ = $deltaZ / $distance
-    $forwardDot = $directionX * ([double]$forward.x / $forwardLength) +
-        $directionZ * ([double]$forward.z / $forwardLength)
-    $rightDot = $directionX * ([double]$right.x / $rightLength) +
-        $directionZ * ([double]$right.z / $rightLength)
-    $primary = if ($forwardDot -ge 0) { 'W' } else { 'S' }
-    $secondary = if ($rightDot -ge 0) { 'D' } else { 'A' }
-    if ([Math]::Abs($forwardDot) -lt 0.32) { $primary = $null }
-    if ([Math]::Abs($rightDot) -lt 0.32) { $secondary = $null }
-    if ($null -eq $primary -and $null -eq $secondary) {
-        if ([Math]::Abs($forwardDot) -ge [Math]::Abs($rightDot)) {
-            $primary = if ($forwardDot -ge 0) { 'W' } else { 'S' }
-        } else {
-            $primary = if ($rightDot -ge 0) { 'D' } else { 'A' }
-        }
-    }
-    if ($null -eq $primary) { $primary = $secondary; $secondary = $null }
-
-    return [pscustomobject]@{
-        Action = 'hold'
-        Primary = $primary
-        Secondary = $secondary
-        Sprint = $true
-        Distance = $distance
-        ForwardDot = $forwardDot
-        RightDot = $rightDot
-        Reason = 'move toward the nearest native area-move marker'
-    }
+    return Get-WorldVectorMovementCommand -Areas $Areas -DeltaX $deltaX -DeltaZ $deltaZ
 }
 
-Export-ModuleMember -Function Get-ArenaNavigationCommand
+Export-ModuleMember -Function Get-ArenaNavigationCommand, Get-WorldVectorMovementCommand

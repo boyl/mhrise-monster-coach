@@ -62,5 +62,9 @@ $surveyCommand = Get-ArenaNavigationCommand -Areas $survey
 if ($surveyCommand.Action -ne 'survey' -or $surveyCommand.Primary -ne 'W') {
     throw 'unknown map must use a bounded forward survey instead of an unbounded blind run'
 }
+$away = Get-WorldVectorMovementCommand -Areas (Observation 0 -10) -DeltaX 0 -DeltaZ 10
+if ($away.Action -ne 'hold' -or $away.Primary -ne 'S') {
+    throw 'world-space away vector must map to S'
+}
 
 'test_arena_navigation.ps1: PASS'

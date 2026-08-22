@@ -10,6 +10,7 @@ param(
     [string]$TrainingScenarioId = '',
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
     [switch]$BehaviorSurvey,
+    [switch]$BehaviorDistanceSweep,
     [switch]$NativeThinkBranch,
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
@@ -31,7 +32,8 @@ $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
 $launchedGame = $false
-$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $BehaviorSurvey -or $NativeThinkBranch)
+$effectiveBehaviorSurvey = [bool]($BehaviorSurvey -or $BehaviorDistanceSweep)
+$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSurvey -or $NativeThinkBranch)
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
@@ -81,7 +83,7 @@ if ($ResumeExisting) {
         session_id = $sessionId
         kind = if ($TrainingScenarioId) { 'training_scenario_acceptance' }
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
-            elseif ($BehaviorSurvey) { 'behavior_path_survey' }
+            elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
             elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
@@ -241,6 +243,7 @@ $arenaNavigation = $null
 $lastProbeState = $null
 $combatRunHeld = $false
 $combatRunKeys = $null
+$lastDistanceSweepBand = $null
 
 $virtualKeys = @{ W = [byte]0x57; A = [byte]0x41; S = [byte]0x53; D = [byte]0x44 }
 
@@ -298,10 +301,13 @@ do {
         $isNavigationReport = $effectiveRequireCombatArea -and $report -and
             $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -in $navigationGateStates
-        if (-not $isNavigationReport) {
+        $isDistanceSweepReport = $BehaviorDistanceSweep -and $report -and
+            $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -eq 'behavior_survey'
+        if (-not $isNavigationReport -and -not $isDistanceSweepReport) {
             Stop-ArenaMovement
             $arenaNavigation = $null
-        } else {
+        } elseif ($isNavigationReport) {
             $stateKey = [string]$report.state
             if ($lastProbeState -ne $stateKey -or $null -eq $arenaNavigation) {
                 Stop-ArenaMovement
@@ -405,6 +411,47 @@ do {
                 }
             }
             $lastProbeState = $stateKey
+        }
+        if ($isDistanceSweepReport) {
+            $sample = [int]($report.behavior_survey.samples ?? 0)
+            $band = if ($sample -lt [Math]::Floor($BehaviorSurveyFrames / 3)) { 'near-1' }
+                elseif ($sample -lt [Math]::Floor(2 * $BehaviorSurveyFrames / 3)) { 'far' }
+                else { 'near-2' }
+            $targetDistance = if ($band -eq 'far') { 28.0 } else { 7.0 }
+            if ($lastDistanceSweepBand -ne $band) {
+                $lastDistanceSweepBand = $band
+                Write-Host "Behavior distance sweep: $band target=$targetDistance m"
+            }
+            $player = $report.areas.player_position
+            $enemy = $report.areas.enemy_position
+            if ($null -ne $player -and $null -ne $enemy) {
+                $dx = [double]$enemy.x - [double]$player.x
+                $dz = [double]$enemy.z - [double]$player.z
+                $distance = [Math]::Sqrt($dx * $dx + $dz * $dz)
+                $moveToward = $distance -gt $targetDistance + 2.0
+                $moveAway = $distance -lt $targetDistance - 2.0
+                if ($moveToward -or $moveAway) {
+                    if ($moveAway) { $dx = -$dx; $dz = -$dz }
+                    $command = Get-WorldVectorMovementCommand -Areas $report.areas -DeltaX $dx -DeltaZ $dz
+                    $desiredKeys = "$($command.Primary)+$($command.Secondary)"
+                    if ($command.Action -eq 'hold' -and
+                        (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys)) {
+                        Stop-ArenaMovement
+                        $secondaryKey = if ($command.Secondary) {
+                            $virtualKeys[[string]$command.Secondary]
+                        } else { [byte]0 }
+                        if (-not [MonsterCoachInput]::BeginHoldMovement(
+                            $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
+                            throw "Could not apply behavior distance sweep input $desiredKeys"
+                        }
+                        $combatRunHeld = $true
+                        $combatRunKeys = $desiredKeys
+                        Write-Host "Behavior distance sweep: $desiredKeys distance=$([Math]::Round($distance, 2)) m"
+                    }
+                } else {
+                    Stop-ArenaMovement
+                }
+            }
         }
         if ($report -and ($report.session_id -eq $sessionId) -and
             ($report.status -in @('completed', 'failed'))) {
