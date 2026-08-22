@@ -11,9 +11,11 @@ param(
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
     [switch]$BehaviorSurvey,
     [switch]$BehaviorDistanceSweep,
+    [switch]$ConditionBranch,
     [switch]$NativeThinkBranch,
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
+    [switch]$FullReport,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
     [ValidateRange(5, 30)][int]$SurveyTimeoutSeconds = 12,
     [ValidateRange(5, 60)][int]$TransferTimeoutSeconds = 15
@@ -33,7 +35,8 @@ $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION')
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
 $launchedGame = $false
 $effectiveBehaviorSurvey = [bool]($BehaviorSurvey -or $BehaviorDistanceSweep)
-$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSurvey -or $NativeThinkBranch)
+$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSurvey -or
+    $ConditionBranch -or $NativeThinkBranch)
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
@@ -84,6 +87,7 @@ if ($ResumeExisting) {
         kind = if ($TrainingScenarioId) { 'training_scenario_acceptance' }
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
             elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
+            elseif ($ConditionBranch) { 'condition_induced_branch' }
             elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
@@ -96,8 +100,11 @@ if ($ResumeExisting) {
         training_scenario_id = $TrainingScenarioId
         training_repeat_count = $TrainingRepeatCount
         behavior_survey_frames = $BehaviorSurveyFrames
+        target_root = if ($ConditionBranch) { 5000 } else { $null }
+        target_distance = if ($ConditionBranch) { 7 } else { $null }
+        condition_timeout_frames = if ($ConditionBranch) { 7200 } else { $null }
         think_reference = if ($NativeThinkBranch) { 'em032_combo_001.user' } else { $null }
-        expected_successor = if ($NativeThinkBranch) { 5001 } else { $null }
+        expected_successor = if ($NativeThinkBranch -or $ConditionBranch) { 5001 } else { $null }
         continue_on_action_failure = $ForcedActions.Count -gt 1
     }
     Write-AtomicJson -Value $request -Path $requestPath
@@ -304,7 +311,11 @@ do {
         $isDistanceSweepReport = $BehaviorDistanceSweep -and $report -and
             $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -eq 'behavior_survey'
-        if (-not $isNavigationReport -and -not $isDistanceSweepReport) {
+        $isConditionBranchReport = $ConditionBranch -and $report -and
+            $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -eq 'condition_branch_seek'
+        if (-not $isNavigationReport -and -not $isDistanceSweepReport -and
+            -not $isConditionBranchReport) {
             Stop-ArenaMovement
             $arenaNavigation = $null
         } elseif ($isNavigationReport) {
@@ -321,6 +332,7 @@ do {
                     last_distance = $null
                     best_distance = [double]::PositiveInfinity
                     last_progress_at = [datetimeoffset]::Now
+                    replans = 0
                 }
                 Write-Host "Coordinate navigation started during $stateKey"
             }
@@ -360,8 +372,17 @@ do {
                         $arenaNavigation.best_distance = $command.Distance
                         $arenaNavigation.last_progress_at = [datetimeoffset]::Now
                     } elseif (([datetimeoffset]::Now - $arenaNavigation.last_progress_at).TotalSeconds -ge 4) {
+                        if ($arenaNavigation.replans -lt 1) {
+                            Stop-ArenaMovement
+                            $arenaNavigation.replans++
+                            $arenaNavigation.best_distance = [double]::PositiveInfinity
+                            $arenaNavigation.last_progress_at = [datetimeoffset]::Now
+                            Write-Host "Arena navigation: bounded replan after stalled movement at $([Math]::Round($command.Distance, 2)) m"
+                            Start-Sleep -Milliseconds 750
+                            continue
+                        }
                         Stop-ArenaMovement
-                        throw "Coordinate navigation made no progress for 4 seconds (distance $([Math]::Round($command.Distance, 2)))"
+                        throw "Coordinate navigation made no progress after one bounded replan (distance $([Math]::Round($command.Distance, 2)))"
                     }
                     $desiredKeys = "$($command.Primary)+$($command.Secondary)"
                     if (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys) {
@@ -453,10 +474,61 @@ do {
                 }
             }
         }
+        if ($isConditionBranchReport) {
+            $player = $report.areas.player_position
+            $enemy = $report.areas.enemy_position
+            $targetDistance = [double]$report.condition_branch.target_distance
+            $tolerance = [double]$report.condition_branch.tolerance
+            if ($null -ne $player -and $null -ne $enemy) {
+                $dx = [double]$enemy.x - [double]$player.x
+                $dz = [double]$enemy.z - [double]$player.z
+                $distance = [Math]::Sqrt($dx * $dx + $dz * $dz)
+                $moveToward = $distance -gt $targetDistance + $tolerance
+                $moveAway = $distance -lt $targetDistance - $tolerance
+                if ($moveToward -or $moveAway) {
+                    if ($moveAway) { $dx = -$dx; $dz = -$dz }
+                    $command = Get-WorldVectorMovementCommand -Areas $report.areas -DeltaX $dx -DeltaZ $dz
+                    $desiredKeys = "$($command.Primary)+$($command.Secondary)"
+                    if ($command.Action -eq 'hold' -and
+                        (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys)) {
+                        Stop-ArenaMovement
+                        $secondaryKey = if ($command.Secondary) {
+                            $virtualKeys[[string]$command.Secondary]
+                        } else { [byte]0 }
+                        if (-not [MonsterCoachInput]::BeginHoldMovement(
+                            $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
+                            throw "Could not apply condition-induction movement $desiredKeys"
+                        }
+                        $combatRunHeld = $true
+                        $combatRunKeys = $desiredKeys
+                        Write-Host "Condition induction: $desiredKeys distance=$([Math]::Round($distance, 2)) m"
+                    }
+                } else {
+                    Stop-ArenaMovement
+                }
+            }
+        }
         if ($report -and ($report.session_id -eq $sessionId) -and
             ($report.status -in @('completed', 'failed'))) {
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
-            $report | ConvertTo-Json -Depth 12
+            if ($FullReport) {
+                $report | ConvertTo-Json -Depth 12
+            } else {
+                [ordered]@{
+                    session_id = $report.session_id
+                    kind = $report.kind
+                    status = $report.status
+                    reason = $report.reason
+                    frames = $report.frames
+                    condition_branch = $report.condition_branch
+                    behavior_survey = if ($report.behavior_survey) { [ordered]@{
+                        samples = $report.behavior_survey.samples
+                        events = @($report.behavior_survey.events).Count
+                        nodes = @($report.behavior_survey.nodes).Count
+                        edges = @($report.behavior_survey.edges).Count
+                    } } else { $null }
+                } | ConvertTo-Json -Depth 8
+            }
             if ($report.status -eq 'failed') { exit 2 }
             exit 0
         }

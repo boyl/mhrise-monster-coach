@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise / TDB 71",
+  "mod_version": "0.39.0-condition-induced-native-branch",
+  "policy": "normal player movement input; no monster Action, Think, FSM, transform, health or time writes",
+  "contract": {
+    "target_root": 5000,
+    "expected_successor": 5001,
+    "target_distance": 7,
+    "tolerance": 2,
+    "stop_movement_when_root_observed": true,
+    "success_requires_engine_owned_successor": true
+  },
+  "runs": [
+    {
+      "session_id": "afdffb5f2dae4a6abd459bc7a8c6c597",
+      "status": "passed",
+      "root_distance": 6.743410022305081,
+      "continuation_frames": 79
+    },
+    {
+      "session_id": "b1b3528762f4408fa0ba516ada2c409a",
+      "status": "passed_after_resuming_bounded_navigation",
+      "root_distance": 5.806600746493762,
+      "continuation_frames": 85
+    },
+    {
+      "session_id": "cea22a898ec54580a8cfc92e64c1c818",
+      "status": "passed",
+      "root_distance": 7.149459586252863,
+      "continuation_frames": 77
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 0,
+    "crashes": 0,
+    "root_distance_min": 5.806600746493762,
+    "root_distance_max": 7.149459586252863,
+    "continuation_frames_min": 77,
+    "continuation_frames_max": 85
+  },
+  "conclusion": "The allowlisted condition-induced branch controller reliably acquires Action 5000, releases movement, and verifies the native Action 5001 continuation. The product path can now reuse this state contract, but still needs an in-product movement adapter or a user-positioning fallback before public exposure."
+}

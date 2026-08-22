@@ -252,6 +252,37 @@ assert(survey_report.status == "completed" and survey_report.behavior_survey.sam
 assert(#survey_report.behavior_survey.edges == 299,
     "natural survey reports observed candidate edges without declaring deterministic branches")
 
+local condition_reports, condition_action = {}, 29
+local condition_api = { quest_api = quest_api }
+function condition_api:get_context() return forced_context end
+function condition_api:write_report(report) condition_reports[#condition_reports + 1] = report end
+function condition_api:environment_evidence() return {} end
+function condition_api:area_snapshot() return { combat_layer = true } end
+function condition_api:target_geometry_snapshot() return { horizontal_distance = 7.25 } end
+function condition_api:action_request_evidence() return {} end
+function condition_api:behavior_tree_snapshot() return { layers = {} } end
+function condition_api:think_context_snapshot() return {} end
+function condition_api:current_action()
+    if condition_action == 29 then condition_action = 5000
+    elseif condition_action == 5000 then condition_action = 5001 end
+    return { category = 4, action = condition_action }
+end
+local condition_probe = Probe.new(condition_api, 200032001, { stable_frames = 1 })
+assert(condition_probe:accept_request({
+    session_id = "condition-branch", kind = "condition_induced_branch",
+    target_root = 5000, expected_successor = 5001, target_distance = 7,
+    condition_timeout_frames = 300,
+}, forced_context))
+condition_probe:update()
+assert(condition_probe.state == "condition_branch_seek")
+condition_probe:update()
+assert(condition_probe.state == "condition_branch_verify_successor"
+    and condition_probe.condition_branch.desired_movement == "stop")
+condition_probe:update()
+assert(condition_reports[#condition_reports].status == "completed"
+    and condition_reports[#condition_reports].condition_branch.status == "passed",
+    "condition branch stops movement at root and verifies the engine-owned successor")
+
 local branch_action = 0
 local branch_api = { quest_api = quest_api }
 function branch_api:get_context() return forced_context end

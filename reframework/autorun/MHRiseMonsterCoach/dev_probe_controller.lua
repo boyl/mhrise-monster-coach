@@ -51,6 +51,7 @@ function M.new(api, quest_id, options)
         behavior_path = nil,
         behavior_survey = nil,
         native_branch = nil,
+        condition_branch = nil,
     }, { __index = M })
 end
 
@@ -89,6 +90,7 @@ function M:report(status, reason)
         think_context = self.api.think_context_snapshot and self.api:think_context_snapshot(true) or nil,
         behavior_survey = self.behavior_survey and self.behavior_survey.recorder:result() or nil,
         native_branch = self.native_branch,
+        condition_branch = self.condition_branch,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -143,6 +145,7 @@ function M:accept_request(request, context)
             and request.kind ~= "forced_action_sequence"
             and request.kind ~= "training_scenario_acceptance"
             and request.kind ~= "behavior_path_survey"
+            and request.kind ~= "condition_induced_branch"
             and request.kind ~= "native_think_branch")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
@@ -159,6 +162,7 @@ function M:accept_request(request, context)
     self.training_acceptance = nil
     self.behavior_survey = nil
     self.native_branch = nil
+    self.condition_branch = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -192,6 +196,23 @@ function M:accept_request(request, context)
             expected_roots = { 5000, 5002 },
             expected_successor = 5001,
             status = "pending",
+        }
+    end
+    if request.kind == "condition_induced_branch" then
+        if tonumber(request.target_root) ~= 5000
+            or tonumber(request.expected_successor) ~= 5001
+            or tonumber(request.target_distance) ~= 7 then
+            return self:fail("Condition-induced branch is not allowlisted")
+        end
+        self.condition_branch = {
+            target_root = 5000,
+            expected_successor = 5001,
+            target_distance = 7,
+            tolerance = 2,
+            timeout_frames = math.min(7200, math.max(300,
+                tonumber(request.condition_timeout_frames) or 7200)),
+            status = "seeking_root",
+            desired_movement = "hold_band",
         }
     end
     if context.is_online or context.build_supported == false then
@@ -268,6 +289,10 @@ function M:update()
                         self:set_state("native_branch_request")
                         return true
                     end
+                    if self.request.kind == "condition_induced_branch" then
+                        self:set_state("condition_branch_seek")
+                        return true
+                    end
                     if self.request.kind == "monster_respawn_lifecycle" then
                         local ok, reason = self.api:start_monster_respawn()
                         self.monster_respawn = { attempted = true, state = "starting", reason = reason }
@@ -331,6 +356,47 @@ function M:update()
         self.behavior_survey.recorder:sample(self.frame, snapshot, current, think, geometry)
         if self.state_frames % 120 == 0 then self:report("running") end
         if self.state_frames >= self.behavior_survey.target_frames then return self:complete() end
+    elseif self.state == "condition_branch_seek" then
+        local current = self.api:current_action() or {}
+        local geometry = self.api.target_geometry_snapshot
+            and self.api:target_geometry_snapshot() or nil
+        self.condition_branch.current_action = tonumber(current.action)
+        self.condition_branch.current_category = tonumber(current.category)
+        self.condition_branch.horizontal_distance = geometry
+            and tonumber(geometry.horizontal_distance) or nil
+        if tonumber(current.category) == 4
+            and tonumber(current.action) == self.condition_branch.target_root then
+            self.condition_branch.status = "root_acquired"
+            self.condition_branch.desired_movement = "stop"
+            self.condition_branch.root_frame = self.frame
+            self.condition_branch.root_distance = self.condition_branch.horizontal_distance
+            self:set_state("condition_branch_verify_successor")
+            self:report("running")
+            return true
+        end
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if self.state_frames >= self.condition_branch.timeout_frames then
+            self.condition_branch.status = "failed"
+            return self:fail("Condition induction did not observe root Action 5000")
+        end
+    elseif self.state == "condition_branch_verify_successor" then
+        local current = self.api:current_action() or {}
+        local action = tonumber(current.action)
+        self.condition_branch.current_action = action
+        self.condition_branch.current_category = tonumber(current.category)
+        if tonumber(current.category) == 4
+            and action == self.condition_branch.expected_successor then
+            self.condition_branch.status = "passed"
+            self.condition_branch.successor_frame = self.frame
+            self.condition_branch.continuation_frames = self.frame
+                - self.condition_branch.root_frame
+            return self:complete()
+        end
+        if self.state_frames % 15 == 1 then self:report("running") end
+        if action ~= self.condition_branch.target_root or self.state_frames > 300 then
+            self.condition_branch.status = "failed"
+            return self:fail("Root Action 5000 did not continue naturally to Action 5001")
+        end
     elseif self.state == "native_branch_request" then
         if self.state_frames % 30 == 1 then self:report("running") end
         local ok, result, retry = self.api:request_think_reference(self.native_branch.reference)
