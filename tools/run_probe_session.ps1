@@ -7,6 +7,8 @@ param(
     [switch]$RequireCombatArea,
     [switch]$MonsterRespawn,
     [int[]]$ForcedActions = @(),
+    [string]$TrainingScenarioId = '',
+    [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
     [switch]$ResumeExisting,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
     [ValidateRange(5, 30)][int]$SurveyTimeoutSeconds = 12,
@@ -73,7 +75,8 @@ if ($ResumeExisting) {
     $request = [ordered]@{
         schema_version = 1
         session_id = $sessionId
-        kind = if ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
+        kind = if ($TrainingScenarioId) { 'training_scenario_acceptance' }
+            elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
         requested_at = [DateTimeOffset]::Now.ToString('o')
@@ -82,6 +85,8 @@ if ($ResumeExisting) {
         require_combat_area = [bool]$RequireCombatArea
         auto_native_arena_transfer = $false
         forced_actions = @($ForcedActions)
+        training_scenario_id = $TrainingScenarioId
+        training_repeat_count = $TrainingRepeatCount
         continue_on_action_failure = $ForcedActions.Count -gt 1
     }
     Write-AtomicJson -Value $request -Path $requestPath

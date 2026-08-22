@@ -152,6 +152,7 @@ local scenario = {
     verification = { status = "verified" },
 }
 config.forced_action_training_enabled = true
+config.training_repeat_count = 3
 model.profile = { training_quest = { id = 200032001 } }
 model.context = { in_quest = true, quest_no = 200032001, is_online = false,
     build_supported = true, target_found = true }
@@ -162,7 +163,7 @@ runtime.request_training_scenario = function(_, requested)
 end
 runtime.current_action_snapshot = function() return training_snapshot end
 controller.frame_counter = 100
-assert(controller:request_training_scenario(scenario), "verified scenario starts from a safe entry state")
+assert(controller:start_training_scenario(scenario), "verified scenario starts from a safe entry state")
 training_snapshot = { category = 4, action = 19 }
 controller.frame_counter = 101
 controller:update_training_scenario()
@@ -170,11 +171,34 @@ assert(controller.training_state == "running", "live Action match confirms scena
 training_snapshot = { category = 0, action = 0 }
 controller.frame_counter = 112
 controller:update_training_scenario()
-assert(controller.training_state == "completed" and training_requests == 1,
-    "scenario reports one completion and never sends a duplicate request")
+assert(controller.training_state == "waiting" and controller.training_completed_rounds == 1
+    and training_requests == 1, "repeat training waits between rounds without a duplicate request")
+controller.frame_counter = 142
+controller:update_training_scenario()
+assert(controller.training_state == "requested" and training_requests == 2,
+    "repeat training automatically requests the next round after its safe gap")
+training_snapshot = { category = 4, action = 19 }
+controller.frame_counter = 143
+controller:update_training_scenario()
+training_snapshot = { category = 0, action = 0 }
+controller.frame_counter = 154
+controller:update_training_scenario()
+controller.frame_counter = 184
+controller:update_training_scenario()
+training_snapshot = { category = 4, action = 19 }
+controller.frame_counter = 185
+controller:update_training_scenario()
+training_snapshot = { category = 0, action = 0 }
+controller.frame_counter = 196
+controller:update_training_scenario()
+assert(controller.training_state == "completed" and controller.training_completed_rounds == 3
+    and training_requests == 3, "repeat training completes exactly the configured number of rounds")
 model.current_metadata = { action_category = 4 }
 model.coaching_state = function() return { phase = "startup" } end
-assert(not controller:request_training_scenario(scenario) and training_requests == 1,
-    "active monster attack blocks a new specified-move request")
+controller.training_state = "idle"
+assert(controller:start_training_scenario(scenario) and controller.training_state == "waiting"
+    and training_requests == 3, "active monster attack queues training without interrupting the monster")
+controller:cancel_training_scenario()
+assert(controller.training_state == "cancelled", "queued repeat training can be stopped explicitly")
 
 print("test_controller.lua: PASS")

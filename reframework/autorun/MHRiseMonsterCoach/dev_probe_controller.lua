@@ -45,6 +45,7 @@ function M.new(api, quest_id, options)
         forced_results = {},
         forced_error = nil,
         forced_failure_count = 0,
+        training_acceptance = nil,
     }, { __index = M })
 end
 
@@ -78,6 +79,7 @@ function M:report(status, reason)
             results = self.forced_results,
             evidence = self.api.action_request_evidence and self.api:action_request_evidence() or nil,
         },
+        training_acceptance = self.training_acceptance,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -87,6 +89,8 @@ function M:report(status, reason)
 end
 
 function M:fail(reason)
+    if self.request and self.request.kind == "training_scenario_acceptance"
+        and self.api.finish_training_acceptance then self.api:finish_training_acceptance() end
     self:report("failed", tostring(reason or "unknown error"))
     self.quest_flow:shutdown()
     self.request = nil
@@ -102,6 +106,8 @@ function M:complete()
             .. " forced action(s) were isolated and safely recovered"
     end
     self:report("completed", reason)
+    if self.request and self.request.kind == "training_scenario_acceptance"
+        and self.api.finish_training_acceptance then self.api:finish_training_acceptance() end
     self.request = nil
     self.probe_key = nil
     self:set_state("idle")
@@ -125,7 +131,8 @@ function M:accept_request(request, context)
     if type(request) ~= "table"
         or (request.kind ~= "environment_creature_lifecycle"
             and request.kind ~= "monster_respawn_lifecycle"
-            and request.kind ~= "forced_action_sequence")
+            and request.kind ~= "forced_action_sequence"
+            and request.kind ~= "training_scenario_acceptance")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
     if request.auto_load_save == true and context.in_quest ~= true
@@ -138,6 +145,7 @@ function M:accept_request(request, context)
     self.forced_results = {}
     self.forced_error = nil
     self.forced_failure_count = 0
+    self.training_acceptance = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -146,6 +154,13 @@ function M:accept_request(request, context)
         for _, action in ipairs(request.forced_actions) do
             if tonumber(action) == nil then return self:fail("Forced action sequence contains an invalid ID") end
             self.forced_actions[#self.forced_actions + 1] = tonumber(action)
+        end
+    end
+    if request.kind == "training_scenario_acceptance" then
+        if type(request.training_scenario_id) ~= "string" or request.training_scenario_id == ""
+            or tonumber(request.training_repeat_count) == nil
+            or tonumber(request.training_repeat_count) < 1 or tonumber(request.training_repeat_count) > 20 then
+            return self:fail("Training acceptance requires a scenario ID and 1-20 repeats")
         end
     end
     if context.is_online or context.build_supported == false then
@@ -197,6 +212,14 @@ function M:update()
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 if self.request.allow_spawn_probe ~= true then
+                    if self.request.kind == "training_scenario_acceptance" then
+                        local ok, reason = self.api:start_training_acceptance(
+                            self.request.training_scenario_id, self.request.training_repeat_count)
+                        if not ok then return self:fail(reason) end
+                        self.training_acceptance = self.api:training_acceptance_status()
+                        self:set_state("training_acceptance_wait")
+                        return true
+                    end
                     if self.request.kind == "forced_action_sequence" then
                         self.forced_index = 1
                         self:set_state("forced_prepare")
@@ -238,6 +261,21 @@ function M:update()
             end
         else
             self.stable_frames = 0
+        end
+    elseif self.state == "training_acceptance_wait" then
+        self.training_acceptance = self.api:training_acceptance_status()
+        if self.state_frames % 30 == 0 then self:report("running") end
+        if self.training_acceptance.state == "completed" then
+            return self:complete()
+        end
+        if self.training_acceptance.state == "failed"
+            or self.training_acceptance.state == "unavailable"
+            or self.training_acceptance.state == "cancelled" then
+            return self:fail("Training acceptance stopped: "
+                .. tostring(self.training_acceptance.status or self.training_acceptance.state))
+        end
+        if self.state_frames > 3600 then
+            return self:fail("Training acceptance timed out")
         end
     elseif self.state == "forced_prepare" then
         if self.state_frames % 30 == 1 then self:report("running") end

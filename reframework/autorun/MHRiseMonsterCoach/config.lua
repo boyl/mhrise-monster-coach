@@ -21,6 +21,7 @@ local DEFAULTS = {
     auto_capture_anchors = false,
     native_quest_reset_enabled = true,
     forced_action_training_enabled = false,
+    training_repeat_count = 1,
     experimental_in_place_reset_enabled = true,
     quick_reset_cooldown_frames = 180,
     quick_reset_safe_frames = 15,
@@ -85,6 +86,7 @@ function M.load()
     config.min_prediction_samples = math.floor(clamp(config.min_prediction_samples, 2, 20))
     config.quick_reset_cooldown_frames = math.floor(clamp(config.quick_reset_cooldown_frames, 60, 600))
     config.quick_reset_safe_frames = math.floor(clamp(config.quick_reset_safe_frames, 5, 60))
+    config.training_repeat_count = math.floor(clamp(config.training_repeat_count, 1, 20))
 
     local calibration = json.load_file(CALIBRATION_PATH)
     if type(calibration) ~= "table" then calibration = {} end

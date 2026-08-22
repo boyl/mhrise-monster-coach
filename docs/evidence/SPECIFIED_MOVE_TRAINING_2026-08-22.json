@@ -19,6 +19,21 @@
     "observe Tigrex roar in game"
   ],
   "result": "passed",
+  "automated_repeat_acceptance": {
+    "mod_version": "0.34.0-repeat-training",
+    "session_id": "78e2de202b2e48aca9207287f60b3d4f",
+    "kind": "training_scenario_acceptance",
+    "status": "completed",
+    "completed_rounds": 3,
+    "target_rounds": 3,
+    "scope": [
+      "automatic game startup and first-save selection",
+      "automatic training quest posting and departure",
+      "coordinate navigation and one native area-transfer interaction",
+      "real training Controller start, safe waiting, repeated request and completion",
+      "temporary training configuration restoration"
+    ]
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",

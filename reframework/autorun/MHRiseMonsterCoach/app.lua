@@ -21,6 +21,12 @@ function M.start()
     local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
     local probe_api = { quest_api = runtime:quest_restart_api() }
     local function load_required_data_file(name)
+        local path = "reframework/data/MHRiseMonsterCoach/" .. name
+        local file = io.open(path, "rb")
+        if file == nil then return nil end
+        local size = file:seek("end")
+        file:close()
+        if size == nil or size == 0 then return nil end
         local ok, value = pcall(function()
             return json.load_file("MHRiseMonsterCoach/" .. name)
         end)
@@ -96,6 +102,48 @@ function M.start()
             forced_events = forced_events,
         }
     end
+    local training_acceptance_config = nil
+    function probe_api:start_training_acceptance(scenario_id, repeat_count)
+        local scenario = nil
+        for _, candidate in ipairs(model.scenarios or {}) do
+            if tostring(candidate.id) == tostring(scenario_id) then scenario = candidate break end
+        end
+        if scenario == nil then return false, "Unknown verified training scenario: " .. tostring(scenario_id) end
+        training_acceptance_config = {
+            enabled = config.forced_action_training_enabled,
+            repeat_count = config.training_repeat_count,
+        }
+        config.forced_action_training_enabled = true
+        config.training_repeat_count = math.max(1, math.min(20, math.floor(tonumber(repeat_count) or 1)))
+        local ok = controller:start_training_scenario(scenario)
+        if not ok then
+            config.forced_action_training_enabled = training_acceptance_config.enabled
+            config.training_repeat_count = training_acceptance_config.repeat_count
+            training_acceptance_config = nil
+            return false, controller.training_status
+        end
+        return true
+    end
+    function probe_api:training_acceptance_status()
+        return {
+            state = controller.training_state,
+            status = controller.training_status,
+            scenario_id = controller.training_scenario and controller.training_scenario.id or nil,
+            completed_rounds = controller.training_completed_rounds,
+            target_rounds = controller.training_target_rounds,
+        }
+    end
+    function probe_api:finish_training_acceptance()
+        if controller.training_state == "waiting" or controller.training_state == "requested"
+            or controller.training_state == "running" then
+            controller:cancel_training_scenario("自动验收已结束")
+        end
+        if training_acceptance_config ~= nil then
+            config.forced_action_training_enabled = training_acceptance_config.enabled
+            config.training_repeat_count = training_acceptance_config.repeat_count
+            training_acceptance_config = nil
+        end
+    end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end
@@ -150,7 +198,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.33.0-specified-move-training loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.34.0-repeat-training loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

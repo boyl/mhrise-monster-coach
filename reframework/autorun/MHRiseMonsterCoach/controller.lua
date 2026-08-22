@@ -41,6 +41,9 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         training_scenario = nil,
         training_started_frame = 0,
         training_matched_frame = nil,
+        training_target_rounds = 1,
+        training_completed_rounds = 0,
+        training_next_request_frame = 0,
     }, { __index = M })
 end
 
@@ -54,35 +57,41 @@ function M.set_training_state(self, state, status, scenario)
             and (self.training_scenario.name_zh or self.training_scenario.name) or nil,
         state = state,
         status = status,
+        completed_rounds = self.training_completed_rounds,
+        target_rounds = self.training_target_rounds,
     }
 end
 
-function M.request_training_scenario(self, scenario)
-    if self.training_state == "requested" or self.training_state == "running" then
-        M.set_training_state(self, self.training_state,
-            "当前指定招式仍在执行，请等待结束或使用 F7 重开", self.training_scenario)
-        return false
-    end
+function M.training_entry_status(self)
     if self.config.forced_action_training_enabled ~= true then
-        M.set_training_state(self, "disabled", "请先启用“指定出招训练”", scenario)
-        return false
+        return false, "请先启用“指定出招训练”", false
     end
     local context = self.model.context or {}
     if not context.in_quest or context.is_online or context.build_supported == false
         or tonumber(context.quest_no) ~= tonumber(self.model.profile.training_quest.id)
         or not context.target_found then
-        M.set_training_state(self, "unavailable", "仅支持单人陪练任务的怪物区域", scenario)
-        return false
+        return false, "仅支持单人陪练任务的怪物区域", false
     end
     local category = self.model.current_metadata and tonumber(self.model.current_metadata.action_category)
     local coaching = self.model.coaching_state and self.model:coaching_state() or {}
     if category == 4 and coaching.phase ~= "recovery" then
-        M.set_training_state(self, "unavailable", "等待怪物进入非攻击或收招状态", scenario)
+        return false, "等待怪物进入非攻击或收招状态", true
+    end
+    return true
+end
+
+function M.issue_training_scenario(self)
+    local scenario = self.training_scenario
+    local allowed, reason, retry = M.training_entry_status(self)
+    if not allowed then
+        M.set_training_state(self, retry and "waiting" or "unavailable", reason, scenario)
+        self.training_next_request_frame = self.frame_counter + 15
         return false
     end
     local ok, reason, retry = self.runtime:request_training_scenario(scenario)
     if not ok then
         M.set_training_state(self, retry and "waiting" or "unavailable", tostring(reason), scenario)
+        self.training_next_request_frame = self.frame_counter + 15
         return false
     end
     self.training_started_frame = self.frame_counter
@@ -92,11 +101,40 @@ function M.request_training_scenario(self, scenario)
     return true
 end
 
+function M.start_training_scenario(self, scenario)
+    if self.training_state == "requested" or self.training_state == "running"
+        or self.training_state == "waiting" then
+        M.set_training_state(self, self.training_state,
+            "当前训练仍在进行；可点击“停止训练”或按 F7", self.training_scenario)
+        return false
+    end
+    self.training_scenario = scenario
+    self.training_target_rounds = math.max(1, math.min(20,
+        math.floor(tonumber(self.config.training_repeat_count) or 1)))
+    self.training_completed_rounds = 0
+    self.training_next_request_frame = self.frame_counter
+    M.set_training_state(self, "waiting", "训练已开始，等待安全空档", scenario)
+    M.issue_training_scenario(self)
+    return self.training_state ~= "unavailable"
+end
+
+function M.cancel_training_scenario(self, status)
+    self.training_next_request_frame = 0
+    M.set_training_state(self, "cancelled", status or "训练已停止")
+end
+
 function M.update_training_scenario(self)
-    if self.training_state ~= "requested" and self.training_state ~= "running" then return end
+    if self.training_state ~= "waiting" and self.training_state ~= "requested"
+        and self.training_state ~= "running" then return end
     local context = self.model.context or {}
     if not context.in_quest or context.is_online or context.build_supported == false then
         M.set_training_state(self, "unavailable", "任务状态变化，指定出招已取消")
+        return
+    end
+    if self.training_state == "waiting" then
+        if self.frame_counter >= self.training_next_request_frame then
+            M.issue_training_scenario(self)
+        end
         return
     end
     local current = self.runtime:current_action_snapshot() or {}
@@ -114,7 +152,15 @@ function M.update_training_scenario(self)
     end
     local left_requested = tonumber(current.category) ~= 4 or tonumber(current.action) ~= action
     if self.frame_counter - (self.training_matched_frame or self.frame_counter) >= 10 and left_requested then
-        M.set_training_state(self, "completed", "本轮指定招式完成，可再次执行")
+        self.training_completed_rounds = self.training_completed_rounds + 1
+        if self.training_completed_rounds >= self.training_target_rounds then
+            M.set_training_state(self, "completed", string.format("训练完成：%d/%d",
+                self.training_completed_rounds, self.training_target_rounds))
+        else
+            self.training_next_request_frame = self.frame_counter + 30
+            M.set_training_state(self, "waiting", string.format("已完成 %d/%d，等待下一安全空档",
+                self.training_completed_rounds, self.training_target_rounds))
+        end
     elseif self.frame_counter - (self.training_matched_frame or self.frame_counter) > 900 then
         M.set_training_state(self, "failed", "招式未正常退出；请按 F7 安全重开")
     end
@@ -240,6 +286,8 @@ function M.request_native_quest_reset(self)
         return false
     end
     self.native_reset_requested = true
+    self.training_completed_rounds = 0
+    self.training_target_rounds = 1
     M.set_training_state(self, "idle", "任务重开中，已清除指定招式状态")
     self.restart_state = restart.state
     self.reset_status = restart.status
@@ -333,6 +381,39 @@ local function ui_text_wrapped(text)
     end
 end
 
+function M.draw_training_menu(self)
+    imgui.separator()
+    imgui.text("Specified Move / 指定出招")
+    local changed = checkbox("Enable specified-move training / 启用指定出招",
+        self.config, "forced_action_training_enabled")
+    ui_text_wrapped("选择次数后点击招式；怪物攻击或判定生效期间会自动等待，不会强行打断。")
+    imgui.text("Repeat / 次数：" .. tostring(self.config.training_repeat_count))
+    for index, count in ipairs({ 1, 3, 5, 10 }) do
+        if index > 1 then imgui.same_line() end
+        if imgui.button(tostring(count) .. " 次##training_repeat_" .. tostring(count)) then
+            self.config.training_repeat_count = count
+            changed = true
+        end
+    end
+    for _, scenario in ipairs(self.model.scenarios or {}) do
+        local verified = scenario.verification and scenario.verification.status == "verified"
+        local name = tostring(scenario.name_zh or scenario.name or scenario.id)
+        if verified and imgui.button("开始：" .. name .. " × "
+            .. tostring(self.config.training_repeat_count) .. "##" .. tostring(scenario.id)) then
+            M.start_training_scenario(self, scenario)
+        end
+    end
+    if self.training_state == "waiting" or self.training_state == "requested"
+        or self.training_state == "running" then
+        imgui.same_line()
+        if imgui.button("停止训练##stop_training") then
+            M.cancel_training_scenario(self)
+        end
+    end
+    ui_text_wrapped("状态：" .. tostring(self.training_status))
+    return changed
+end
+
 function M.draw_menu_content(self)
     if not imgui.tree_node("Monster Coach / 怪物陪练") then return end
 
@@ -343,8 +424,7 @@ function M.draw_menu_content(self)
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("Show response / 显示应对", self.config, "show_advice") or changed
     changed = checkbox("Manual slow motion / 手动子弹时间", self.config, "time_control_enabled") or changed
-    changed = checkbox("Specified-move training / 指定出招训练",
-        self.config, "forced_action_training_enabled") or changed
+    changed = M.draw_training_menu(self) or changed
     local shapes_changed = checkbox("HitboxViewer debug shapes / 显示判定体",
         self.config, "show_hitboxviewer_debug_shapes")
     if shapes_changed then
@@ -469,18 +549,6 @@ function M.draw_menu_content(self)
 
     if #self.model.scenarios == 0 then
         ui_text_wrapped("Forced moves are locked until a verified Tigrex Action map and safe request method are captured on this game build.")
-    else
-        imgui.separator()
-        imgui.text("Specified Move / 指定出招")
-        ui_text_wrapped("仅在怪物非攻击或收招、且没有活动判定时请求；首版不会自动改变猎人站位。")
-        for _, scenario in ipairs(self.model.scenarios) do
-            local verified = scenario.verification and scenario.verification.status == "verified"
-            local name = tostring(scenario.name_zh or scenario.name or scenario.id)
-            if verified and imgui.button("执行：" .. name .. "##" .. tostring(scenario.id)) then
-                M.request_training_scenario(self, scenario)
-            end
-        end
-        ui_text_wrapped("状态：" .. tostring(self.training_status))
     end
 
     if changed then self.config_module.save(self.config) end

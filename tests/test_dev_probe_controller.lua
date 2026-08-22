@@ -181,4 +181,35 @@ assert(batch_probe.state == "forced_prepare" and batch_probe.forced_index == 2,
 assert(batch_probe.forced_results[1].recovered == true,
     "batch probe records that the failed action was isolated by F7 recovery")
 
+local training_reports = {}
+local training_status = { state = "waiting", status = "waiting", completed_rounds = 0, target_rounds = 3 }
+local training_api = { quest_api = quest_api }
+function training_api:get_context() return forced_context end
+function training_api:read_request() return nil end
+function training_api:write_report(report) training_reports[#training_reports + 1] = report end
+function training_api:environment_evidence() return {} end
+function training_api:area_snapshot() return { combat_layer = true } end
+function training_api:start_training_acceptance(id, count)
+    assert(id == "tigrex_roar_single" and count == 3)
+    return true
+end
+function training_api:training_acceptance_status() return training_status end
+function training_api:finish_training_acceptance() training_api.finished = true end
+local training_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
+training_probe.request = {
+    session_id = "training-acceptance", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_roar_single", training_repeat_count = 3,
+}
+training_probe:set_state("wait_stable")
+training_probe:update()
+assert(training_probe.state == "training_acceptance_wait",
+    "product-path acceptance starts the real training controller after the combat gate")
+training_status = { state = "completed", status = "训练完成：3/3",
+    completed_rounds = 3, target_rounds = 3 }
+training_probe:update()
+assert(training_reports[#training_reports].status == "completed"
+    and training_reports[#training_reports].training_acceptance.completed_rounds == 3,
+    "product-path acceptance reports the controller's exact completed repeat count")
+assert(training_api.finished == true, "acceptance restores temporary training configuration")
+
 print("test_dev_probe_controller.lua: PASS")

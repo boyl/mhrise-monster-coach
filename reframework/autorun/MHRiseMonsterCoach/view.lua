@@ -162,7 +162,9 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     local training = model.training_scenario
     if type(training) == "table" and training.state ~= "idle" then
         local label = training.name and ("Training " .. tostring(training.name) .. ": ") or "Training: "
-        lines[#lines + 1] = { truncate(label .. tostring(training.status or training.state), 88),
+        local progress = type(training.completed_rounds) == "number" and type(training.target_rounds) == "number"
+            and string.format(" [%d/%d]", training.completed_rounds, training.target_rounds) or ""
+        lines[#lines + 1] = { truncate(label .. tostring(training.status or training.state) .. progress, 88),
             result_color(training.state == "completed" and "success"
                 or (training.state == "failed" and "failure" or "running")) }
     end
