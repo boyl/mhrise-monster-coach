@@ -62,6 +62,15 @@ function M.start()
     function probe_api:target_geometry_snapshot()
         return runtime:target_geometry_snapshot()
     end
+    function probe_api:input_motion_diagnostics()
+        return runtime:input_motion_diagnostics()
+    end
+    function probe_api:write_input_motion_axis(x, y)
+        return runtime:write_input_motion_axis(x, y)
+    end
+    function probe_api:release_input_motion_axis()
+        return runtime:release_input_motion_axis()
+    end
     function probe_api:request_arena_transfer()
         return runtime:request_arena_transfer()
     end
@@ -195,6 +204,11 @@ function M.start()
         runtime:flush_quest_list_order()
         controller:guard("update", function() controller:update() end)
         controller:guard("dev_probe", function() dev_probe:update() end)
+    end)
+    re.on_application_entry("UpdateHID", function()
+        controller:guard("input_motion_flush", function()
+            runtime:flush_input_motion_axis()
+        end)
     end)
     re.on_pre_application_entry("LockScene", function()
         controller:guard("startup_bootstrap", function() startup_bootstrap:update() end)

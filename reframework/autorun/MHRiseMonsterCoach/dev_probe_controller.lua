@@ -52,6 +52,7 @@ function M.new(api, quest_id, options)
         behavior_survey = nil,
         native_branch = nil,
         condition_branch = nil,
+        input_motion = nil,
     }, { __index = M })
 end
 
@@ -91,6 +92,7 @@ function M:report(status, reason)
         behavior_survey = self.behavior_survey and self.behavior_survey.recorder:result() or nil,
         native_branch = self.native_branch,
         condition_branch = self.condition_branch,
+        input_motion = self.input_motion,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -100,6 +102,7 @@ function M:report(status, reason)
 end
 
 function M:fail(reason)
+    if self.api.release_input_motion_axis then self.api:release_input_motion_axis() end
     if self.request and self.request.kind == "training_scenario_acceptance"
         and self.api.finish_training_acceptance then self.api:finish_training_acceptance() end
     self:report("failed", tostring(reason or "unknown error"))
@@ -111,6 +114,7 @@ function M:fail(reason)
 end
 
 function M:complete()
+    if self.api.release_input_motion_axis then self.api:release_input_motion_axis() end
     local reason = nil
     if self.forced_failure_count > 0 then
         reason = tostring(self.forced_failure_count)
@@ -146,6 +150,8 @@ function M:accept_request(request, context)
             and request.kind ~= "training_scenario_acceptance"
             and request.kind ~= "behavior_path_survey"
             and request.kind ~= "condition_induced_branch"
+            and request.kind ~= "input_motion_metadata"
+            and request.kind ~= "input_motion_axis_write"
             and request.kind ~= "native_think_branch")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
@@ -163,6 +169,7 @@ function M:accept_request(request, context)
     self.behavior_survey = nil
     self.native_branch = nil
     self.condition_branch = nil
+    self.input_motion = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -213,6 +220,17 @@ function M:accept_request(request, context)
                 tonumber(request.condition_timeout_frames) or 7200)),
             status = "seeking_root",
             desired_movement = "hold_band",
+        }
+    end
+    if request.kind == "input_motion_axis_write" then
+        if tonumber(request.axis_x) ~= 0 or tonumber(request.axis_y) ~= 1
+            or tonumber(request.axis_frames) ~= 60 then
+            return self:fail("Input motion axis write is not allowlisted")
+        end
+        self.input_motion = {
+            status = "pending",
+            axis = { x = 0, y = 1 },
+            target_frames = 60,
         }
     end
     if context.is_online or context.build_supported == false then
@@ -291,6 +309,21 @@ function M:update()
                     end
                     if self.request.kind == "condition_induced_branch" then
                         self:set_state("condition_branch_seek")
+                        return true
+                    end
+                    if self.request.kind == "input_motion_metadata" then
+                        self.input_motion = self.api.input_motion_diagnostics
+                            and self.api:input_motion_diagnostics() or nil
+                        if self.input_motion == nil then
+                            return self:fail("Input motion diagnostics unavailable")
+                        end
+                        return self:complete()
+                    end
+                    if self.request.kind == "input_motion_axis_write" then
+                        local areas = self.api:area_snapshot()
+                        self.input_motion.status = "writing"
+                        self.input_motion.start_position = areas and areas.player_position or nil
+                        self:set_state("input_motion_axis_write")
                         return true
                     end
                     if self.request.kind == "monster_respawn_lifecycle" then
@@ -378,6 +411,35 @@ function M:update()
         if self.state_frames >= self.condition_branch.timeout_frames then
             self.condition_branch.status = "failed"
             return self:fail("Condition induction did not observe root Action 5000")
+        end
+    elseif self.state == "input_motion_axis_write" then
+        local ok, reason = self.api:write_input_motion_axis(0, 1)
+        if not ok then
+            self.input_motion.status = "failed"
+            return self:fail(reason)
+        end
+        self.input_motion.written_frames = self.state_frames
+        if self.state_frames % 15 == 1 then self:report("running") end
+        if self.state_frames >= self.input_motion.target_frames then
+            local released, release_reason = self.api:release_input_motion_axis()
+            if not released then return self:fail(release_reason) end
+            self.input_motion.status = "released"
+            self:set_state("input_motion_axis_verify")
+        end
+    elseif self.state == "input_motion_axis_verify" then
+        if self.state_frames >= 15 then
+            local areas = self.api:area_snapshot()
+            self.input_motion.end_position = areas and areas.player_position or nil
+            local start = self.input_motion.start_position
+            local finish = self.input_motion.end_position
+            if start and finish then
+                local dx = tonumber(finish.x) - tonumber(start.x)
+                local dz = tonumber(finish.z) - tonumber(start.z)
+                self.input_motion.displacement = math.sqrt(dx * dx + dz * dz)
+            end
+            self.input_motion.diagnostics = self.api:input_motion_diagnostics()
+            self.input_motion.status = "completed"
+            return self:complete()
         end
     elseif self.state == "condition_branch_verify_successor" then
         local current = self.api:current_action() or {}

@@ -95,6 +95,8 @@ Think Context Reader 以 `(ThinkInfoData 地址, StateNo, TreeNodeID)` 为运行
 
 条件诱导层只控制正常玩家输入，不写怪物 Transform、Action 或 Think。它使用运行时玩家—怪物水平距离和相机基向量进入 Profile 提供的观测距离带，再以 `(FSM 节点名, Action category/no, 原生后继)` 判断是否命中目标根。StateNo 仅作为诊断证据：实测同一 Action 5000 可由多个上层 Think 上下文选中，因此不得把单个 StateNo 当作生产入口或唯一身份。
 
+条件诱导的业务状态与移动执行器分离。开发验收执行器可在游戏外发送正常键盘输入，用于无人值守回归；产品 Lua 路径不得依赖窗口焦点或外部按键。`via.hid.GamePadDevice` 的通用轴 setter 已由三种时序实验否定，不能作为产品实现。MVP 的产品执行器为“距离引导”：View 显示接近/远离及当前距离，玩家正常移动，Controller 自动识别目标根并接管后续派生反馈。未来原生自动执行器必须实现相同语义契约并独立通过释放、异常、多人禁用和重复运行门禁。
+
 直接激活未进入活动栈的 ThinkData 已被实验否定：`nextJumpThinkData` 能返回对象，但不会单独完成活动栈切换；追加 `startActionTable` 也不能建立完整生命周期，而返回对象和当前活动栈均不是目标 12 状态子树。不得通过手工构造 `ThinkInfoData`、直接写活动栈或跳 Motion FSM 节点继续放大风险。指定原生派生改用“条件诱导 + AI 自选根动作 + 目标筛选”：自动维持距离/朝向/状态条件，要求引擎自然选中目标根动作，命中后停止干预并观察原生后继。
 
 ## 新增怪物的最小改动

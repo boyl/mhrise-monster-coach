@@ -283,6 +283,57 @@ assert(condition_reports[#condition_reports].status == "completed"
     and condition_reports[#condition_reports].condition_branch.status == "passed",
     "condition branch stops movement at root and verifies the engine-owned successor")
 
+local metadata_reports = {}
+local metadata_api = { quest_api = quest_api }
+function metadata_api:get_context() return forced_context end
+function metadata_api:write_report(report) metadata_reports[#metadata_reports + 1] = report end
+function metadata_api:environment_evidence() return {} end
+function metadata_api:area_snapshot() return { combat_layer = true } end
+function metadata_api:behavior_tree_snapshot() return { layers = {} } end
+function metadata_api:think_context_snapshot() return {} end
+function metadata_api:input_motion_diagnostics()
+    return { policy = "read_only_known_hid_contract_probe", device_available = true }
+end
+local metadata_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
+assert(metadata_probe:accept_request({
+    session_id = "input-motion-metadata", kind = "input_motion_metadata",
+}, forced_context))
+metadata_probe:update()
+assert(metadata_reports[#metadata_reports].status == "completed"
+    and metadata_reports[#metadata_reports].input_motion.device_available,
+    "known HID metadata probe completes without any input write")
+
+local axis_reports, axis_writes, axis_releases = {}, 0, 0
+local axis_api = { quest_api = quest_api }
+function axis_api:get_context() return forced_context end
+function axis_api:write_report(report) axis_reports[#axis_reports + 1] = report end
+function axis_api:environment_evidence() return {} end
+function axis_api:area_snapshot()
+    return { combat_layer = true, player_position = { x = axis_writes / 10, y = 0, z = 0 } }
+end
+function axis_api:behavior_tree_snapshot() return { layers = {} } end
+function axis_api:think_context_snapshot() return {} end
+function axis_api:write_input_motion_axis(x, y)
+    assert(x == 0 and y == 1)
+    axis_writes = axis_writes + 1
+    return true
+end
+function axis_api:release_input_motion_axis() axis_releases = axis_releases + 1 return true end
+function axis_api:input_motion_diagnostics() return { owned = false, write_count = axis_writes } end
+local axis_probe = Probe.new(axis_api, 200032001, { stable_frames = 1 })
+assert(axis_probe:accept_request({
+    session_id = "input-motion-axis", kind = "input_motion_axis_write",
+    axis_x = 0, axis_y = 1, axis_frames = 60,
+}, forced_context))
+axis_probe:update()
+for _ = 1, 60 do axis_probe:update() end
+assert(axis_probe.state == "input_motion_axis_verify" and axis_releases >= 1)
+for _ = 1, 15 do axis_probe:update() end
+assert(axis_reports[#axis_reports].status == "completed"
+    and axis_reports[#axis_reports].input_motion.displacement > 0
+    and axis_releases >= 2,
+    "bounded axis probe writes exactly 60 frames and releases on completion")
+
 local branch_action = 0
 local branch_api = { quest_api = quest_api }
 function branch_api:get_context() return forced_context end

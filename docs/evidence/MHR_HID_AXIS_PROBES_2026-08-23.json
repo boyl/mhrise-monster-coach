@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise / TDB 71",
+  "scope": "bounded developer-only player movement input research",
+  "metadata_session": {
+    "session_id": "e442171500ef4185acdc5fe955050b55",
+    "device_type": "via.hid.GamePadDevice",
+    "set_axis_l_available": true,
+    "stm_input_manager_available": true
+  },
+  "experiments": [
+    {
+      "version": "0.39.2-bounded-hid-axis-probe",
+      "session_id": "61848ae20b3f4df89ec2cd2f24151045",
+      "method": "set_AxisL before UpdateBehavior for 60 frames",
+      "writes": 61,
+      "displacement": 0.0,
+      "result": "rejected: setter calls succeed but are not consumed as player movement"
+    },
+    {
+      "version": "0.39.3-post-hid-axis-probe",
+      "session_id": "8c55d235480a4a6da672258ded0cf039",
+      "method": "set_AxisL after UpdateHID for 60 frames, matching the bundled REFramework VR timing",
+      "writes": 60,
+      "displacement": 0.0,
+      "result": "rejected: post-HID timing does not reach the MHR player movement consumer"
+    },
+    {
+      "version": "0.39.4-post-hid-active-pad-probe",
+      "session_id": "f9ed717938cb4b26ac1b887364ad4c91",
+      "method": "post-UpdateHID AxisL plus EmuLup activity bit for 60 frames",
+      "writes": 60,
+      "stm_active_device": 3,
+      "displacement": 0.0,
+      "result": "rejected: activating the GamePadDevice still does not feed snow.StmPlayerInput"
+    }
+  ],
+  "safety": {
+    "crashes": 0,
+    "final_axis": { "x": 0, "y": 0 },
+    "ownership_released": true
+  },
+  "conclusion": "Do not use via.hid.GamePadDevice setters as the product movement adapter in Monster Hunter Rise. Keep external normal-input automation for developer acceptance only. The MVP product presents measured distance guidance and automatically recognizes the requested root and native continuation. A future fully automatic product adapter requires a separately scoped native XInput/REFramework plugin or a proven MHR-specific StmPlayerInput entry point."
+}

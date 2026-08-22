@@ -12,6 +12,8 @@ param(
     [switch]$BehaviorSurvey,
     [switch]$BehaviorDistanceSweep,
     [switch]$ConditionBranch,
+    [switch]$InputMotionMetadata,
+    [switch]$InputMotionAxisWrite,
     [switch]$NativeThinkBranch,
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
@@ -88,6 +90,8 @@ if ($ResumeExisting) {
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
             elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
             elseif ($ConditionBranch) { 'condition_induced_branch' }
+            elseif ($InputMotionMetadata) { 'input_motion_metadata' }
+            elseif ($InputMotionAxisWrite) { 'input_motion_axis_write' }
             elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
@@ -103,6 +107,9 @@ if ($ResumeExisting) {
         target_root = if ($ConditionBranch) { 5000 } else { $null }
         target_distance = if ($ConditionBranch) { 7 } else { $null }
         condition_timeout_frames = if ($ConditionBranch) { 7200 } else { $null }
+        axis_x = if ($InputMotionAxisWrite) { 0 } else { $null }
+        axis_y = if ($InputMotionAxisWrite) { 1 } else { $null }
+        axis_frames = if ($InputMotionAxisWrite) { 60 } else { $null }
         think_reference = if ($NativeThinkBranch) { 'em032_combo_001.user' } else { $null }
         expected_successor = if ($NativeThinkBranch -or $ConditionBranch) { 5001 } else { $null }
         continue_on_action_failure = $ForcedActions.Count -gt 1
@@ -245,6 +252,9 @@ public static class MonsterCoachInput {
 
 $sentBootstrapActions = [Collections.Generic.HashSet[string]]::new()
 $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
+$startupUiClosedProactively = $false
+$startupTitleZeroFallbackSent = $false
+$startupUiClosedAt = $null
 $navigationGateStates = @('wait_stable', 'verify_restart', 'forced_recovery_verify', 'monster_respawn_recovery_verify')
 $arenaNavigation = $null
 $lastProbeState = $null
@@ -270,6 +280,38 @@ do {
         if ($bootstrap -and $bootstrap.session_id -eq $sessionId) {
             if ($bootstrap.status -eq 'failed') {
                 throw "Automatic Continue/save bootstrap failed: $($bootstrap.reason)"
+            }
+            if (-not $startupUiClosedProactively -and
+                $bootstrap.status -in @('running', 'input_required') -and
+                $bootstrap.diagnostics.reframework_ui_open -eq $true) {
+                $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($game -and [MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x2D)) {
+                    $startupUiClosedProactively = $true
+                    $startupUiClosedAt = [datetimeoffset]::Now
+                    Write-Host 'Automatic startup input: proactively closing REFramework UI'
+                    Start-Sleep -Milliseconds 250
+                    continue
+                }
+            }
+            if (-not $startupUiClosedProactively -and
+                $bootstrap.status -eq 'running' -and
+                $bootstrap.diagnostics.reframework_ui_open -eq $false) {
+                $startupUiClosedProactively = $true
+                $startupUiClosedAt = [datetimeoffset]::Now
+            }
+            if ($startupUiClosedProactively -and -not $startupTitleZeroFallbackSent -and
+                $bootstrap.status -eq 'running' -and
+                [int]$bootstrap.diagnostics.title_state -eq 0 -and
+                $bootstrap.diagnostics.autosave_notice_seen -ne $true -and
+                $null -ne $startupUiClosedAt -and
+                ([datetimeoffset]::Now - $startupUiClosedAt).TotalSeconds -ge 2) {
+                $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($game -and [MonsterCoachInput]::PressKey($game.MainWindowHandle, 0x46)) {
+                    $startupTitleZeroFallbackSent = $true
+                    Write-Host 'Automatic startup input: one bounded title-state-0 F fallback'
+                    Start-Sleep -Milliseconds 250
+                    continue
+                }
             }
             if ($bootstrap.status -eq 'input_required' -and $bootstrap.action.kind -eq 'press_key' -and
                 -not $sentBootstrapActions.Contains([string]$bootstrap.action.id)) {
@@ -521,6 +563,7 @@ do {
                     reason = $report.reason
                     frames = $report.frames
                     condition_branch = $report.condition_branch
+                    input_motion = $report.input_motion
                     behavior_survey = if ($report.behavior_survey) { [ordered]@{
                         samples = $report.behavior_survey.samples
                         events = @($report.behavior_survey.events).Count

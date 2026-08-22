@@ -75,6 +75,7 @@ $files = @(
     'autorun\MHRiseMonsterCoach\hitbox_provider_hitboxviewer.lua',
     'autorun\MHRiseMonsterCoach\hitbox_provider_native.lua',
     'autorun\MHRiseMonsterCoach\input_adapter.lua',
+    'autorun\MHRiseMonsterCoach\input_motion_adapter.lua',
     'autorun\MHRiseMonsterCoach\model.lua',
     'autorun\MHRiseMonsterCoach\monster_respawn.lua',
     'autorun\MHRiseMonsterCoach\monster_phase.lua',

@@ -7,6 +7,7 @@ local EnvironmentCreatureRecorder = require("MHRiseMonsterCoach.environment_crea
 local MonsterRespawn = require("MHRiseMonsterCoach.monster_respawn")
 local BehaviorTreeReader = require("MHRiseMonsterCoach.behavior_tree_reader")
 local ThinkContextReader = require("MHRiseMonsterCoach.think_context_reader")
+local InputMotionAdapter = require("MHRiseMonsterCoach.input_motion_adapter")
 
 local M = {}
 local NATIVE_IN_PLACE_RESET_VALIDATED = false
@@ -131,6 +132,7 @@ function M.new(config, profile)
             autosave_notice_seen = false,
             force_autosave_notice_success = false,
         },
+        input_motion_adapter = InputMotionAdapter.new(),
     }
 
     local hitbox_runtime_supported = self.game_name == config.supported_game_name
@@ -2418,6 +2420,30 @@ function M.target_geometry_snapshot(self)
         horizontal_distance = math.sqrt(dx * dx + dz * dz),
         vertical_gap = math.abs(dy),
     }
+end
+
+function M.input_motion_diagnostics(self)
+    return self.input_motion_adapter and self.input_motion_adapter:diagnostics() or {
+        schema_version = 1,
+        policy = "read_only_known_hid_contract_probe",
+        device_available = false,
+    }
+end
+
+function M.write_input_motion_axis(self, x, y)
+    if self.last_context == nil or self.last_context.is_online
+        or self.last_context.build_supported == false then
+        return false, "Input motion write requires supported offline runtime"
+    end
+    return self.input_motion_adapter:write_axis(x, y)
+end
+
+function M.release_input_motion_axis(self)
+    return self.input_motion_adapter and self.input_motion_adapter:release() or true
+end
+
+function M.flush_input_motion_axis(self)
+    return self.input_motion_adapter and self.input_motion_adapter:flush() or true
 end
 
 function M.area_snapshot(self)

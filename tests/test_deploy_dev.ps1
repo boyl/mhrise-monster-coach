@@ -15,6 +15,7 @@ $required = @(
     "'autorun\MHRiseMonsterCoach\player_state_reader.lua'",
     "'autorun\MHRiseMonsterCoach\long_sword_switch_skills.lua'",
     "'autorun\MHRiseMonsterCoach\input_adapter.lua'",
+    "'autorun\MHRiseMonsterCoach\input_motion_adapter.lua'",
     "'autorun\MHRiseMonsterCoach\monster_phase.lua'",
     "'autorun\MHRiseMonsterCoach\quest_restart.lua'",
     "'autorun\MHRiseMonsterCoach\response_long_sword.lua'",
