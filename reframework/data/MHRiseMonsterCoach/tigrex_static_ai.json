@@ -19,6 +19,7 @@
       "name": "Roar",
       "name_zh": "咆哮",
       "actions": [19],
+      "execution_mode": "forced_single",
       "entry_policy": "non_attack_or_recovery_without_active_hitbox",
       "positioning": "manual",
       "repeatable": true,
@@ -27,6 +28,26 @@
         "runtime": "mhrise_tdb71",
         "observed_motion": "TigRoar_R",
         "completed_sessions": 2
+      }
+    },
+    {
+      "id": "tigrex_half_turn_bite_short",
+      "name": "Short-range half-turn hook bite",
+      "name_zh": "短距半回转钩咬",
+      "actions": [5000],
+      "execution_mode": "natural_condition",
+      "expected_successor": 5001,
+      "positioning": {
+        "metric": "horizontal_distance",
+        "target": 7.0,
+        "tolerance": 2.0
+      },
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "completed_sessions": 3,
+        "evidence": "docs/evidence/CONDITION_INDUCED_BRANCH_ACCEPTANCE_2026-08-23.json"
       }
     }
   ],
@@ -314,6 +335,21 @@
           "evidence_count": 1,
           "sources": [
             "common/act_tbl_user_data/action/em032_act_020.user.2"
+          ]
+        }
+      ]
+    },
+    "5000": {
+      "kind": "fixed",
+      "evidence_count": 3,
+      "runtime_observation_count": 3,
+      "next": [
+        {
+          "action": "5001",
+          "evidence_count": 3,
+          "condition": "AI naturally selected the short-range root inside the observed 7±2m band",
+          "sources": [
+            "docs/evidence/CONDITION_INDUCED_BRANCH_ACCEPTANCE_2026-08-23.json"
           ]
         }
       ]

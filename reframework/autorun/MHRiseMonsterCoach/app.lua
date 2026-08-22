@@ -143,10 +143,16 @@ function M.start()
         return true
     end
     function probe_api:training_acceptance_status()
+        local scenario = controller.training_scenario
+        local geometry = runtime.target_geometry_snapshot
+            and runtime:target_geometry_snapshot() or nil
         return {
             state = controller.training_state,
             status = controller.training_status,
-            scenario_id = controller.training_scenario and controller.training_scenario.id or nil,
+            scenario_id = scenario and scenario.id or nil,
+            execution_mode = scenario and scenario.execution_mode or nil,
+            positioning = scenario and scenario.positioning or nil,
+            geometry = geometry,
             completed_rounds = controller.training_completed_rounds,
             target_rounds = controller.training_target_rounds,
             actual_path = model.training_scenario and model.training_scenario.actual_path or nil,
@@ -154,7 +160,7 @@ function M.start()
     end
     function probe_api:finish_training_acceptance()
         if controller.training_state == "waiting" or controller.training_state == "requested"
-            or controller.training_state == "running" then
+            or controller.training_state == "running" or controller.training_state == "positioning" then
             controller:cancel_training_scenario("自动验收已结束")
         end
         if training_acceptance_config ~= nil then
@@ -222,7 +228,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.34.3-branch-preview-layout loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.40.0-condition-guided-training loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

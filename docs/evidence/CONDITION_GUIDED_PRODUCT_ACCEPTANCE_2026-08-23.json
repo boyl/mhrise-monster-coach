@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "mod_version": "0.40.0-condition-guided-training",
+  "session_id": "ceae3d726d6f43188b78ba13e582d8ef",
+  "runtime": "mhrise_tdb71",
+  "scenario_id": "tigrex_half_turn_bite_short",
+  "execution_mode": "natural_condition",
+  "result": "completed",
+  "controller_status": "固定派生已确认：1/1",
+  "target_distance": 7.0,
+  "tolerance": 2.0,
+  "observed_root": {
+    "action_category": 4,
+    "action_no": 5000,
+    "frame": 5343,
+    "fsm_node": "Attack.BiteHookHalfTurnStartShortRange.Phase00"
+  },
+  "observed_successor": {
+    "action_category": 4,
+    "action_no": 5001,
+    "frame": 5432,
+    "fsm_node": "Attack.BiteHookHalfTurnAttackNormal.Phase00"
+  },
+  "continuation_frames": 89,
+  "automation_boundary": {
+    "developer_harness": "Normal external keyboard movement was used only to satisfy the product distance guidance during unattended acceptance.",
+    "product_controller": "Branch preview, positioning state, root recognition, successor recognition and completion were executed by the shipped Controller.",
+    "monster_action_writes": 0,
+    "monster_think_writes": 0,
+    "monster_fsm_writes": 0
+  },
+  "crash": false
+}

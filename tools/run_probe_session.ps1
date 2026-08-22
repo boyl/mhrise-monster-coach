@@ -356,8 +356,13 @@ do {
         $isConditionBranchReport = $ConditionBranch -and $report -and
             $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -eq 'condition_branch_seek'
+        $isConditionTrainingReport = $TrainingScenarioId -and $report -and
+            $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -eq 'training_acceptance_wait' -and
+            $report.training_acceptance.execution_mode -eq 'natural_condition' -and
+            $report.training_acceptance.state -eq 'positioning'
         if (-not $isNavigationReport -and -not $isDistanceSweepReport -and
-            -not $isConditionBranchReport) {
+            -not $isConditionBranchReport -and -not $isConditionTrainingReport) {
             Stop-ArenaMovement
             $arenaNavigation = $null
         } elseif ($isNavigationReport) {
@@ -550,6 +555,40 @@ do {
                 }
             }
         }
+        if ($isConditionTrainingReport) {
+            $player = $report.areas.player_position
+            $enemy = $report.areas.enemy_position
+            $targetDistance = [double]$report.training_acceptance.positioning.target
+            $tolerance = [double]$report.training_acceptance.positioning.tolerance
+            if ($null -ne $player -and $null -ne $enemy) {
+                $dx = [double]$enemy.x - [double]$player.x
+                $dz = [double]$enemy.z - [double]$player.z
+                $distance = [Math]::Sqrt($dx * $dx + $dz * $dz)
+                $moveToward = $distance -gt $targetDistance + $tolerance
+                $moveAway = $distance -lt $targetDistance - $tolerance
+                if ($moveToward -or $moveAway) {
+                    if ($moveAway) { $dx = -$dx; $dz = -$dz }
+                    $command = Get-WorldVectorMovementCommand -Areas $report.areas -DeltaX $dx -DeltaZ $dz
+                    $desiredKeys = "$($command.Primary)+$($command.Secondary)"
+                    if ($command.Action -eq 'hold' -and
+                        (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys)) {
+                        Stop-ArenaMovement
+                        $secondaryKey = if ($command.Secondary) {
+                            $virtualKeys[[string]$command.Secondary]
+                        } else { [byte]0 }
+                        if (-not [MonsterCoachInput]::BeginHoldMovement(
+                            $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
+                            throw "Could not apply product condition-training movement $desiredKeys"
+                        }
+                        $combatRunHeld = $true
+                        $combatRunKeys = $desiredKeys
+                        Write-Host "Product condition training: $desiredKeys distance=$([Math]::Round($distance, 2)) m"
+                    }
+                } else {
+                    Stop-ArenaMovement
+                }
+            }
+        }
         if ($report -and ($report.session_id -eq $sessionId) -and
             ($report.status -in @('completed', 'failed'))) {
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
@@ -563,6 +602,7 @@ do {
                     reason = $report.reason
                     frames = $report.frames
                     condition_branch = $report.condition_branch
+                    training_acceptance = $report.training_acceptance
                     input_motion = $report.input_motion
                     behavior_survey = if ($report.behavior_survey) { [ordered]@{
                         samples = $report.behavior_survey.samples

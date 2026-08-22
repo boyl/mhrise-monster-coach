@@ -217,4 +217,49 @@ assert(controller:start_training_scenario(scenario) and controller.training_stat
 controller:cancel_training_scenario()
 assert(controller.training_state == "cancelled", "queued repeat training can be stopped explicitly")
 
+local natural = {
+    id = "tigrex_half_turn_bite_short", name_zh = "短距半回转钩咬",
+    actions = { 5000 }, execution_mode = "natural_condition", expected_successor = 5001,
+    positioning = { metric = "horizontal_distance", target = 7, tolerance = 2 },
+    verification = { status = "verified" },
+}
+local distance = 12
+model.current_metadata = { action_category = 0 }
+model.coaching_state = function() return { phase = "unknown" } end
+model.training_branch_tree = function(_, requested)
+    assert(requested == natural)
+    return { action = "5000", name = "短距钩咬起手", kind = "fixed", candidates = {
+        { node = { action = "5001", name = "半回转钩咬", kind = "fixed", candidates = {} } },
+    } }
+end
+runtime.target_geometry_snapshot = function() return { horizontal_distance = distance } end
+config.training_repeat_count = 1
+controller.training_state = "idle"
+assert(not controller:start_training_scenario(natural),
+    "condition-guided training also requires branch preview")
+assert(controller:preview_training_scenario(natural))
+assert(controller:start_training_scenario(natural)
+    and controller.training_state == "positioning",
+    "natural scenario starts in positioning without writing an Action")
+training_snapshot = { category = 0, action = 0 }
+controller.frame_counter = 210
+controller:update_training_scenario()
+assert(string.find(controller.training_status, "接近怪物", 1, true),
+    "distance above the verified band asks the hunter to approach")
+distance = 7.2
+controller.frame_counter = 211
+controller:update_training_scenario()
+assert(string.find(controller.training_status, "等待目标起手", 1, true),
+    "distance inside the verified band waits for the native AI root")
+training_snapshot = { category = 4, action = 5000 }
+controller.frame_counter = 212
+controller:update_training_scenario()
+assert(controller.training_state == "running", "native root arms successor tracking")
+training_snapshot = { category = 4, action = 5001 }
+controller.frame_counter = 213
+controller:update_training_scenario()
+assert(controller.training_state == "completed" and controller.training_completed_rounds == 1,
+    "verified native successor completes the condition-guided round")
+assert(training_requests == 3, "natural condition training never calls forced Action injection")
+
 print("test_controller.lua: PASS")

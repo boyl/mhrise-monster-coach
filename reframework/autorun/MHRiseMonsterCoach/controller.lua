@@ -50,6 +50,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         training_preview_tree = nil,
         training_behavior_tracker = nil,
         training_last_behavior_path = nil,
+        training_root_frame = nil,
     }, { __index = M })
 end
 
@@ -109,6 +110,14 @@ function M.issue_training_scenario(self)
         self.training_next_request_frame = self.frame_counter + 15
         return false
     end
+    if scenario.execution_mode == "natural_condition" then
+        self.training_started_frame = self.frame_counter
+        self.training_matched_frame = nil
+        self.training_root_frame = nil
+        self.training_behavior_tracker = BehaviorPathTracker.new(128)
+        M.set_training_state(self, "positioning", "正在读取与怪物的距离…", scenario)
+        return true
+    end
     local ok, reason, retry = self.runtime:request_training_scenario(scenario)
     if not ok then
         M.set_training_state(self, retry and "waiting" or "unavailable", tostring(reason), scenario)
@@ -117,6 +126,7 @@ function M.issue_training_scenario(self)
     end
     self.training_started_frame = self.frame_counter
     self.training_matched_frame = nil
+    self.training_root_frame = nil
     self.training_behavior_tracker = BehaviorPathTracker.new(128)
     M.set_training_state(self, "requested", "已请求，等待怪物进入“"
         .. tostring(scenario.name_zh or scenario.name) .. "”", scenario)
@@ -125,7 +135,7 @@ end
 
 function M.start_training_scenario(self, scenario)
     if self.training_state == "requested" or self.training_state == "running"
-        or self.training_state == "waiting" then
+        or self.training_state == "waiting" or self.training_state == "positioning" then
         M.set_training_state(self, self.training_state,
             "当前训练仍在进行；可点击“停止训练”或按 F7", self.training_scenario)
         return false
@@ -152,9 +162,71 @@ function M.cancel_training_scenario(self, status)
     M.set_training_state(self, "cancelled", status or "训练已停止")
 end
 
+local function positioning_status(scenario, distance)
+    local positioning = scenario and scenario.positioning
+    local target = type(positioning) == "table" and tonumber(positioning.target) or nil
+    local tolerance = type(positioning) == "table" and tonumber(positioning.tolerance) or nil
+    if distance == nil or target == nil or tolerance == nil then
+        return "无法读取距离；请保持在怪物区域", false
+    end
+    if distance > target + tolerance then
+        return string.format("距离 %.1fm：接近怪物（目标 %.0f±%.0fm）", distance, target, tolerance), false
+    end
+    if distance < target - tolerance then
+        return string.format("距离 %.1fm：远离怪物（目标 %.0f±%.0fm）", distance, target, tolerance), false
+    end
+    return string.format("距离 %.1fm 合适：等待目标起手", distance), true
+end
+
+function M.update_natural_condition_training(self, current)
+    local scenario = self.training_scenario or {}
+    local root = scenario.actions and tonumber(scenario.actions[1]) or nil
+    local successor = tonumber(scenario.expected_successor)
+    local category, action = tonumber(current.category), tonumber(current.action)
+    if self.training_behavior_tracker and self.runtime.behavior_tree_snapshot then
+        self.training_behavior_tracker:sample(self.frame_counter,
+            self.runtime:behavior_tree_snapshot(), current)
+    end
+    if self.training_state == "positioning" then
+        if category == 4 and action == root then
+            self.training_root_frame = self.frame_counter
+            self.training_matched_frame = self.frame_counter
+            M.set_training_state(self, "running", "起手已出现：等待固定派生", scenario)
+            return
+        end
+        local geometry = self.runtime.target_geometry_snapshot
+            and self.runtime:target_geometry_snapshot() or nil
+        local status = positioning_status(scenario,
+            geometry and tonumber(geometry.horizontal_distance) or nil)
+        M.set_training_state(self, "positioning", status, scenario)
+        return
+    end
+    if self.training_state ~= "running" then return end
+    if category == 4 and action == successor then
+        self.training_last_behavior_path = self.training_behavior_tracker
+            and self.training_behavior_tracker:result() or nil
+        self.training_behavior_tracker = nil
+        self.training_completed_rounds = self.training_completed_rounds + 1
+        if self.training_completed_rounds >= self.training_target_rounds then
+            M.set_training_state(self, "completed", string.format("固定派生已确认：%d/%d",
+                self.training_completed_rounds, self.training_target_rounds), scenario)
+        else
+            self.training_next_request_frame = self.frame_counter + 30
+            M.set_training_state(self, "waiting", string.format("已完成 %d/%d，准备下一轮",
+                self.training_completed_rounds, self.training_target_rounds), scenario)
+        end
+        return
+    end
+    if self.frame_counter - (self.training_root_frame or self.frame_counter) > 180
+        or (category == 4 and action ~= root and action ~= successor
+            and self.frame_counter - (self.training_root_frame or self.frame_counter) > 10) then
+        M.set_training_state(self, "failed", "目标起手未进入预期固定派生")
+    end
+end
+
 function M.update_training_scenario(self)
     if self.training_state ~= "waiting" and self.training_state ~= "requested"
-        and self.training_state ~= "running" then return end
+        and self.training_state ~= "running" and self.training_state ~= "positioning" then return end
     local context = self.model.context or {}
     if not context.in_quest or context.is_online or context.build_supported == false then
         M.set_training_state(self, "unavailable", "任务状态变化，指定出招已取消")
@@ -167,6 +239,10 @@ function M.update_training_scenario(self)
         return
     end
     local current = self.runtime:current_action_snapshot() or {}
+    if self.training_scenario and self.training_scenario.execution_mode == "natural_condition" then
+        M.update_natural_condition_training(self, current)
+        return
+    end
     if self.training_behavior_tracker and self.runtime.behavior_tree_snapshot then
         self.training_behavior_tracker:sample(self.frame_counter,
             self.runtime:behavior_tree_snapshot(), current)
@@ -469,7 +545,7 @@ function M.draw_training_menu(self)
         draw_branch(self.training_preview_tree, 0, nil)
     end
     if self.training_state == "waiting" or self.training_state == "requested"
-        or self.training_state == "running" then
+        or self.training_state == "running" or self.training_state == "positioning" then
         imgui.same_line()
         if imgui.button("停止训练##stop_training") then
             M.cancel_training_scenario(self)

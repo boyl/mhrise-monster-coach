@@ -35,6 +35,23 @@ class TigrexActionCatalogTests(unittest.TestCase):
             self.assertTrue(payload["moves"][key]["name"])
             self.assertTrue(payload["moves"][key]["advice"])
 
+    def test_condition_guided_training_contract_is_data_driven(self):
+        payload = json.loads(
+            (ROOT / "reframework/data/MHRiseMonsterCoach/tigrex_static_ai.json").read_text(encoding="utf-8")
+        )
+        scenarios = {row["id"]: row for row in payload["training_scenarios"]}
+        scenario = scenarios["tigrex_half_turn_bite_short"]
+
+        self.assertEqual(scenario["execution_mode"], "natural_condition")
+        self.assertEqual(scenario["actions"], [5000])
+        self.assertEqual(scenario["expected_successor"], 5001)
+        self.assertEqual(scenario["positioning"], {
+            "metric": "horizontal_distance", "target": 7.0, "tolerance": 2.0,
+        })
+        edge = payload["actions"]["5000"]
+        self.assertEqual(edge["kind"], "fixed")
+        self.assertEqual([row["action"] for row in edge["next"]], ["5001"])
+
 
 if __name__ == "__main__":
     unittest.main()
