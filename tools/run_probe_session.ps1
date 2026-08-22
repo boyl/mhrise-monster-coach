@@ -561,6 +561,11 @@ do {
             $targetDistance = [double]$report.training_acceptance.positioning.target
             $tolerance = [double]$report.training_acceptance.positioning.tolerance
             if ($null -ne $player -and $null -ne $enemy) {
+                $verticalGap = [Math]::Abs([double]$player.y - [double]$enemy.y)
+                if ($verticalGap -gt 10.0) {
+                    Stop-ArenaMovement
+                    throw "Product condition training left the combat layer (vertical gap $([Math]::Round($verticalGap, 2)) m)"
+                }
                 $dx = [double]$enemy.x - [double]$player.x
                 $dz = [double]$enemy.z - [double]$player.z
                 $distance = [Math]::Sqrt($dx * $dx + $dz * $dz)

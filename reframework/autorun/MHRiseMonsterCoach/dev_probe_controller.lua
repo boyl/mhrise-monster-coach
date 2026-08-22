@@ -375,7 +375,9 @@ function M:update()
             return self:fail("Training acceptance stopped: "
                 .. tostring(self.training_acceptance.status or self.training_acceptance.state))
         end
-        if self.state_frames > 3600 then
+        local target_rounds = math.max(1,
+            tonumber(self.training_acceptance.target_rounds) or 1)
+        if self.state_frames > 3600 * target_rounds then
             return self:fail("Training acceptance timed out")
         end
     elseif self.state == "behavior_survey" then

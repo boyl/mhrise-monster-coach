@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "feature": "condition_guided_repeat_training",
+  "result": "repeat_gate_not_passed",
+  "attempts": [
+    {
+      "session_id": "39566c21222244e59b5ad878fc37a524",
+      "target_rounds": 3,
+      "completed_rounds": 0,
+      "result": "automation_timeout_after_player_left_combat_layer",
+      "final_vertical_gap": 569.99,
+      "product_controller_state": "positioning",
+      "product_false_completions": 0
+    },
+    {
+      "session_id": "866a2d07fdbb4f7aadf1d3ba831a4c15",
+      "target_rounds": 3,
+      "result": "native_access_violation_during_arena_transfer",
+      "exception": "c0000005",
+      "module": "MonsterHunterRise.exe",
+      "training_started": false
+    },
+    {
+      "session_id": "53c1e89de09c41c7943dd1d7b43d2c85",
+      "target_rounds": 1,
+      "result": "graphics_driver_access_violation_after_transfer",
+      "exception": "c0000005",
+      "module": "amdxc64.dll",
+      "product_controller_state": "positioning",
+      "product_false_completions": 0
+    }
+  ],
+  "conclusion": "The shipped one-round product path remains supported by its prior completed acceptance. Three/five-round stability is not claimed. Unbounded unattended chase automation is rejected; experimental developer health writes were removed."
+}

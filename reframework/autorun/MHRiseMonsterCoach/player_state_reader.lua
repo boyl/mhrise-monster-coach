@@ -186,6 +186,11 @@ function M.new(game_name, tdb_version)
     }, { __index = M })
 end
 
+function M.suspend(self, reason)
+    self.state = nil
+    self.status = reason or "player combat state suspended"
+end
+
 function M.capture(self, player, player_data)
     if player == nil then self.status = "player unavailable" return false end
     local player_type = safe(function() return player:get_type_definition() end)

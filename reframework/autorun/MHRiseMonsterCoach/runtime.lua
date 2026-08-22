@@ -2158,7 +2158,7 @@ function M.flush_quest_list_order(self)
     end
 end
 
-function M.refresh_player(self)
+function M.refresh_player(self, capture_combat_state)
     local manager = sdk.get_managed_singleton("snow.player.PlayerManager")
     if manager == nil then self.player = nil self.player_data = nil return nil end
     self.player = safe(function() return manager:call("findMasterPlayer") end)
@@ -2167,7 +2167,9 @@ function M.refresh_player(self)
     else
         self.player_data = nil
     end
-    self.player_state_reader:capture(self.player, self.player_data)
+    if capture_combat_state == true then
+        self.player_state_reader:capture(self.player, self.player_data)
+    end
     return self.player
 end
 
@@ -2208,7 +2210,13 @@ function M.context(self)
         self.last_player_health = nil
     end
     self.was_in_quest = in_quest
-    M.refresh_player(self)
+    M.refresh_player(self, false)
+    local geometry = M.target_geometry_snapshot(self)
+    if geometry ~= nil and tonumber(geometry.vertical_gap) <= 50.0 then
+        self.player_state_reader:capture(self.player, self.player_data)
+    else
+        self.player_state_reader:suspend("player combat state suspended during scene transition")
+    end
     self.last_context = {
         in_quest = in_quest,
         quest_no = quest_no,

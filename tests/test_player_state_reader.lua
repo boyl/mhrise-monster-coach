@@ -169,6 +169,10 @@ local player_data = { get_type_definition = function() return data_type end }
 
 local Reader = require("MHRiseMonsterCoach.player_state_reader")
 local reader = Reader.new("mhrise", 71)
+reader.state = { weapon_type = "long_sword" }
+reader:suspend("scene transition")
+assert(reader.state == nil and reader.status == "scene transition",
+    "scene transitions clear stale player combat state without touching managed objects")
 assert(reader:capture(player, player_data), "first player capture writes metadata probe")
 assert(not reader:capture(player, player_data), "same object types do not rewrite metadata")
 local probe = dumped["MHRiseMonsterCoach/runtime_player_state_probe.json"]
