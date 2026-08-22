@@ -11,11 +11,19 @@ function M.new(max_events)
         tracker = BehaviorPathTracker.new(max_events or 512),
         nodes = {},
         edges = {},
+        think_catalogs = {},
         previous = nil,
     }, { __index = M })
 end
 
-function M:sample(frame, snapshot, action)
+function M:sample(frame, snapshot, action, think)
+    if think and think.info_address and think.states then
+        self.think_catalogs[tostring(think.info_address)] = {
+            info_address = think.info_address,
+            state_count = think.state_count,
+            states = think.states,
+        }
+    end
     if not self.tracker:sample(frame, snapshot, action) then return false end
     local event = self.tracker.events[#self.tracker.events]
     local key = node_key(event.node)
@@ -27,6 +35,11 @@ function M:sample(frame, snapshot, action)
     local action_key = tostring(event.action and event.action.category) .. ":"
         .. tostring(event.action and event.action.action)
     row.action_contexts[action_key] = (row.action_contexts[action_key] or 0) + 1
+    row.think_contexts = row.think_contexts or {}
+    local think_key = tostring(think and think.info_address) .. ":"
+        .. tostring(think and think.current_state_no) .. ":"
+        .. tostring(think and think.current_state and think.current_state.tree_node_id)
+    row.think_contexts[think_key] = (row.think_contexts[think_key] or 0) + 1
     self.nodes[key] = row
     if self.previous ~= nil and self.previous.key ~= key then
         local edge_key = self.previous.key .. ">" .. key
@@ -59,6 +72,7 @@ function M:result()
         truncated = path.truncated,
         nodes = values_sorted(self.nodes, "key"),
         edges = values_sorted(self.edges, "from"),
+        think_catalogs = values_sorted(self.think_catalogs, "info_address"),
     }
 end
 

@@ -30,6 +30,7 @@ $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Select-Object -First 1
 $launchedGame = $false
+$effectiveRequireCombatArea = [bool]($RequireCombatArea -or $BehaviorSurvey)
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
@@ -85,7 +86,7 @@ if ($ResumeExisting) {
         requested_at = [DateTimeOffset]::Now.ToString('o')
         source_version = $sourceVersion
         auto_load_save = $true
-        require_combat_area = [bool]$RequireCombatArea
+        require_combat_area = $effectiveRequireCombatArea
         auto_native_arena_transfer = $false
         forced_actions = @($ForcedActions)
         training_scenario_id = $TrainingScenarioId
@@ -290,7 +291,7 @@ do {
     }
     if (Test-Path -LiteralPath $reportPath) {
         try { $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json } catch { $report = $null }
-        $isNavigationReport = $RequireCombatArea -and $report -and
+        $isNavigationReport = $effectiveRequireCombatArea -and $report -and
             $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -in $navigationGateStates
         if (-not $isNavigationReport) {

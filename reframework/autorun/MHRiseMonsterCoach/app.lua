@@ -81,6 +81,9 @@ function M.start()
     function probe_api:behavior_tree_snapshot()
         return runtime:behavior_tree_snapshot()
     end
+    function probe_api:think_context_snapshot(include_catalog)
+        return runtime:think_context_snapshot(include_catalog)
+    end
     function probe_api:action_request_evidence()
         local trace = runtime.action_request_trace or {}
         local method_counts = {}

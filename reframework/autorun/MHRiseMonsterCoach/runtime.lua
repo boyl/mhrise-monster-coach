@@ -6,6 +6,7 @@ local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 local EnvironmentCreatureRecorder = require("MHRiseMonsterCoach.environment_creature_recorder")
 local MonsterRespawn = require("MHRiseMonsterCoach.monster_respawn")
 local BehaviorTreeReader = require("MHRiseMonsterCoach.behavior_tree_reader")
+local ThinkContextReader = require("MHRiseMonsterCoach.think_context_reader")
 
 local M = {}
 local NATIVE_IN_PLACE_RESET_VALIDATED = false
@@ -1061,6 +1062,13 @@ local ACTION_REQUEST_TYPES = {
     "snow.enemy.EnemyCharacterBase",
     "snow.enemy.EnemyActionParam",
     "snow.enemy.EnemyThinkParam",
+    "snow.enemy.EnemyThinkBehavior",
+    "snow.enemy.EnemyThinkBehavior.ThinkInfoData",
+    "snow.enemy.EnemyThinkData",
+    "snow.enemy.ThinkState",
+    "snow.enemy.ThinkCondition",
+    "snow.enemy.EnemyActionTableParam",
+    "snow.enemy.EnemyDef.RestartThinkType",
     "snow.enemy.SetupActionData",
     "snow.enemy.SetupActionBaseData",
     "snow.enemy.EnemyActionParamData.ActionInfo",
@@ -1070,6 +1078,14 @@ local ACTION_REQUEST_FULL_TYPES = {
     ["snow.enemy.SetupActionData"] = true,
     ["snow.enemy.SetupActionBaseData"] = true,
     ["snow.enemy.EnemyActionParamData.ActionInfo"] = true,
+    ["snow.enemy.EnemyThinkParam"] = true,
+    ["snow.enemy.EnemyThinkBehavior"] = true,
+    ["snow.enemy.EnemyThinkBehavior.ThinkInfoData"] = true,
+    ["snow.enemy.EnemyThinkData"] = true,
+    ["snow.enemy.ThinkState"] = true,
+    ["snow.enemy.ThinkCondition"] = true,
+    ["snow.enemy.EnemyActionTableParam"] = true,
+    ["snow.enemy.EnemyDef.RestartThinkType"] = true,
 }
 
 local ACTION_REQUEST_METHODS = {
@@ -1121,10 +1137,18 @@ function M.dump_action_request_metadata(self)
                 local lower = string.lower(tostring(name or ""))
                 if include_all or string.find(lower, "action", 1, true)
                     or string.find(lower, "think", 1, true) then
+                    local static_value = nil
+                    if safe(function() return field:is_static() end) == true then
+                        local candidate = safe(function() return field:get_data(nil) end)
+                        if type(candidate) == "number" or type(candidate) == "boolean"
+                            or type(candidate) == "string" then static_value = candidate end
+                    end
                     level.fields[#level.fields + 1] = {
                         name = name,
                         type = type_name(safe(function() return field:get_type() end)),
                         is_static = safe(function() return field:is_static() end) == true,
+                        is_literal = safe(function() return field:is_literal() end) == true,
+                        static_value = static_value,
                     }
                 end
             end
@@ -2209,6 +2233,10 @@ end
 
 function M.behavior_tree_snapshot(self)
     return BehaviorTreeReader.read(self.enemy)
+end
+
+function M.think_context_snapshot(self, include_catalog)
+    return ThinkContextReader.read(self.enemy, include_catalog == true)
 end
 
 local FORCED_ACTION_PROBE_ALLOWLIST = {

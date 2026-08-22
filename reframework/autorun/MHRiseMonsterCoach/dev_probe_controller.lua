@@ -85,6 +85,7 @@ function M:report(status, reason)
         },
         training_acceptance = self.training_acceptance,
         behavior_tree = self.api.behavior_tree_snapshot and self.api:behavior_tree_snapshot() or nil,
+        think_context = self.api.think_context_snapshot and self.api:think_context_snapshot(true) or nil,
         behavior_survey = self.behavior_survey and self.behavior_survey.recorder:result() or nil,
     }
     self.api:write_report(report)
@@ -302,7 +303,10 @@ function M:update()
     elseif self.state == "behavior_survey" then
         local current = self.api:current_action() or {}
         local snapshot = self.api:behavior_tree_snapshot()
-        self.behavior_survey.recorder:sample(self.frame, snapshot, current)
+        local include_catalog = self.state_frames % 30 == 1
+        local think = self.api.think_context_snapshot
+            and self.api:think_context_snapshot(include_catalog) or nil
+        self.behavior_survey.recorder:sample(self.frame, snapshot, current, think)
         if self.state_frames % 120 == 0 then self:report("running") end
         if self.state_frames >= self.behavior_survey.target_frames then return self:complete() end
     elseif self.state == "forced_prepare" then

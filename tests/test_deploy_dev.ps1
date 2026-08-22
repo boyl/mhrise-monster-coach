@@ -7,6 +7,7 @@ $required = @(
     "'autorun\MHRiseMonsterCoach\behavior_tree_reader.lua'",
     "'autorun\MHRiseMonsterCoach\behavior_path_tracker.lua'",
     "'autorun\MHRiseMonsterCoach\behavior_graph_recorder.lua'",
+    "'autorun\MHRiseMonsterCoach\think_context_reader.lua'",
     "'autorun\MHRiseMonsterCoach\font.lua'",
     "'autorun\MHRiseMonsterCoach\hitbox_provider.lua'",
     "'autorun\MHRiseMonsterCoach\hitbox_provider_hitboxviewer.lua'",

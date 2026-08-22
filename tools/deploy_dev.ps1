@@ -82,6 +82,7 @@ $files = @(
     'autorun\MHRiseMonsterCoach\player_state_reader.lua',
     'autorun\MHRiseMonsterCoach\response_long_sword.lua',
     'autorun\MHRiseMonsterCoach\startup_bootstrap_controller.lua',
+    'autorun\MHRiseMonsterCoach\think_context_reader.lua',
     'autorun\MHRiseMonsterCoach\profile_tigrex.lua',
     'autorun\MHRiseMonsterCoach\quest_list_order.lua',
     'autorun\MHRiseMonsterCoach\quest_restart.lua',

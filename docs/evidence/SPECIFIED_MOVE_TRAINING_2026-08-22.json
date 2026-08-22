@@ -167,6 +167,61 @@
     ],
     "conclusion": "Direct root Action injection does not preserve the native Think/FSM continuation context. Action 5000 is withheld from the native_branch menu; the next write experiment must activate a higher-level Think/FSM entry or induce its native conditions."
   },
+  "think_context_correlation": {
+    "mod_version": "0.36.3-think-context-correlation",
+    "session_id": "6f0c065b16114cf398d432366982ca87",
+    "samples": 3600,
+    "nodes": 21,
+    "edges": 31,
+    "policy": "read-only EnemyThinkBehavior/ThinkInfoData/ThinkState correlation",
+    "observed_contexts": [
+      "Action 5000 / BiteHookHalfTurnStartShortRange -> ThinkState 8",
+      "Action 5001 / BiteHookHalfTurnAttackNormal -> ThinkState 6",
+      "Action 19 / Roar -> ThinkState 2",
+      "high-level attack selector -> ThinkState 13 / Em032_00ActionSetAttack"
+    ],
+    "referenced_action_tables": [
+      "em032_act_020.user",
+      "em032_act_031.user",
+      "em032_act_044.user",
+      "em032_act_048.user",
+      "em032_act_057.user"
+    ],
+    "conclusion": "The native 5000 -> 5001 continuation is represented above the Action layer by distinct Think states. A future root request must target the correct ThinkInfoData context and state contract, not setActionUnique."
+  },
+  "think_state_catalog_acceptance": {
+    "mod_version": "0.36.5-think-catalog-survey",
+    "session_id": "0ce6b1aa7c39492eae088133e3f01bc8",
+    "samples": 7200,
+    "catalogs": 25,
+    "nodes": 33,
+    "edges": 52,
+    "target_think_data": {
+      "state_count": 12,
+      "short_range_root": {
+        "state": 8,
+        "tree_node_id": 4273570785,
+        "action_category": 4,
+        "action_no": 5000,
+        "next_state_on_end": 3
+      },
+      "native_successor": {
+        "state": 6,
+        "tree_node_id": 2249374684,
+        "action_category": 4,
+        "action_no": 5001,
+        "next_state_on_end": 1
+      },
+      "long_range_root": {
+        "state": 9,
+        "tree_node_id": 504153954,
+        "action_category": 4,
+        "action_no": 5002,
+        "next_state_on_end": 3
+      }
+    },
+    "result": "passed: runtime catalogs preserve full ThinkInfoData identity and correlate the native 5000 -> 5001 path with concrete state/action/transition contracts"
+  },
   "evidence_source": "real-game user confirmation after automated deployment and prior automated Action 19 probe",
   "limits": [
     "single successful product-path execution is not the 20-loop stability gate",

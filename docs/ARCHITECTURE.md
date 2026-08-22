@@ -91,6 +91,8 @@ app (composition root)
 
 原生派生入口采用双证据门禁：首先在自然 AI 中观察到根节点与后继节点；随后只触发一次候选根入口，并确认在不追加动作写入时仍由引擎续接相同后继。轰龙 Action 5000 已形成关键反例：自然 AI 中出现 `BiteHookHalfTurnStartShortRange -> BiteHookHalfTurnAttackNormal`，直接 Action 请求却在起手结束后转入 `Move.Dash`。因此 `setActionUnique` 只可承担已验证独立单招，不得作为 `native_branch`/`native_combo` 的根入口；原生派生必须激活保留 Think/FSM 决策上下文的高层入口，或通过可复现的距离、朝向、状态条件诱导 AI 自行选择。
 
+Think Context Reader 以 `(ThinkInfoData 地址, StateNo, TreeNodeID)` 为运行时复合键，并只读导出每个状态的 Action 类型与编号、Condition 的 `_NextStateID`、引用子 ThinkData 路径。不能只用 `StateNo`：同一怪物同时存在多个子树且状态编号重复。轰龙半转身钩咬的 7200 帧验收已定位同一 12 状态子树中的状态 8（Action 5000）、状态 6（Action 5001）和状态 9（远距离 Action 5002）。任何高层写实验必须按完整子树身份匹配，并在调用前再次核对状态内 Action 契约。
+
 ## 新增怪物的最小改动
 
 已确定会变化的只有三条边界：怪物知识、游戏运行时、训练场景。新增怪物时：
