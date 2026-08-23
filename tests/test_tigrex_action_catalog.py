@@ -7,10 +7,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TigrexActionCatalogTests(unittest.TestCase):
-    def test_community_attack_catalog_is_complete_for_documented_tigrex_ids(self):
-        payload = json.loads(
+    @staticmethod
+    def load_payload():
+        return json.loads(
             (ROOT / "reframework/data/MHRiseMonsterCoach/tigrex_static_ai.json").read_text(encoding="utf-8")
         )
+
+    def test_community_attack_catalog_is_complete_for_documented_tigrex_ids(self):
+        payload = self.load_payload()
         expected = {
             "2": "StraightRush", "6": "AfterRushRotateAttack", "7": "AfterRushBite",
             "9": "AfterRushBackStep", "10": "AfterRushStop", "12": "AfterRushJumpAttack",
@@ -36,9 +40,7 @@ class TigrexActionCatalogTests(unittest.TestCase):
             self.assertTrue(payload["moves"][key]["advice"])
 
     def test_condition_guided_training_contract_is_data_driven(self):
-        payload = json.loads(
-            (ROOT / "reframework/data/MHRiseMonsterCoach/tigrex_static_ai.json").read_text(encoding="utf-8")
-        )
+        payload = self.load_payload()
         scenarios = {row["id"]: row for row in payload["training_scenarios"]}
         scenario = scenarios["tigrex_half_turn_bite_short"]
 
@@ -52,6 +54,48 @@ class TigrexActionCatalogTests(unittest.TestCase):
         edge = payload["actions"]["5000"]
         self.assertEqual(edge["kind"], "fixed")
         self.assertEqual([row["action"] for row in edge["next"]], ["5001"])
+
+    def test_branch_graph_and_training_scenarios_obey_pack_contract(self):
+        payload = self.load_payload()
+        moves = payload["moves"]
+        branches = payload["actions"]
+        allowed_kinds = {"fixed", "conditional", "random", "observed", "unresolved"}
+        allowed_categories = {
+            "independent", "fixed_branch", "conditional_branch", "random_branch", "observed_branch"
+        }
+        allowed_modes = {"forced_single", "natural_condition", "native_branch", "native_combo", "single_move"}
+
+        self.assertTrue(payload["monster"])
+        self.assertIsInstance(payload["required_action_category"], int)
+        for source, branch in branches.items():
+            self.assertTrue(source.isdigit())
+            self.assertIn(branch["kind"], allowed_kinds)
+            self.assertGreater(len(branch["next"]), 0)
+            if branch["kind"] == "fixed":
+                self.assertEqual(len(branch["next"]), 1)
+            for edge in branch["next"]:
+                target = str(edge["action"])
+                self.assertIn(target, moves)
+                if branch["kind"] == "conditional":
+                    self.assertTrue(edge.get("condition"))
+
+        ids = set()
+        for scenario in payload["training_scenarios"]:
+            self.assertNotIn(scenario["id"], ids)
+            ids.add(scenario["id"])
+            self.assertIn(scenario["training_category"], allowed_categories)
+            self.assertIn(scenario["execution_mode"], allowed_modes)
+            self.assertIn(str(scenario["actions"][0]), moves)
+            self.assertGreaterEqual(scenario["max_verified_repeats"], 1)
+            self.assertEqual(scenario["verification"]["status"], "verified")
+            if scenario["execution_mode"] == "natural_condition":
+                self.assertIn("target", scenario["positioning"])
+                self.assertIn("tolerance", scenario["positioning"])
+                declared = {str(edge["action"]) for edge in branches[str(scenario["actions"][0])]["next"]}
+                if "expected_successor" in scenario:
+                    self.assertIn(str(scenario["expected_successor"]), declared)
+                for expected in scenario.get("expected_branches", []):
+                    self.assertIn(str(expected["action"]), declared)
 
 
 if __name__ == "__main__":

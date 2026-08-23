@@ -1,4 +1,5 @@
 local M = {}
+local MonsterPackValidator = require("MHRiseMonsterCoach.monster_pack_validator")
 
 local CONFIG_PATH = "MHRiseMonsterCoach/config.json"
 local CALIBRATION_PATH = "MHRiseMonsterCoach/tigrex_calibration.json"
@@ -111,6 +112,13 @@ function M.load_static_ai()
     local static_ai = json.load_file(STATIC_AI_PATH)
     if type(static_ai) ~= "table" then static_ai = { actions = {} } end
     if type(static_ai.actions) ~= "table" then static_ai.actions = {} end
+    local validation = MonsterPackValidator.validate(static_ai)
+    if not validation.ok then
+        log.error("[MHRiseMonsterCoach] Static monster pack rejected: "
+            .. tostring(validation.errors[1] and validation.errors[1].path or "unknown"))
+        return { actions = {}, moves = {}, training_scenarios = {}, validation = validation }
+    end
+    static_ai.validation = validation
     return static_ai
 end
 

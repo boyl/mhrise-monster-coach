@@ -134,6 +134,8 @@ equal(wrong_category.current_state_key, "4:15", "state identity combines ActionC
 truthy(static_model:reload_static_ai({ required_action_category = 4, actions = {} }), "static AI data reload succeeds")
 equal(static_model.prediction, nil, "static AI reload refreshes current prediction")
 equal(#static_model.scenarios, 0, "static AI reload refreshes training scenarios without duplication")
+equal(static_model:reload_static_ai({ actions = {}, validation = { ok = false } }), false,
+    "invalid monster pack cannot enter the model")
 
 model:observe_damage(12.5)
 model:observe_action("11", 2)

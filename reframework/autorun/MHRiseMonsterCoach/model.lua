@@ -619,7 +619,8 @@ local function static_prediction(self, action, metadata)
 end
 
 function M.reload_static_ai(self, static_ai)
-    if type(static_ai) ~= "table" or type(static_ai.actions) ~= "table" then return false end
+    if type(static_ai) ~= "table" or type(static_ai.actions) ~= "table"
+        or (type(static_ai.validation) == "table" and static_ai.validation.ok == false) then return false end
     self.static_ai = static_ai
     local _, scenarios = merge_profile(self.profile,
         { moves = {}, scenarios = self.calibration_scenarios }, static_ai)
