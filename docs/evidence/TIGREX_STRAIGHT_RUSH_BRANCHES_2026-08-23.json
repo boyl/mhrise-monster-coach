@@ -27,5 +27,18 @@
     "target_horizontal_distance": 16.5,
     "tolerance": 8.0,
     "meaning": "Broad observed root-onset envelope used only to wait for native AI selection."
+  },
+  "product_acceptance": {
+    "session_id": "5654abd8af51462f85a6aadd23d3845b",
+    "status": "completed",
+    "completed_rounds": 1,
+    "actual_branch": {
+      "action": 15,
+      "name": "漂移转向并再次冲锋",
+      "kind": "conditional"
+    },
+    "root_node": "Attack.StraightRush.Phase00",
+    "branch_node": "Attack.AfterRushDriftForAttack.Phase00 - コピー (1)",
+    "monster_action_think_fsm_writes": false
   }
 }
