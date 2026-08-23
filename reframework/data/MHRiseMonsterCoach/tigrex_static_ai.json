@@ -104,6 +104,45 @@
         "completed_sessions": 2,
         "evidence": "docs/evidence/TIGREX_LONG_RANGE_HALF_TURN_ACCEPTANCE_2026-08-23.json"
       }
+    },
+    {
+      "id": "tigrex_straight_rush_branches",
+      "name": "Straight rush branches",
+      "name_zh": "直线冲锋派生",
+      "training_category": "conditional_branch",
+      "training_order": 10,
+      "summary_zh": "等待原生 AI 选择直线冲锋，观察冲锋急停或漂移再冲锋；当前分支条件仍标注为未完全解析。",
+      "actions": [2],
+      "execution_mode": "natural_condition",
+      "branch_kind": "conditional",
+      "max_verified_repeats": 1,
+      "expected_branches": [
+        {
+          "action": 10,
+          "name_zh": "冲锋急停",
+          "kind": "conditional",
+          "condition": "冲锋结束时由距离、边界与 AI 上下文共同决定；精确条件尚未完全解析"
+        },
+        {
+          "action": 15,
+          "name_zh": "漂移转向并再次冲锋",
+          "kind": "conditional",
+          "condition": "冲锋结束时由距离、边界与 AI 上下文共同决定；实测随后固定回到 Action 2"
+        }
+      ],
+      "positioning": {
+        "metric": "horizontal_distance",
+        "target": 16.5,
+        "tolerance": 8.0,
+        "certainty": "observed_runtime_prior"
+      },
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "completed_sessions": 2,
+        "evidence": "docs/evidence/TIGREX_STRAIGHT_RUSH_BRANCHES_2026-08-23.json"
+      }
     }
   ],
   "moves": {
@@ -351,6 +390,25 @@
     "5005": { "direction": "右侧起手的扇形弹道", "response": "横向穿过弹道间隙" }
   },
   "actions": {
+    "2": {
+      "kind": "conditional",
+      "evidence_count": 7,
+      "runtime_observation_count": 7,
+      "next": [
+        {
+          "action": "10",
+          "evidence_count": 5,
+          "condition": "Observed native rush-stop branch; exact distance/boundary/AI condition unresolved",
+          "sources": ["docs/evidence/TIGREX_STRAIGHT_RUSH_BRANCHES_2026-08-23.json"]
+        },
+        {
+          "action": "15",
+          "evidence_count": 2,
+          "condition": "Observed native drift branch; Action 15 then returns to Action 2",
+          "sources": ["docs/evidence/TIGREX_STRAIGHT_RUSH_BRANCHES_2026-08-23.json"]
+        }
+      ]
+    },
     "15": {
       "kind": "fixed",
       "evidence_count": 3,
@@ -426,7 +484,6 @@
     }
   },
   "withheld_context_dependent_actions": {
-    "2": "Observed runtime successors exceed the local static FSM targets.",
     "24": "Observed runtime successor differs from the local static FSM targets."
   }
 }

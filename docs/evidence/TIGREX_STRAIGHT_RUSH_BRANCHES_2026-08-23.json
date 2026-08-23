@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise_tdb71",
+  "monster": "em032",
+  "root": { "category": 4, "action": 2, "node": "Attack.StraightRush.Phase00" },
+  "natural_sessions": [
+    {
+      "session_id": "8f47de5e68024ffeb3797e308860ead8",
+      "valid_samples": 3652,
+      "status": "partial_before_hunter_reentry_timeout",
+      "observed_branches": { "2->10": 2, "2->15": 2 }
+    },
+    {
+      "session_id": "129171b654e545a098a3242157bb6700",
+      "valid_samples": 7200,
+      "status": "completed",
+      "root_onset_horizontal_distance": [10.0192, 14.3724, 23.1375],
+      "observed_branches": { "2->10": 3, "2->15": 1, "15->2": 1 }
+    }
+  ],
+  "classification": {
+    "kind": "conditional",
+    "reason": "The same native StraightRush root reached both AfterRushStop and AfterRushDriftForAttack nodes. Frequency is evidence of candidates, not a probability or universal condition threshold.",
+    "condition_status": "unresolved combination of distance, arena boundary and active AI context"
+  },
+  "product_prior": {
+    "target_horizontal_distance": 16.5,
+    "tolerance": 8.0,
+    "meaning": "Broad observed root-onset envelope used only to wait for native AI selection."
+  }
+}
