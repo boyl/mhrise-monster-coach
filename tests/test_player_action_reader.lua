@@ -20,13 +20,28 @@ local act_status_type = {
 local node_method = {
     call = function() return current_node end,
 }
+local tree_nodes = {
+    { get_id = function() return 200 end, get_full_name = function() return "LongSword/Idle" end },
+    { get_id = function() return 201 end, get_full_name = function() return "LongSword/Escape" end },
+}
+local tree = {
+    get_node_count = function() return #tree_nodes end,
+    get_node = function(_, index) return tree_nodes[index + 1] end,
+}
+local layer = { get_tree_object = function() return tree end }
 local motion_type = {
     get_method = function(_, name)
         if name == "getCurrentNodeID(System.Int32)" then return node_method end
     end,
     get_full_name = function() return "via.motion.MotionFsm2" end,
 }
-local motion = { get_type_definition = function() return motion_type end }
+local motion = {
+    get_type_definition = function() return motion_type end,
+    get_address = function() return 12345 end,
+    call = function(_, method, index)
+        if method == "getLayer" and index == 0 then return layer end
+    end,
+}
 
 local motion_getter = {
     get_name = function() return "getMotionFsm2" end,
@@ -58,6 +73,7 @@ local reader = Reader.new("mhrise", 71, 3)
 
 assert(reader:capture(player) == true)
 assert(reader.state.availability == "available" and reader.state.node_id == 200)
+assert(reader.state.node_name == "LongSword/Idle")
 assert(reader.state.tags.attack == true and reader.state.tags.escape == false)
 assert(reader.state.tags.guard == nil, "missing enum values remain unknown rather than false")
 assert(reader:capture(player) == false, "stable snapshots are deduplicated")
@@ -69,6 +85,8 @@ assert(reader:capture(player) == true)
 local evidence = dumped["MHRiseMonsterCoach/runtime_player_action_evidence.json"]
 assert(evidence.reader.polling_only == true and evidence.reader.hook_installed == false)
 assert(evidence.current.node_id == 201 and evidence.current.tags.escape == true)
+assert(evidence.current.node_name == "LongSword/Escape")
+assert(evidence.reader.node_catalog_count == 2)
 assert(#evidence.events == 2 and evidence.events[2].sample == 3)
 assert(reader:description().revision == 2)
 

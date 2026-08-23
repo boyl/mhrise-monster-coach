@@ -342,6 +342,7 @@ function M.capture(self, player, player_data)
         table.concat(replace_sets[1] or {}, ","), table.concat(replace_sets[2] or {}, ","),
         tostring(action_evidence and action_evidence.availability or "unavailable"),
         tostring(action_evidence and action_evidence.node_id or "unknown"),
+        tostring(action_evidence and action_evidence.node_name or "unknown"),
         table.concat(action_tags, ","),
     }, "|")
     if state_key ~= self.last_state_key then

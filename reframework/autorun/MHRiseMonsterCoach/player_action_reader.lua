@@ -43,6 +43,11 @@ local function enum_value(field)
     return field and safe(function() return field:get_data(nil) end) or nil
 end
 
+local function object_key(value)
+    if value == nil then return nil end
+    return tostring(safe(function() return value:get_address() end) or value)
+end
+
 function M.new(game_name, tdb_version, event_limit)
     return setmetatable({
         game_name = game_name,
@@ -54,7 +59,33 @@ function M.new(game_name, tdb_version, event_limit)
         sample_index = 0,
         state = nil,
         status = "waiting for player action evidence",
+        node_catalog_key = nil,
+        node_catalog = {},
+        node_catalog_count = 0,
     }, { __index = M })
+end
+
+function M.refresh_node_catalog(self, motion_fsm)
+    local catalog_key = object_key(motion_fsm)
+    if catalog_key ~= nil and catalog_key == self.node_catalog_key then return end
+    self.node_catalog_key = catalog_key
+    self.node_catalog = {}
+    self.node_catalog_count = 0
+    if motion_fsm == nil then return end
+
+    local layer = safe(function() return motion_fsm:call("getLayer", 0) end)
+    local tree = layer and safe(function() return layer:get_tree_object() end) or nil
+    local count = tonumber(tree and safe(function() return tree:get_node_count() end) or nil)
+    if count == nil or count < 0 or count > 4096 then return end
+    for index = 0, count - 1 do
+        local node = safe(function() return tree:get_node(index) end)
+        local id = node and primitive(safe(function() return node:get_id() end)) or nil
+        local name = node and safe(function() return node:get_full_name() end) or nil
+        if id ~= nil and type(name) == "string" and name ~= "" then
+            self.node_catalog[tostring(id)] = name
+        end
+    end
+    self.node_catalog_count = count
 end
 
 function M.configure(self, player_type)
@@ -105,6 +136,8 @@ function M.capture(self, player)
             or motion_type:get_method("getCurrentNodeID")
     end) or nil
     local node_id = node_method and primitive(safe(function() return node_method:call(motion_fsm, 0) end)) or nil
+    self:refresh_node_catalog(motion_fsm)
+    local node_name = node_id ~= nil and self.node_catalog[tostring(node_id)] or nil
 
     local tags = {}
     local tag_count = 0
@@ -124,6 +157,7 @@ function M.capture(self, player)
     local state = {
         availability = node_id ~= nil and "available" or (tag_count > 0 and "partial" or "unavailable"),
         node_id = node_id,
+        node_name = node_name,
         tags = tags,
         source = node_id ~= nil and "player_motion_fsm2_and_act_status"
             or (tag_count > 0 and "player_act_status" or nil),
@@ -157,6 +191,7 @@ function M.evidence(self)
         status = self.status,
         polling_only = true,
         hook_installed = false,
+        node_catalog_count = self.node_catalog_count,
     }
     return result
 end
@@ -167,6 +202,7 @@ function M.description(self)
         path = EVIDENCE_PATH,
         availability = self.state and self.state.availability or "unavailable",
         node_id = self.state and self.state.node_id or nil,
+        node_name = self.state and self.state.node_name or nil,
         source = self.state and self.state.source or nil,
         revision = self.observer.revision,
         event_count = #self.observer.events,

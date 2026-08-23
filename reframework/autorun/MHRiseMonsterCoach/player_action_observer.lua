@@ -15,6 +15,7 @@ local function copy_snapshot(snapshot)
     return {
         availability = snapshot.availability,
         node_id = snapshot.node_id,
+        node_name = snapshot.node_name,
         tags = copy_tags(snapshot.tags),
         source = snapshot.source,
         reason = snapshot.reason,
@@ -34,6 +35,7 @@ local function snapshot_key(snapshot)
     return table.concat({
         tostring(snapshot.availability or "unknown"),
         tostring(snapshot.node_id or "unknown"),
+        tostring(snapshot.node_name or "unknown"),
         table.concat(tags, ","),
     }, "|")
 end

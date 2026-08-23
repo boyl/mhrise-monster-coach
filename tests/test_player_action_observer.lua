@@ -4,10 +4,10 @@ local Observer = require("MHRiseMonsterCoach.player_action_observer")
 local observer = Observer.new(2)
 
 assert(observer:sample(10, {
-    availability = "available", node_id = 100, source = "test", tags = { attack = true },
+    availability = "available", node_id = 100, node_name = "Attack/A", source = "test", tags = { attack = true },
 }) == true)
 assert(observer:sample(11, {
-    availability = "available", node_id = 100, source = "test", tags = { attack = true },
+    availability = "available", node_id = 100, node_name = "Attack/A", source = "test", tags = { attack = true },
 }) == false, "identical evidence does not create per-frame noise")
 assert(observer:sample(12, {
     availability = "available", node_id = 101, source = "test", tags = { escape = true },
