@@ -1,7 +1,11 @@
 package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. package.path
 
 local dumped = {}
-json = { dump_file = function(path, value) dumped[path] = value end }
+local dump_counts = {}
+json = { dump_file = function(path, value)
+    dumped[path] = value
+    dump_counts[path] = (dump_counts[path] or 0) + 1
+end }
 
 local current_node = 200
 local active_tags = { [1] = true, [2] = false, [3] = false }
@@ -69,7 +73,7 @@ sdk = {
 
 package.loaded["MHRiseMonsterCoach.player_action_reader"] = nil
 local Reader = require("MHRiseMonsterCoach.player_action_reader")
-local reader = Reader.new("mhrise", 71, 3)
+local reader = Reader.new("mhrise", 71, 3, 1)
 
 assert(reader:capture(player) == true)
 assert(reader.state.availability == "available" and reader.state.node_id == 200)
@@ -87,8 +91,24 @@ assert(evidence.reader.polling_only == true and evidence.reader.hook_installed =
 assert(evidence.current.node_id == 201 and evidence.current.tags.escape == true)
 assert(evidence.current.node_name == "LongSword/Escape")
 assert(evidence.reader.node_catalog_count == 2)
+assert(#evidence.node_catalog == 2 and evidence.node_catalog[1].id == "200")
 assert(#evidence.events == 2 and evidence.events[2].sample == 3)
 assert(reader:description().revision == 2)
+
+current_node = 200
+active_tags[1] = true
+active_tags[2] = false
+local throttled = Reader.new("mhrise", 71, 8, 3)
+assert(throttled:capture(player) == true)
+local evidence_path = "MHRiseMonsterCoach/runtime_player_action_evidence.json"
+local initial_dumps = dump_counts[evidence_path]
+current_node = 201
+assert(throttled:capture(player) == true)
+assert(dump_counts[evidence_path] == initial_dumps, "a rapid action change remains memory-only")
+assert(throttled:capture(player) == false)
+assert(throttled:capture(player) == false)
+assert(dump_counts[evidence_path] == initial_dumps + 1,
+    "stable frames flush the final dirty transition at the bounded interval")
 
 reader:suspend("transition")
 assert(reader.state == nil and reader.status == "transition")

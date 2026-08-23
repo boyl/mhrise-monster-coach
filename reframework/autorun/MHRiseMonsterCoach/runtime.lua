@@ -2349,6 +2349,9 @@ end
 function M.shutdown(self)
     M.restore_time_scale(self)
     if self.quest_restart then self.quest_restart:shutdown() end
+    if self.player_state_reader and self.player_state_reader.action_reader then
+        self.player_state_reader.action_reader:flush_evidence(true)
+    end
     self.reader:shutdown()
 end
 

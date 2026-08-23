@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from collections import Counter
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import Any
 
 
 STATUS_RANK = {"observed": 1, "repeated": 2, "confirmed": 3}
+PREDICTION_KINDS = ("fixed", "conditional", "random", "observed")
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -69,6 +71,46 @@ def phase_status_by_action(
     return result
 
 
+def prediction_actions(predictions: dict[str, Any]) -> dict[str, set[str]]:
+    result = {kind: set() for kind in PREDICTION_KINDS}
+    result["unresolved"] = set()
+    for key, row in predictions.items():
+        if not isinstance(row, dict) or not row.get("next"):
+            continue
+        kind = str(row.get("kind") or "unresolved")
+        if kind == "fixed" and len(row.get("next") or []) != 1:
+            kind = "unresolved"
+        result[kind if kind in result else "unresolved"].add(key)
+    return result
+
+
+def refresh_prediction_coverage(
+    report: dict[str, Any], static_pack: dict[str, Any]
+) -> dict[str, Any]:
+    refreshed = copy.deepcopy(report)
+    predictions = static_pack.get("actions") or {}
+    classified = prediction_actions(predictions)
+    summary = refreshed.setdefault("summary", {})
+    coverage = refreshed.setdefault("coverage", {})
+    gaps = refreshed.setdefault("gaps", {})
+    for kind in (*PREDICTION_KINDS, "unresolved"):
+        key = f"{kind}_prediction_actions"
+        values = sorted(classified[kind], key=int)
+        summary[key] = len(values)
+        coverage[key] = values
+    observed = set(coverage.get("observed_actions") or [])
+    gaps["observed_without_prediction"] = sorted(
+        observed - set(predictions), key=int
+    )
+    refreshed["schema_version"] = 2
+    refreshed["prediction_source"] = {
+        "monster": static_pack.get("monster"),
+        "static_schema_version": static_pack.get("schema_version"),
+        "policy": "explicit_fixed_conditional_random_observed_kinds",
+    }
+    return refreshed
+
+
 def audit(static_pack: dict[str, Any], calibration: dict[str, Any]) -> dict[str, Any]:
     moves = static_pack.get("moves") or {}
     threats = static_pack.get("threats") or {}
@@ -88,18 +130,10 @@ def audit(static_pack: dict[str, Any], calibration: dict[str, Any]) -> dict[str,
         for key, row in threats.items()
         if isinstance(row, dict) and row.get("response")
     }
-    fixed = {
-        key for key, row in predictions.items()
-        if isinstance(row, dict) and row.get("kind") == "fixed" and len(row.get("next") or []) == 1
-    }
-    conditional = {
-        key for key, row in predictions.items()
-        if isinstance(row, dict) and row.get("kind") != "fixed" and row.get("next")
-    }
     reliable_phase = {key for key, status in phases.items() if STATUS_RANK[status] >= 2}
     status_counts = Counter(phases.values())
 
-    return {
+    report = {
         "schema_version": 1,
         "monster": static_pack.get("monster"),
         "required_action_category": static_pack.get("required_action_category"),
@@ -109,8 +143,6 @@ def audit(static_pack: dict[str, Any], calibration: dict[str, Any]) -> dict[str,
             "observed_named": len(seen & named),
             "observed_with_response": len(seen & advised),
             "observed_with_reliable_phase": len(seen & reliable_phase),
-            "fixed_prediction_actions": len(fixed),
-            "conditional_prediction_actions": len(conditional),
             "phase_statuses": dict(sorted(status_counts.items())),
         },
         "gaps": {
@@ -122,23 +154,30 @@ def audit(static_pack: dict[str, Any], calibration: dict[str, Any]) -> dict[str,
         "coverage": {
             "observed_actions": sorted(seen, key=int),
             "reliable_phase_actions": sorted(reliable_phase, key=int),
-            "fixed_prediction_actions": sorted(fixed, key=int),
-            "conditional_prediction_actions": sorted(conditional, key=int),
         },
     }
+    return refresh_prediction_coverage(report, static_pack)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("static_pack", type=Path)
-    parser.add_argument("calibration", type=Path)
+    parser.add_argument("calibration", type=Path, nargs="?")
+    parser.add_argument("--existing-report", type=Path,
+                        help="Refresh static prediction coverage while preserving runtime observations")
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    report = audit(load_json(args.static_pack), load_json(args.calibration))
+    static_pack = load_json(args.static_pack)
+    if args.existing_report:
+        report = refresh_prediction_coverage(load_json(args.existing_report), static_pack)
+    elif args.calibration:
+        report = audit(static_pack, load_json(args.calibration))
+    else:
+        raise SystemExit("calibration or --existing-report is required")
     encoded = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

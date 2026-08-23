@@ -329,21 +329,12 @@ function M.capture(self, player, player_data)
         current_action = nil,
         evidence = action_evidence,
     }
-    local action_tags = {}
-    for name, value in pairs(action_evidence and action_evidence.tags or {}) do
-        action_tags[#action_tags + 1] = tostring(name) .. "=" .. tostring(value)
-    end
-    table.sort(action_tags)
     local state_key = table.concat({
         tostring(state.weapon_type_raw), tostring(state.usable_wirebugs), tostring(state.weapon_drawn),
         tostring(long_sword_gauge), tostring(long_sword_spirit_level),
         tostring(selected_replace_index),
         tostring(quick_sheathe_level),
         table.concat(replace_sets[1] or {}, ","), table.concat(replace_sets[2] or {}, ","),
-        tostring(action_evidence and action_evidence.availability or "unavailable"),
-        tostring(action_evidence and action_evidence.node_id or "unknown"),
-        tostring(action_evidence and action_evidence.node_name or "unknown"),
-        table.concat(action_tags, ","),
     }, "|")
     if state_key ~= self.last_state_key then
         safe(function() json.dump_file(STATE_PATH, state) end)

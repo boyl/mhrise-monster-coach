@@ -48,7 +48,7 @@ local function object_key(value)
     return tostring(safe(function() return value:get_address() end) or value)
 end
 
-function M.new(game_name, tdb_version, event_limit)
+function M.new(game_name, tdb_version, event_limit, dump_interval)
     return setmetatable({
         game_name = game_name,
         tdb_version = tdb_version,
@@ -62,21 +62,24 @@ function M.new(game_name, tdb_version, event_limit)
         node_catalog_key = nil,
         node_catalog = {},
         node_catalog_count = 0,
+        dump_interval = math.max(1, math.floor(tonumber(dump_interval) or 60)),
+        last_dump_sample = nil,
+        evidence_dirty = false,
     }, { __index = M })
 end
 
 function M.refresh_node_catalog(self, motion_fsm)
     local catalog_key = object_key(motion_fsm)
-    if catalog_key ~= nil and catalog_key == self.node_catalog_key then return end
+    if catalog_key == self.node_catalog_key then return false end
     self.node_catalog_key = catalog_key
     self.node_catalog = {}
     self.node_catalog_count = 0
-    if motion_fsm == nil then return end
+    if motion_fsm == nil then return true end
 
     local layer = safe(function() return motion_fsm:call("getLayer", 0) end)
     local tree = layer and safe(function() return layer:get_tree_object() end) or nil
     local count = tonumber(tree and safe(function() return tree:get_node_count() end) or nil)
-    if count == nil or count < 0 or count > 4096 then return end
+    if count == nil or count < 0 or count > 4096 then return true end
     for index = 0, count - 1 do
         local node = safe(function() return tree:get_node(index) end)
         local id = node and primitive(safe(function() return node:get_id() end)) or nil
@@ -86,6 +89,33 @@ function M.refresh_node_catalog(self, motion_fsm)
         end
     end
     self.node_catalog_count = count
+    return true
+end
+
+function M.catalog(self)
+    local result = {}
+    for id, name in pairs(self.node_catalog) do
+        result[#result + 1] = { id = id, name = name }
+    end
+    table.sort(result, function(a, b)
+        local left, right = tonumber(a.id), tonumber(b.id)
+        if left ~= nil and right ~= nil then return left < right end
+        return tostring(a.id) < tostring(b.id)
+    end)
+    return result
+end
+
+function M.flush_evidence(self, force)
+    if not self.evidence_dirty then return false end
+    local due = self.last_dump_sample == nil
+        or self.sample_index - self.last_dump_sample >= self.dump_interval
+    if force ~= true and not due then return false end
+    local written = safe(function() json.dump_file(EVIDENCE_PATH, self:evidence()) return true end) == true
+    if written then
+        self.last_dump_sample = self.sample_index
+        self.evidence_dirty = false
+    end
+    return written
 end
 
 function M.configure(self, player_type)
@@ -136,7 +166,7 @@ function M.capture(self, player)
             or motion_type:get_method("getCurrentNodeID")
     end) or nil
     local node_id = node_method and primitive(safe(function() return node_method:call(motion_fsm, 0) end)) or nil
-    self:refresh_node_catalog(motion_fsm)
+    local catalog_changed = self:refresh_node_catalog(motion_fsm)
     local node_name = node_id ~= nil and self.node_catalog[tostring(node_id)] or nil
 
     local tags = {}
@@ -174,7 +204,8 @@ function M.capture(self, player)
     self.status = string.format("node=%s; tags=%d; source=%s",
         tostring(node_id or "unknown"), tag_count, tostring(state.source or "unavailable"))
     local changed = self.observer:sample(self.sample_index, state)
-    if changed then safe(function() json.dump_file(EVIDENCE_PATH, self:evidence()) end) end
+    self.evidence_dirty = self.evidence_dirty or changed or catalog_changed
+    self:flush_evidence(catalog_changed)
     return changed
 end
 
@@ -193,6 +224,7 @@ function M.evidence(self)
         hook_installed = false,
         node_catalog_count = self.node_catalog_count,
     }
+    result.node_catalog = self:catalog()
     return result
 end
 

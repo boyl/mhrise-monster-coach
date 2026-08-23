@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "monster": "em032",
   "required_action_category": 4,
   "summary": {
@@ -8,13 +8,16 @@
     "observed_named": 18,
     "observed_with_response": 18,
     "observed_with_reliable_phase": 14,
-    "fixed_prediction_actions": 3,
-    "conditional_prediction_actions": 0,
+    "fixed_prediction_actions": 5,
+    "conditional_prediction_actions": 1,
     "phase_statuses": {
       "confirmed": 11,
       "observed": 3,
       "repeated": 3
-    }
+    },
+    "random_prediction_actions": 0,
+    "observed_prediction_actions": 0,
+    "unresolved_prediction_actions": 0
   },
   "gaps": {
     "observed_without_name": [],
@@ -26,7 +29,6 @@
       "28"
     ],
     "observed_without_prediction": [
-      "2",
       "6",
       "7",
       "10",
@@ -84,8 +86,20 @@
     "fixed_prediction_actions": [
       "15",
       "16",
-      "18"
+      "18",
+      "5000",
+      "5002"
     ],
-    "conditional_prediction_actions": []
+    "conditional_prediction_actions": [
+      "2"
+    ],
+    "random_prediction_actions": [],
+    "observed_prediction_actions": [],
+    "unresolved_prediction_actions": []
+  },
+  "prediction_source": {
+    "monster": "em032",
+    "static_schema_version": 1,
+    "policy": "explicit_fixed_conditional_random_observed_kinds"
   }
 }

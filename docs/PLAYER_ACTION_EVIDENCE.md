@@ -12,7 +12,7 @@
 - `PlayerBase.isActionStatusTag(ActStatus)` 的 `Attack`、`Escape`、`Damage`、`Jump`、`WireJump`、`Ride` 与可用时的 `Guard` 标签；
 - 采样来源、可用性与缺失字段。
 
-`player_action_observer.lua` 只在节点或标签变化时记录事件，默认最多保存 128 项并显式记录丢弃数量。运行证据写入 `runtime_player_action_evidence.json`，它不是静态数据包，也不会由开发部署覆盖。
+`player_action_observer.lua` 只在节点或标签变化时记录事件，默认最多保存 128 项并显式记录丢弃数量。完整节点目录也随证据保存；运行时最多每 60 个采样帧落盘一次，稳定帧会冲刷尚未写出的最后变化，避免每个动作转换都写磁盘。`runtime_player_combat_state.json` 不以动作变化作为落盘键；实时 Model 仍取得每帧内存状态。运行证据写入 `runtime_player_action_evidence.json`，它不是静态数据包，也不会由开发部署覆盖。
 
 当前明确不做：
 
