@@ -1,4 +1,5 @@
 local M = {}
+local TimelinePresenter = require("MHRiseMonsterCoach.timeline_presenter")
 
 local COLORS = {
     panel = 0xDC10141A,
@@ -18,6 +19,37 @@ local function truncate(text, max_chars)
     for offset in string.gmatch(text, "()[\0-\127\194-\244]") do offsets[#offsets + 1] = offset end
     if #offsets <= max_chars then return text end
     return string.sub(text, 1, offsets[max_chars - 2] - 1) .. "..."
+end
+
+local function measured_width(text)
+    if type(imgui) ~= "table" or type(imgui.calc_text_size) ~= "function" then return nil end
+    local ok, size = pcall(imgui.calc_text_size, text)
+    if not ok or size == nil then return nil end
+    local value_ok, width = pcall(function() return size.x end)
+    if value_ok and type(width) == "number" then return width end
+    if type(size) == "table" and type(size[1]) == "number" then return size[1] end
+    return nil
+end
+
+local function fit_text(text, max_width)
+    text = tostring(text or "")
+    local width = measured_width(text)
+    if width == nil or width <= max_width then return text end
+    local offsets = {}
+    for offset in string.gmatch(text, "()[\0-\127\194-\244]") do offsets[#offsets + 1] = offset end
+    local low, high, best = 4, #offsets, "..."
+    while low <= high do
+        local middle = math.floor((low + high) / 2)
+        local candidate = truncate(text, middle)
+        local candidate_width = measured_width(candidate)
+        if candidate_width ~= nil and candidate_width <= max_width then
+            best = candidate
+            low = middle + 1
+        else
+            high = middle - 1
+        end
+    end
+    return best
 end
 
 local function result_color(state)
@@ -99,7 +131,24 @@ local function last_hit_text(event)
 end
 
 function M.new(config, font)
-    return setmetatable({ config = config, font = font }, { __index = M })
+    return setmetatable({
+        config = config,
+        font = font,
+        timeline_revision = -1,
+        timeline_review = nil,
+    }, { __index = M })
+end
+
+local function latest_timeline_review(self, model)
+    if type(model.training_timeline_revision) ~= "function"
+        or type(model.training_timeline_snapshot) ~= "function" then return nil end
+    local revision = model:training_timeline_revision()
+    if revision ~= self.timeline_revision then
+        self.timeline_revision = revision
+        local snapshot = model:training_timeline_snapshot()
+        self.timeline_review = TimelinePresenter.summarize(snapshot and snapshot.last_round or nil)
+    end
+    return self.timeline_review
 end
 
 function M.draw(self, model, runtime, slowmo_active, input_state)
@@ -159,6 +208,10 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     if model.context.outcome_tracking and model.last_result then
         lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
     end
+    if self.config.show_timeline_review then
+        local review = latest_timeline_review(self, model)
+        if review then lines[#lines + 1] = { review.text, COLORS[review.tone] or COLORS.muted } end
+    end
     local training = model.training_scenario
     if type(training) == "table" and training.state ~= "idle" then
         local label = training.name and ("Training " .. tostring(training.name) .. ": ") or "Training: "
@@ -212,7 +265,8 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     draw.filled_rect(x, y, width, height, COLORS.panel)
     draw.outline_rect(x, y, width, height, COLORS.border)
     for index, line in ipairs(lines) do
-        draw.text(line[1], x + padding, y + padding + (index - 1) * line_height, line[2])
+        draw.text(fit_text(line[1], width - padding * 2),
+            x + padding, y + padding + (index - 1) * line_height, line[2])
     end
     if self.font then self.font:pop(font_pushed) end
 end

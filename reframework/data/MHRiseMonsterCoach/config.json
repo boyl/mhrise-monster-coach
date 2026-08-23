@@ -8,6 +8,7 @@
   "show_move": true,
   "show_prediction": true,
   "show_advice": true,
+  "show_timeline_review": true,
   "show_hitboxviewer_debug_shapes": false,
   "time_control_enabled": true,
   "quick_reset_enabled": false,
@@ -19,6 +20,7 @@
   "safety_health_lock": false,
   "protect_monster_health": false,
   "transition_history_limit": 256,
+  "timeline_event_limit": 128,
   "learned_action_limit": 128,
   "min_prediction_samples": 3,
   "keys": {

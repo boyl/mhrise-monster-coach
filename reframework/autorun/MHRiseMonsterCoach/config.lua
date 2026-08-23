@@ -15,6 +15,7 @@ local DEFAULTS = {
     show_move = true,
     show_prediction = true,
     show_advice = true,
+    show_timeline_review = true,
     show_hitboxviewer_debug_shapes = false,
     time_control_enabled = true,
     quick_reset_enabled = false,

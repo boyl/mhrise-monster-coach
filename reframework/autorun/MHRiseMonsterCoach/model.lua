@@ -856,6 +856,10 @@ function M.training_timeline_snapshot(self)
     return self.training_timeline:snapshot()
 end
 
+function M.training_timeline_revision(self)
+    return self.training_timeline.revision
+end
+
 function M.fail(self, message)
     self.state = M.states.ERROR
     self.status = message

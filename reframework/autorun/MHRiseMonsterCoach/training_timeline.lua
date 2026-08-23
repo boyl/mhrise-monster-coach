@@ -30,6 +30,7 @@ function M.new(limit)
         schema_version = 1,
         limit = limit,
         next_round_id = 1,
+        revision = 0,
         active = false,
         round_id = nil,
         started_at = nil,
@@ -66,6 +67,7 @@ function M:finish(at, outcome, payload)
         dropped_events = self.dropped_events,
         events = copy(self.events),
     }
+    self.revision = self.revision + 1
     self.active = false
     self.round_id = nil
     self.started_at = nil
@@ -102,12 +104,16 @@ function M:reset(reason, clear_last)
     self.events = {}
     self.dropped_events = 0
     self.last_reset_reason = reason
-    if clear_last == true then self.last_round = nil end
+    if clear_last == true and self.last_round ~= nil then
+        self.last_round = nil
+        self.revision = self.revision + 1
+    end
 end
 
 function M:snapshot()
     return copy({
         schema_version = self.schema_version,
+        revision = self.revision,
         active = self.active,
         round_id = self.round_id,
         started_at = self.started_at,
