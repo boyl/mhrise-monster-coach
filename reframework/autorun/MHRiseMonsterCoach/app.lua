@@ -159,14 +159,22 @@ function M.start()
         }
     end
     function probe_api:training_menu_snapshot(requested_repeats)
-        local rows = {}
-        for _, scenario in ipairs(model.scenarios or {}) do
-            if scenario.verification and scenario.verification.status == "verified" then
-                rows[#rows + 1] = controller:training_scenario_presentation(
-                    scenario, requested_repeats)
+        local groups = {}
+        for _, group in ipairs(model:training_catalog()) do
+            local rows = {}
+            for _, scenario in ipairs(group.scenarios or {}) do
+                if scenario.verification and scenario.verification.status == "verified" then
+                    local presentation = controller:training_scenario_presentation(
+                        scenario, requested_repeats)
+                    presentation.summary_zh = scenario.summary_zh
+                    presentation.execution_mode = scenario.execution_mode
+                    presentation.branch_tree = model:training_branch_tree(scenario, 3)
+                    rows[#rows + 1] = presentation
+                end
             end
+            groups[#groups + 1] = { id = group.id, name = group.name, scenarios = rows }
         end
-        return { requested_repeats = requested_repeats, scenarios = rows }
+        return { requested_repeats = requested_repeats, groups = groups }
     end
     function probe_api:finish_training_acceptance()
         if controller.training_state == "waiting" or controller.training_state == "requested"
@@ -238,7 +246,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.40.4-runtime-ui-contract loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.41.1-catalog-probe loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
