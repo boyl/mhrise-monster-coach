@@ -315,6 +315,8 @@ function M:update()
                     if self.request.kind == "behavior_path_survey" then
                         self.behavior_survey = {
                             target_frames = tonumber(self.request.behavior_survey_frames),
+                            sampled_frames = 0,
+                            reentry_count = 0,
                             recorder = BehaviorGraphRecorder.new(1024),
                         }
                         self:set_state("behavior_survey")
@@ -397,7 +399,29 @@ function M:update()
         if self.state_frames > 3600 * target_rounds then
             return self:fail("Training acceptance timed out")
         end
+    elseif self.state == "behavior_survey_reenter" then
+        local areas = self.api:area_snapshot()
+        if target_quest(context, self.quest_id) and context.target_found
+            and combat_area_ready(areas) then
+            self.stable_frames = self.stable_frames + 1
+            if self.stable_frames >= self.stable_required then
+                self:set_state("behavior_survey")
+            end
+        else
+            self.stable_frames = 0
+        end
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if self.state_frames > 1800 then
+            return self:fail("Behavior survey could not re-enter the combat area after hunter recovery")
+        end
     elseif self.state == "behavior_survey" then
+        local areas = self.api:area_snapshot()
+        if not combat_area_ready(areas) then
+            self.behavior_survey.reentry_count = self.behavior_survey.reentry_count + 1
+            self:set_state("behavior_survey_reenter")
+            self:report("running")
+            return true
+        end
         local current = self.api:current_action() or {}
         local snapshot = self.api:behavior_tree_snapshot()
         local include_catalog = self.state_frames % 30 == 1
@@ -406,8 +430,11 @@ function M:update()
         local geometry = self.api.target_geometry_snapshot
             and self.api:target_geometry_snapshot() or nil
         self.behavior_survey.recorder:sample(self.frame, snapshot, current, think, geometry)
+        self.behavior_survey.sampled_frames = self.behavior_survey.sampled_frames + 1
         if self.state_frames % 120 == 0 then self:report("running") end
-        if self.state_frames >= self.behavior_survey.target_frames then return self:complete() end
+        if self.behavior_survey.sampled_frames >= self.behavior_survey.target_frames then
+            return self:complete()
+        end
     elseif self.state == "condition_branch_seek" then
         local current = self.api:current_action() or {}
         local geometry = self.api.target_geometry_snapshot

@@ -247,7 +247,8 @@ function survey_api:get_context() return forced_context end
 function survey_api:read_request() return nil end
 function survey_api:write_report(report) survey_reports[#survey_reports + 1] = report end
 function survey_api:environment_evidence() return {} end
-function survey_api:area_snapshot() return { combat_layer = true } end
+local survey_combat_layer = true
+function survey_api:area_snapshot() return { combat_layer = survey_combat_layer } end
 function survey_api:action_request_evidence() return {} end
 function survey_api:current_action()
     survey_action = survey_action + 1
@@ -265,11 +266,24 @@ survey_probe.request = { session_id = "behavior-survey", kind = "behavior_path_s
 survey_probe:set_state("wait_stable")
 survey_probe:update()
 assert(survey_probe.state == "behavior_survey", "combat gate starts the natural FSM survey")
-for _ = 1, 300 do survey_probe:update() end
+for _ = 1, 100 do survey_probe:update() end
+survey_combat_layer = false
+survey_probe:update()
+assert(survey_probe.state == "behavior_survey_reenter",
+    "hunter recovery immediately pauses behavior sampling outside the combat layer")
+for _ = 1, 20 do survey_probe:update() end
+assert(survey_probe.behavior_survey.sampled_frames == 100,
+    "preparation-area frames never count toward a behavior survey")
+survey_combat_layer = true
+survey_probe:update()
+assert(survey_probe.state == "behavior_survey", "combat re-entry resumes the same survey")
+for _ = 1, 200 do survey_probe:update() end
 local survey_report = survey_reports[#survey_reports]
 assert(survey_report.status == "completed" and survey_report.behavior_survey.samples == 300)
 assert(#survey_report.behavior_survey.edges == 299,
     "natural survey reports observed candidate edges without declaring deterministic branches")
+assert(survey_probe.behavior_survey.reentry_count == 1,
+    "survey diagnostics retain the hunter-recovery count")
 
 local condition_reports, condition_action = {}, 29
 local condition_api = { quest_api = quest_api }

@@ -15,7 +15,10 @@ if ($report.status -ne 'completed' -or $null -eq $report.behavior_survey) {
 }
 
 $events = @($report.behavior_survey.events | Where-Object {
-    $_.node.name -match $NodePattern -or [int]$_.action.action -in $ActionNumbers
+    $verticalGap = [Math]::Abs([double]$_.geometry.vertical_gap)
+    $isOnset = [string]$_.node.name -match '\.Phase00$'
+    $verticalGap -le 10.0 -and $isOnset -and
+        ($_.node.name -match $NodePattern -or [int]$_.action.action -in $ActionNumbers)
 })
 $actions = foreach ($actionNo in $ActionNumbers) {
     $matching = @($events | Where-Object { [int]$_.action.action -eq $actionNo })

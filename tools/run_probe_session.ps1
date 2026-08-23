@@ -259,7 +259,8 @@ $uiCloseRequestedForActions = [Collections.Generic.HashSet[string]]::new()
 $startupUiClosedProactively = $false
 $startupTitleZeroFallbackSent = $false
 $startupUiClosedAt = $null
-$navigationGateStates = @('wait_stable', 'verify_restart', 'forced_recovery_verify', 'monster_respawn_recovery_verify')
+$navigationGateStates = @('wait_stable', 'verify_restart', 'forced_recovery_verify',
+    'monster_respawn_recovery_verify', 'behavior_survey_reenter')
 $arenaNavigation = $null
 $lastProbeState = $null
 $combatRunHeld = $false
@@ -485,6 +486,11 @@ do {
             $lastProbeState = $stateKey
         }
         if ($isDistanceSweepReport) {
+            $verticalGap = [Math]::Abs([double]($report.areas.player_enemy_vertical_gap ?? 9999))
+            if ($report.areas.combat_layer -ne $true -or $verticalGap -gt 10.0) {
+                Stop-ArenaMovement
+                throw "Distance sweep received a non-combat sample instead of entering recovery (vertical gap $([Math]::Round($verticalGap, 2)) m)"
+            }
             $sample = [int]($report.behavior_survey.samples ?? 0)
             $band = if ($sample -lt [Math]::Floor($BehaviorSurveyFrames / 3)) { 'near-1' }
                 elseif ($sample -lt [Math]::Floor(2 * $BehaviorSurveyFrames / 3)) { 'far' }
