@@ -32,3 +32,13 @@
 部署后用一个有界会话同时覆盖站立、普通攻击、翻滚、见切、特殊纳刀、居合与红蓝书切换。若节点全名本身具有稳定语义，离线分析优先直接使用名称；否则才聚类节点/标签转换，再由人工只确认聚类名称，而不是逐帧抄 Action ID。只有重复样本一致、游戏版本匹配且动作上下文明确的映射，才进入独立太刀动作数据包。
 
 条件派生与固定派生不受此层影响：怪物派生树继续完整展示 `fixed`、`conditional`、`random/observed`，猎人动作证据只负责训练结果与武器建议的可信度。
+
+证据生成后运行：
+
+```powershell
+python tools/analyze_player_action_evidence.py `
+  <游戏目录>\reframework\data\MHRiseMonsterCoach\runtime_player_action_evidence.json `
+  --output artifacts\player_action_analysis.json
+```
+
+分析器汇总目录覆盖、实际节点、标签组合与运行时转换，并按 `foresight/mikiri`、`iai`、`sacred` 等名称词根列出候选。词根命中只用于缩小审核范围，输出明确标记为候选，不会直接写回运行时语义映射。
