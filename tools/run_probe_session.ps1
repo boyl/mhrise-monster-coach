@@ -11,6 +11,9 @@ param(
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
     [switch]$BehaviorSurvey,
     [switch]$BehaviorDistanceSweep,
+    [ValidateRange(1, 60)][double]$BehaviorSweepNearDistance = 7.0,
+    [ValidateRange(1, 60)][double]$BehaviorSweepFarDistance = 28.0,
+    [ValidateRange(1, 20)][int]$BehaviorSweepCycles = 1,
     [switch]$ConditionBranch,
     [switch]$InputMotionMetadata,
     [switch]$InputMotionAxisWrite,
@@ -493,10 +496,15 @@ do {
                 throw "Distance sweep received a non-combat sample instead of entering recovery (vertical gap $([Math]::Round($verticalGap, 2)) m)"
             }
             $sample = [int]($report.behavior_survey.samples ?? 0)
-            $band = if ($sample -lt [Math]::Floor($BehaviorSurveyFrames / 3)) { 'near-1' }
-                elseif ($sample -lt [Math]::Floor(2 * $BehaviorSurveyFrames / 3)) { 'far' }
-                else { 'near-2' }
-            $targetDistance = if ($band -eq 'far') { 28.0 } else { 7.0 }
+            $segmentCount = 2 * $BehaviorSweepCycles + 1
+            $segment = [Math]::Min($segmentCount - 1,
+                [Math]::Floor($sample * $segmentCount / $BehaviorSurveyFrames))
+            $targetDistance = if (($segment % 2) -eq 1) {
+                $BehaviorSweepFarDistance
+            } else {
+                $BehaviorSweepNearDistance
+            }
+            $band = "segment-$($segment + 1)-of-$segmentCount"
             if ($lastDistanceSweepBand -ne $band) {
                 $lastDistanceSweepBand = $band
                 $distanceSweepPlan = [pscustomobject]@{
