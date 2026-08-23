@@ -35,6 +35,28 @@
       }
     },
     {
+      "id": "tigrex_mr_rock_launcher_left",
+      "name": "MR left rock launcher",
+      "name_zh": "MR 左投石",
+      "training_category": "independent",
+      "training_order": 20,
+      "summary_zh": "练习横向处理左侧起手的远程扇形弹道；后续由原生 AI 决定，不显示虚假的固定派生。",
+      "actions": [5004],
+      "execution_mode": "forced_single",
+      "max_verified_repeats": 3,
+      "entry_policy": "non_attack_or_recovery_without_active_hitbox",
+      "positioning": "manual",
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "observed_motion": "em032_00_23057",
+        "completed_sessions": 2,
+        "completed_repeats": 4,
+        "evidence": "docs/evidence/TIGREX_MR_ROCK_LAUNCHER_ACCEPTANCE_2026-08-23.json"
+      }
+    },
+    {
       "id": "tigrex_half_turn_bite_short",
       "name": "Short-range half-turn hook bite",
       "name_zh": "短距半回转钩咬",

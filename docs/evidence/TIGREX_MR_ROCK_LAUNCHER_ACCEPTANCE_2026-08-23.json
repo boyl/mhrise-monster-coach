@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise_tdb71",
+  "monster": "em032",
+  "accepted": {
+    "action": 5004,
+    "name": "MRRockLauncherL",
+    "motion": "em032_00_23057",
+    "sessions": [
+      {
+        "session_id": "a83c453ac61047d2bdf71f89379291d0",
+        "repeats": 1,
+        "duration_frames": [173]
+      },
+      {
+        "session_id": "6a7ba1e149a54bbcae57cdd3d75b2473",
+        "repeats": 3,
+        "duration_frames": [167, 173, 167],
+        "match_latency_frames": [1, 1, 1],
+        "exit_actions": ["4:2", "4:15", "4:21"]
+      }
+    ],
+    "classification": "repeatable independent starter; no deterministic successor"
+  },
+  "withheld": {
+    "action": 5005,
+    "name": "MRRockLauncherR",
+    "session_id": "a83c453ac61047d2bdf71f89379291d0",
+    "matched": true,
+    "failed_to_exit_within_frames": 900,
+    "native_recovery_succeeded": true,
+    "decision": "Do not expose until a stable exit contract is found."
+  }
+}
