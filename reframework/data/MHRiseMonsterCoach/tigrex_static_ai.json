@@ -57,6 +57,31 @@
         "completed_sessions": 3,
         "evidence": "docs/evidence/CONDITION_INDUCED_BRANCH_ACCEPTANCE_2026-08-23.json"
       }
+    },
+    {
+      "id": "tigrex_half_turn_bite_long",
+      "name": "Long-range half-turn hook bite",
+      "name_zh": "长距半回转钩咬",
+      "training_category": "fixed_branch",
+      "training_order": 20,
+      "summary_zh": "保持在观测距离带，等待原生 AI 选择长距起手，并练习其固定钩咬派生。",
+      "actions": [5002],
+      "execution_mode": "natural_condition",
+      "max_verified_repeats": 1,
+      "expected_successor": 5001,
+      "positioning": {
+        "metric": "horizontal_distance",
+        "target": 15.0,
+        "tolerance": 5.0,
+        "certainty": "observed_runtime_prior"
+      },
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "completed_sessions": 2,
+        "evidence": "docs/evidence/TIGREX_LONG_RANGE_HALF_TURN_ACCEPTANCE_2026-08-23.json"
+      }
     }
   ],
   "moves": {
@@ -358,6 +383,21 @@
           "condition": "AI naturally selected the short-range root inside the observed 7±2m band",
           "sources": [
             "docs/evidence/CONDITION_INDUCED_BRANCH_ACCEPTANCE_2026-08-23.json"
+          ]
+        }
+      ]
+    },
+    "5002": {
+      "kind": "fixed",
+      "evidence_count": 2,
+      "runtime_observation_count": 2,
+      "next": [
+        {
+          "action": "5001",
+          "evidence_count": 2,
+          "condition": "AI naturally selected the long-range root inside the observed 11.51-17.54m onset envelope",
+          "sources": [
+            "docs/evidence/TIGREX_LONG_RANGE_HALF_TURN_ACCEPTANCE_2026-08-23.json"
           ]
         }
       ]

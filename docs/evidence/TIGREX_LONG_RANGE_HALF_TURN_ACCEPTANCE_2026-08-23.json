@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise_tdb71",
+  "monster": "em032",
+  "root": {
+    "category": 4,
+    "action": 5002,
+    "name": "BiteHookHalfTurnStartLongRange"
+  },
+  "expected_successor": {
+    "category": 4,
+    "action": 5001,
+    "name": "BiteHookHalfTurnAttackNormal"
+  },
+  "independent_sessions": [
+    {
+      "survey_samples": 2400,
+      "root_horizontal_distance": 17.5356,
+      "native_successor_observed": true
+    },
+    {
+      "session_id": "6c85b9fbe454472d846b4dbe9e956aba",
+      "survey_samples": 3600,
+      "root_horizontal_distance": 11.5141,
+      "native_successor_observed": true
+    }
+  ],
+  "product_prior": {
+    "target_horizontal_distance": 15.0,
+    "tolerance": 5.0,
+    "meaning": "Observed positioning prior for natural AI induction; not a universal decision threshold."
+  },
+  "conclusion": "Two independent natural behavior surveys observed Action 5002 continuing to Action 5001 without monster Action, Think or FSM writes. The starter may be exposed as a one-round natural-condition training scenario."
+}
