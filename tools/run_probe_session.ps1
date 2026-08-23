@@ -266,6 +266,7 @@ $lastProbeState = $null
 $combatRunHeld = $false
 $combatRunKeys = $null
 $lastDistanceSweepBand = $null
+$distanceSweepPlan = $null
 
 $virtualKeys = @{ W = [byte]0x57; A = [byte]0x41; S = [byte]0x53; D = [byte]0x44 }
 
@@ -498,19 +499,34 @@ do {
             $targetDistance = if ($band -eq 'far') { 28.0 } else { 7.0 }
             if ($lastDistanceSweepBand -ne $band) {
                 $lastDistanceSweepBand = $band
+                $distanceSweepPlan = [pscustomobject]@{
+                    candidate = 0
+                    best_remaining = [double]::PositiveInfinity
+                    last_progress_at = [datetimeoffset]::Now
+                }
                 Write-Host "Behavior distance sweep: $band target=$targetDistance m"
             }
             $player = $report.areas.player_position
             $enemy = $report.areas.enemy_position
             if ($null -ne $player -and $null -ne $enemy) {
-                $dx = [double]$enemy.x - [double]$player.x
-                $dz = [double]$enemy.z - [double]$player.z
-                $distance = [Math]::Sqrt($dx * $dx + $dz * $dz)
-                $moveToward = $distance -gt $targetDistance + 2.0
-                $moveAway = $distance -lt $targetDistance - 2.0
-                if ($moveToward -or $moveAway) {
-                    if ($moveAway) { $dx = -$dx; $dz = -$dz }
-                    $command = Get-WorldVectorMovementCommand -Areas $report.areas -DeltaX $dx -DeltaZ $dz
+                $command = Get-ArenaDistanceBandCommand -Areas $report.areas `
+                    -TargetDistance $targetDistance -Tolerance 2.0 `
+                    -CandidateIndex ([int]$distanceSweepPlan.candidate)
+                if ($command.Action -eq 'hold') {
+                    if ($null -ne $command.RemainingDistance) {
+                        $remaining = [double]$command.RemainingDistance
+                        if ($remaining -lt $distanceSweepPlan.best_remaining - 0.5) {
+                            $distanceSweepPlan.best_remaining = $remaining
+                            $distanceSweepPlan.last_progress_at = [datetimeoffset]::Now
+                        } elseif (([datetimeoffset]::Now - $distanceSweepPlan.last_progress_at).TotalSeconds -ge 1.5) {
+                            Stop-ArenaMovement
+                            $distanceSweepPlan.candidate = ([int]$distanceSweepPlan.candidate + 1) % 6
+                            $distanceSweepPlan.best_remaining = [double]::PositiveInfinity
+                            $distanceSweepPlan.last_progress_at = [datetimeoffset]::Now
+                            Write-Host "Behavior distance sweep: blocked route, replanning candidate $($distanceSweepPlan.candidate)"
+                            continue
+                        }
+                    }
                     $desiredKeys = "$($command.Primary)+$($command.Secondary)"
                     if ($command.Action -eq 'hold' -and
                         (-not $combatRunHeld -or $combatRunKeys -ne $desiredKeys)) {
@@ -524,7 +540,7 @@ do {
                         }
                         $combatRunHeld = $true
                         $combatRunKeys = $desiredKeys
-                        Write-Host "Behavior distance sweep: $desiredKeys distance=$([Math]::Round($distance, 2)) m"
+                        Write-Host "Behavior distance sweep: $desiredKeys distance=$([Math]::Round($command.CurrentDistance, 2)) m candidate=$($command.CandidateIndex)"
                     }
                 } else {
                     Stop-ArenaMovement

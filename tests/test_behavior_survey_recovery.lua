@@ -44,6 +44,8 @@ assert(probe.behavior_survey.sampled_frames == 1,
 combat_layer = true
 probe:update()
 assert(probe.state == "behavior_survey", "combat re-entry resumes the same survey")
+assert(reports[#reports].state == "behavior_survey" and reports[#reports].status == "running",
+    "re-entry publishes the resumed state immediately so external navigation releases its latch")
 probe:update()
 probe:update()
 assert(reports[#reports].status == "completed"

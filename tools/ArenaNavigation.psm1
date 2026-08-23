@@ -49,6 +49,51 @@ function Get-WorldVectorMovementCommand {
     }
 }
 
+function Get-ArenaDistanceBandCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Areas,
+        [Parameter(Mandatory)][double]$TargetDistance,
+        [double]$Tolerance = 2.0,
+        [ValidateRange(0, 5)][int]$CandidateIndex = 0
+    )
+    $player = $Areas.player_position
+    $enemy = $Areas.enemy_position
+    if ($null -eq $player -or $null -eq $enemy) {
+        return [pscustomobject]@{ Action = 'wait'; Reason = 'actor positions are unavailable' }
+    }
+    $fromEnemyX = [double]$player.x - [double]$enemy.x
+    $fromEnemyZ = [double]$player.z - [double]$enemy.z
+    $distance = Get-PlanarLength -X $fromEnemyX -Z $fromEnemyZ
+    if ($distance -gt $TargetDistance + $Tolerance) {
+        $command = Get-WorldVectorMovementCommand -Areas $Areas `
+            -DeltaX (-$fromEnemyX) -DeltaZ (-$fromEnemyZ)
+        $command | Add-Member CurrentDistance $distance
+        $command | Add-Member CandidateIndex 0
+        $command | Add-Member TargetPoint ([pscustomobject]@{ x = $enemy.x; z = $enemy.z })
+        $command | Add-Member RemainingDistance $distance
+        return $command
+    }
+    if ($distance -ge $TargetDistance - $Tolerance) {
+        return [pscustomobject]@{ Action = 'wait'; Reason = 'inside target distance band'
+            CurrentDistance = $distance; CandidateIndex = $CandidateIndex }
+    }
+    if ($distance -lt 0.001) { $fromEnemyX = 1.0; $fromEnemyZ = 0.0; $distance = 1.0 }
+    $baseAngle = [Math]::Atan2($fromEnemyZ, $fromEnemyX)
+    $offsetDegrees = @(0.0, 60.0, -60.0, 120.0, -120.0, 180.0)
+    $angle = $baseAngle + $offsetDegrees[$CandidateIndex] * [Math]::PI / 180.0
+    $targetX = [double]$enemy.x + [Math]::Cos($angle) * $TargetDistance
+    $targetZ = [double]$enemy.z + [Math]::Sin($angle) * $TargetDistance
+    $deltaX = $targetX - [double]$player.x
+    $deltaZ = $targetZ - [double]$player.z
+    $command = Get-WorldVectorMovementCommand -Areas $Areas -DeltaX $deltaX -DeltaZ $deltaZ
+    $command | Add-Member CurrentDistance $distance
+    $command | Add-Member CandidateIndex $CandidateIndex
+    $command | Add-Member TargetPoint ([pscustomobject]@{ x = $targetX; z = $targetZ })
+    $command | Add-Member RemainingDistance (Get-PlanarLength -X $deltaX -Z $deltaZ)
+    return $command
+}
+
 function Get-ArenaNavigationCommand {
     [CmdletBinding()]
     param(
@@ -132,4 +177,4 @@ function Get-ArenaNavigationCommand {
     return Get-WorldVectorMovementCommand -Areas $Areas -DeltaX $deltaX -DeltaZ $deltaZ
 }
 
-Export-ModuleMember -Function Get-ArenaNavigationCommand, Get-WorldVectorMovementCommand
+Export-ModuleMember -Function Get-ArenaNavigationCommand, Get-WorldVectorMovementCommand, Get-ArenaDistanceBandCommand

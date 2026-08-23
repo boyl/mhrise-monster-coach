@@ -66,5 +66,21 @@ $away = Get-WorldVectorMovementCommand -Areas (Observation 0 -10) -DeltaX 0 -Del
 if ($away.Action -ne 'hold' -or $away.Primary -ne 'S') {
     throw 'world-space away vector must map to S'
 }
+$bandAreas = Observation 0 -10 -CombatLayer $true
+$bandAreas.player_position = [pscustomobject]@{ x = 0.0; y = 0.0; z = -95.0 }
+$bandAreas.enemy_position = [pscustomobject]@{ x = 0.0; y = 0.0; z = -100.0 }
+$directFlee = Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28 -CandidateIndex 0
+if ($directFlee.Action -ne 'hold' -or [Math]::Abs($directFlee.TargetPoint.z - -72.0) -gt 0.01) {
+    throw 'distance planner must target the radial away point first'
+}
+$leftDetour = Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28 -CandidateIndex 1
+$rightDetour = Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28 -CandidateIndex 2
+if ($leftDetour.TargetPoint.x -ge 0 -or $rightDetour.TargetPoint.x -le 0) {
+    throw 'blocked radial flee must expose opposite tangent candidates'
+}
+$bandAreas.player_position.z = -128.5
+if ((Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28).Action -ne 'wait') {
+    throw 'distance planner must stop inside the requested band'
+}
 
 'test_arena_navigation.ps1: PASS'

@@ -406,6 +406,7 @@ function M:update()
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 self:set_state("behavior_survey")
+                self:report("running")
             end
         else
             self.stable_frames = 0
