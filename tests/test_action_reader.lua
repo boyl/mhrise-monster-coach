@@ -191,6 +191,7 @@ sdk.find_type_definition = function(name)
     if name == "snow.enemy.EnemyActionParam" then return method_param_type end
     return nil
 end
+motion.resolve = true
 local method_reader = ActionReader.new({ diagnostic_safe_mode = true, action_reader = { kind = "auto", name = "" } })
 local method_action, method_metadata = method_reader:read(nested_enemy)
 assert(method_action == "6", "reads ActionNo getter through EnemyActionParam")

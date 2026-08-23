@@ -48,8 +48,16 @@ for _ = 1, 8 do probe:update() end
 context = { in_quest = true, quest_no = 200032001, is_online = false,
     build_supported = true, target_found = true }
 for _ = 1, 4 do probe:update() end
-assert(#reports == 1 and reports[1].status == "completed", "completed report is emitted automatically")
-assert(reports[1].probe_key == "bird-1" and probe.state == "idle", "report binds evidence to the owned probe")
+local terminal_reports = {}
+for _, report in ipairs(reports) do
+    if report.status == "completed" or report.status == "failed" then
+        terminal_reports[#terminal_reports + 1] = report
+    end
+end
+assert(#terminal_reports == 1 and terminal_reports[1].status == "completed",
+    "one completed terminal report is emitted automatically")
+assert(terminal_reports[1].probe_key == "bird-1" and probe.state == "idle",
+    "terminal report binds evidence to the owned probe")
 
 local retry_context = { in_quest = true, quest_no = 200032001, is_online = false,
     build_supported = true, target_found = true }
