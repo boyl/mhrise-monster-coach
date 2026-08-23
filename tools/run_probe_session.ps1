@@ -14,6 +14,7 @@ param(
     [switch]$ConditionBranch,
     [switch]$InputMotionMetadata,
     [switch]$InputMotionAxisWrite,
+    [switch]$UiContract,
     [switch]$NativeThinkBranch,
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
@@ -86,7 +87,8 @@ if ($ResumeExisting) {
     $request = [ordered]@{
         schema_version = 1
         session_id = $sessionId
-        kind = if ($TrainingScenarioId) { 'training_scenario_acceptance' }
+        kind = if ($UiContract) { 'ui_contract_snapshot' }
+            elseif ($TrainingScenarioId) { 'training_scenario_acceptance' }
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
             elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
             elseif ($ConditionBranch) { 'condition_induced_branch' }
@@ -97,7 +99,7 @@ if ($ResumeExisting) {
             else { 'environment_creature_lifecycle' }
         requested_at = [DateTimeOffset]::Now.ToString('o')
         source_version = $sourceVersion
-        auto_load_save = $true
+        auto_load_save = -not $UiContract
         require_combat_area = $effectiveRequireCombatArea
         auto_native_arena_transfer = $false
         forced_actions = @($ForcedActions)
@@ -113,6 +115,7 @@ if ($ResumeExisting) {
         think_reference = if ($NativeThinkBranch) { 'em032_combo_001.user' } else { $null }
         expected_successor = if ($NativeThinkBranch -or $ConditionBranch) { 5001 } else { $null }
         continue_on_action_failure = $ForcedActions.Count -gt 1
+        ui_requested_repeats = if ($UiContract) { 5 } else { $null }
     }
     Write-AtomicJson -Value $request -Path $requestPath
     Write-AtomicJson -Value ([ordered]@{
@@ -130,7 +133,8 @@ if ($ResumeExisting) {
 if (-not $game) {
     Start-Process -FilePath 'steam://run/1446780'
     $launchedGame = $true
-    Write-Host 'Game launched. The probe will wait for the offline hub, then enter the training quest automatically.'
+    Write-Host $(if ($UiContract) { 'Game launched. The UI contract probe will complete before loading a save.' }
+        else { 'Game launched. The probe will wait for the offline hub, then enter the training quest automatically.' })
 } else {
     Write-Host $(if ($ResumeExisting) { 'Attached to the existing probe session.' }
         else { 'Probe request delivered to the running game.' })
@@ -608,6 +612,7 @@ do {
                     frames = $report.frames
                     condition_branch = $report.condition_branch
                     training_acceptance = $report.training_acceptance
+                    ui_contract = $report.ui_contract
                     input_motion = $report.input_motion
                     behavior_survey = if ($report.behavior_survey) { [ordered]@{
                         samples = $report.behavior_survey.samples

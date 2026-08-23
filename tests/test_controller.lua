@@ -224,6 +224,15 @@ local natural = {
     max_verified_repeats = 1,
     verification = { status = "verified" },
 }
+local natural_presentation = controller:training_scenario_presentation(natural, 5)
+assert(natural_presentation.start_label == "开始：短距半回转钩咬 × 1"
+    and natural_presentation.effective_repeats == 1
+    and string.find(natural_presentation.repeat_gate_message, "稳定性门禁", 1, true),
+    "the exact ImGui presentation contract exposes the evidence-gated repeat limit")
+local roar_presentation = controller:training_scenario_presentation(scenario, 5)
+assert(roar_presentation.start_label == "开始：咆哮 × 5"
+    and roar_presentation.repeat_gate_message == nil,
+    "verified repeatable scenarios preserve the requested count in the same UI contract")
 local distance = 12
 model.current_metadata = { action_category = 0 }
 model.coaching_state = function() return { phase = "unknown" } end

@@ -205,6 +205,15 @@ function training_api:start_training_acceptance(id, count)
 end
 function training_api:training_acceptance_status() return training_status end
 function training_api:finish_training_acceptance() training_api.finished = true end
+function training_api:training_menu_snapshot(repeats)
+    return { requested_repeats = repeats, scenarios = {
+        { scenario_id = "tigrex_roar_single", start_label = "开始：咆哮 × 5",
+            effective_repeats = 5 },
+        { scenario_id = "tigrex_half_turn_bite_short",
+            start_label = "开始：短距半回转钩咬 × 1", effective_repeats = 1,
+            repeat_gate_message = "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。" },
+    } }
+end
 local training_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
 training_probe.request = {
     session_id = "training-acceptance", kind = "training_scenario_acceptance",
@@ -221,6 +230,16 @@ assert(training_reports[#training_reports].status == "completed"
     and training_reports[#training_reports].training_acceptance.completed_rounds == 3,
     "product-path acceptance reports the controller's exact completed repeat count")
 assert(training_api.finished == true, "acceptance restores temporary training configuration")
+
+local ui_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
+assert(ui_probe:accept_request({ session_id = "ui-contract", kind = "ui_contract_snapshot",
+    auto_load_save = false, ui_requested_repeats = 5 }, {
+    in_quest = false, is_online = false, build_supported = true,
+}), "runtime UI contract snapshot completes without entering a quest")
+local ui_report = training_reports[#training_reports]
+assert(ui_report.status == "completed" and ui_report.ui_contract.requested_repeats == 5
+    and ui_report.ui_contract.scenarios[2].effective_repeats == 1,
+    "developer evidence serializes the same presentation contract consumed by ImGui")
 
 local survey_reports, survey_action = {}, 0
 local survey_api = { quest_api = quest_api }

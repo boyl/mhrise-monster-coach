@@ -158,6 +158,16 @@ function M.start()
             actual_path = model.training_scenario and model.training_scenario.actual_path or nil,
         }
     end
+    function probe_api:training_menu_snapshot(requested_repeats)
+        local rows = {}
+        for _, scenario in ipairs(model.scenarios or {}) do
+            if scenario.verification and scenario.verification.status == "verified" then
+                rows[#rows + 1] = controller:training_scenario_presentation(
+                    scenario, requested_repeats)
+            end
+        end
+        return { requested_repeats = requested_repeats, scenarios = rows }
+    end
     function probe_api:finish_training_acceptance()
         if controller.training_state == "waiting" or controller.training_state == "requested"
             or controller.training_state == "running" or controller.training_state == "positioning" then
@@ -228,7 +238,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.40.3-evidence-gated-repeats loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.40.4-runtime-ui-contract loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

@@ -53,6 +53,7 @@ function M.new(api, quest_id, options)
         native_branch = nil,
         condition_branch = nil,
         input_motion = nil,
+        ui_contract = nil,
     }, { __index = M })
 end
 
@@ -66,7 +67,8 @@ function M:set_state(state)
 end
 
 function M:report(status, reason)
-    local evidence = self.api:environment_evidence()
+    local ui_only = self.request and self.request.kind == "ui_contract_snapshot"
+    local evidence = not ui_only and self.api:environment_evidence() or nil
     local report = {
         schema_version = 1,
         session_id = self.request and self.request.session_id or nil,
@@ -78,21 +80,25 @@ function M:report(status, reason)
         frames = self.frame,
         quest_flow = self.quest_flow:diagnostics(),
         environment = evidence,
-        areas = self.api:area_snapshot(),
+        areas = not ui_only and self.api:area_snapshot() or nil,
         arena_transfer = self.arena_transfer,
         monster_respawn = self.monster_respawn,
         forced_actions = {
             requested = self.forced_actions,
             results = self.forced_results,
-            evidence = self.api.action_request_evidence and self.api:action_request_evidence() or nil,
+            evidence = not ui_only and self.api.action_request_evidence
+                and self.api:action_request_evidence() or nil,
         },
         training_acceptance = self.training_acceptance,
-        behavior_tree = self.api.behavior_tree_snapshot and self.api:behavior_tree_snapshot() or nil,
-        think_context = self.api.think_context_snapshot and self.api:think_context_snapshot(true) or nil,
+        behavior_tree = not ui_only and self.api.behavior_tree_snapshot
+            and self.api:behavior_tree_snapshot() or nil,
+        think_context = not ui_only and self.api.think_context_snapshot
+            and self.api:think_context_snapshot(true) or nil,
         behavior_survey = self.behavior_survey and self.behavior_survey.recorder:result() or nil,
         native_branch = self.native_branch,
         condition_branch = self.condition_branch,
         input_motion = self.input_motion,
+        ui_contract = self.ui_contract,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -152,6 +158,7 @@ function M:accept_request(request, context)
             and request.kind ~= "condition_induced_branch"
             and request.kind ~= "input_motion_metadata"
             and request.kind ~= "input_motion_axis_write"
+            and request.kind ~= "ui_contract_snapshot"
             and request.kind ~= "native_think_branch")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
@@ -170,6 +177,7 @@ function M:accept_request(request, context)
     self.native_branch = nil
     self.condition_branch = nil
     self.input_motion = nil
+    self.ui_contract = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -235,6 +243,15 @@ function M:accept_request(request, context)
     end
     if context.is_online or context.build_supported == false then
         return self:fail("Developer probe requires a supported offline runtime")
+    end
+    if request.kind == "ui_contract_snapshot" then
+        local repeats = tonumber(request.ui_requested_repeats)
+        if repeats == nil or repeats < 1 or repeats > 20 then
+            return self:fail("UI contract snapshot requires 1-20 requested repeats")
+        end
+        self.ui_contract = self.api:training_menu_snapshot(repeats)
+        self:complete()
+        return true
     end
     if context.in_quest then
         if not target_quest(context, self.quest_id) then
