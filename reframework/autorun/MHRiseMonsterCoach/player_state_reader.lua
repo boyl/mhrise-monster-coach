@@ -1,5 +1,6 @@
 local M = {}
 local LongSwordSwitchSkills = require("MHRiseMonsterCoach.long_sword_switch_skills")
+local PlayerActionReader = require("MHRiseMonsterCoach.player_action_reader")
 
 local PROBE_PATH = "MHRiseMonsterCoach/runtime_player_state_probe.json"
 local STATE_PATH = "MHRiseMonsterCoach/runtime_player_combat_state.json"
@@ -183,16 +184,22 @@ function M.new(game_name, tdb_version)
         status = "waiting for player",
         probe = nil,
         state = nil,
+        action_reader = PlayerActionReader.new(game_name, tdb_version, 128),
     }, { __index = M })
 end
 
 function M.suspend(self, reason)
     self.state = nil
     self.status = reason or "player combat state suspended"
+    self.action_reader:suspend(reason)
 end
 
 function M.capture(self, player, player_data)
-    if player == nil then self.status = "player unavailable" return false end
+    if player == nil then
+        self.status = "player unavailable"
+        self.action_reader:suspend(self.status)
+        return false
+    end
     local player_type = safe(function() return player:get_type_definition() end)
     if player_type == nil then self.status = "player type unavailable" return false end
     local player_data_type = player_data and safe(function() return player_data:get_type_definition() end) or nil
@@ -314,13 +321,28 @@ function M.capture(self, player, player_data)
         spirit_gauge = long_sword_gauge,
         spirit_level = long_sword_spirit_level,
     }
-    state.action_state = { weapon_drawn = state.weapon_drawn, cancelable = nil }
+    local action_changed = self.action_reader:capture(player)
+    local action_evidence = self.action_reader.state
+    state.action_state = {
+        weapon_drawn = state.weapon_drawn,
+        cancelable = nil,
+        current_action = nil,
+        evidence = action_evidence,
+    }
+    local action_tags = {}
+    for name, value in pairs(action_evidence and action_evidence.tags or {}) do
+        action_tags[#action_tags + 1] = tostring(name) .. "=" .. tostring(value)
+    end
+    table.sort(action_tags)
     local state_key = table.concat({
         tostring(state.weapon_type_raw), tostring(state.usable_wirebugs), tostring(state.weapon_drawn),
         tostring(long_sword_gauge), tostring(long_sword_spirit_level),
         tostring(selected_replace_index),
         tostring(quick_sheathe_level),
         table.concat(replace_sets[1] or {}, ","), table.concat(replace_sets[2] or {}, ","),
+        tostring(action_evidence and action_evidence.availability or "unavailable"),
+        tostring(action_evidence and action_evidence.node_id or "unknown"),
+        table.concat(action_tags, ","),
     }, "|")
     if state_key ~= self.last_state_key then
         safe(function() json.dump_file(STATE_PATH, state) end)
@@ -336,7 +358,7 @@ function M.capture(self, player, player_data)
         + #self.probe.objects.replace_attack_enum.fields + #self.probe.objects.replace_attack_enum.methods
     self.status = string.format("weapon=%s; wirebugs=%s; nested candidates=%d",
         tostring(state.weapon_type_raw or "unknown"), tostring(state.usable_wirebugs or "unknown"), nested_count)
-    return metadata_changed
+    return metadata_changed or action_changed
 end
 
 function M.description(self)
@@ -351,6 +373,7 @@ function M.description(self)
         weapon_type = self.state and self.state.weapon_type or nil,
         usable_wirebugs = self.state and self.state.usable_wirebugs or nil,
         weapon_drawn = self.state and self.state.weapon_drawn or nil,
+        player_action = self.action_reader:description(),
     }
 end
 

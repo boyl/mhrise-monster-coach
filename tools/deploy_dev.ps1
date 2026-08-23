@@ -38,7 +38,12 @@ function Resolve-GameRoot {
     throw 'Monster Hunter Rise installation was not found. Pass -GameRoot explicitly.'
 }
 
-$processes = @(Get-Process -Name 'MonsterHunterRise' -ErrorAction SilentlyContinue)
+$resolvedGameRoot = Resolve-GameRoot $GameRoot
+$processes = @(Get-Process -Name 'MonsterHunterRise' -ErrorAction SilentlyContinue | Where-Object {
+    if (-not $_.Path) { return $true }
+    $processRoot = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($_.Path))
+    return $processRoot.Equals($resolvedGameRoot, [StringComparison]::OrdinalIgnoreCase)
+})
 if ($processes.Count -gt 0) {
     if (-not $WaitForExit) {
         throw 'MonsterHunterRise is running. Use -WaitForExit or exit the game first.'
@@ -48,7 +53,6 @@ if ($processes.Count -gt 0) {
 }
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$resolvedGameRoot = Resolve-GameRoot $GameRoot
 $sourceRoot = Join-Path $repositoryRoot 'reframework'
 $destinationRoot = Join-Path $resolvedGameRoot 'reframework'
 if (-not (Test-Path -LiteralPath $sourceRoot -PathType Container)) {
@@ -80,6 +84,8 @@ $files = @(
     'autorun\MHRiseMonsterCoach\monster_respawn.lua',
     'autorun\MHRiseMonsterCoach\monster_phase.lua',
     'autorun\MHRiseMonsterCoach\long_sword_switch_skills.lua',
+    'autorun\MHRiseMonsterCoach\player_action_observer.lua',
+    'autorun\MHRiseMonsterCoach\player_action_reader.lua',
     'autorun\MHRiseMonsterCoach\player_state_reader.lua',
     'autorun\MHRiseMonsterCoach\response_long_sword.lua',
     'autorun\MHRiseMonsterCoach\startup_bootstrap_controller.lua',

@@ -60,6 +60,8 @@ app (composition root)
 
 静态 `MoveDefinition.advice` 只是无玩家上下文时的保底提示。武器专属建议采用 `MonsterMoveContext + PlayerCombatState → ResponseCandidate[]`，详细契约见 `RESPONSE_ENGINE.md`。Runtime 只负责把游戏字段转换为稳定语义，Model 保存状态并运行纯规则，View 不判断见切、居合或登龙是否可用。首个实现固定为太刀；第二种真实武器落地前不建立武器插件注册表。
 
+猎人实时动作采用 `player_action_reader → player_action_observer → PlayerCombatState.action_state.evidence` 的单向依赖。Reader 只接触 REFramework 对象，Observer 负责去重和有界历史，Model 只接收稳定契约。动作节点到“见切/居合”等名称的映射属于武器数据包，禁止写入 Reader、Controller 或 View；未经实机门禁时 `current_action=nil`。
+
 ### 离线怪物数据管线
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。

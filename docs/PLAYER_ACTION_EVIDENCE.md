@@ -1,0 +1,34 @@
+# 猎人动作证据层
+
+## 目标
+
+应对建议最终需要知道猎人当前是否处于回避、受击、攻击，以及正在执行哪一个武器动作。该信息必须先成为可复核的只读证据，才能用于“见切成功”“居合成功”等训练结论；不能仅凭未受伤或一次动作节点变化推断成功。
+
+## 当前契约
+
+`player_action_reader.lua` 每次只读采样：
+
+- `PlayerBase.getMotionFsm2()` 的第 0 层当前节点 ID；
+- `PlayerBase.isActionStatusTag(ActStatus)` 的 `Attack`、`Escape`、`Damage`、`Jump`、`WireJump`、`Ride` 与可用时的 `Guard` 标签；
+- 采样来源、可用性与缺失字段。
+
+`player_action_observer.lua` 只在节点或标签变化时记录事件，默认最多保存 128 项并显式记录丢弃数量。运行证据写入 `runtime_player_action_evidence.json`，它不是静态数据包，也不会由开发部署覆盖。
+
+当前明确不做：
+
+- 不安装 `PlayerMotionControl.lateUpdate` 或伤害计算钩子；
+- 不修改伤害返回值、玩家动作或行为树；
+- 不把第三方 Mod 的动作哈希直接作为已验证映射；
+- 不把 `Escape=true` 自动解释为见切，不把 `Damage=false` 自动解释为反击成功。
+
+## 来源与证据等级
+
+[REFramework](https://github.com/praydog/REFramework) 提供 RE Engine 托管对象反射与 Lua 访问能力。[MHR AutoDodge](https://github.com/Atomoxide/MHR_AutoDodge) 的公开实现证明 `getMotionFsm2()`、`getCurrentNodeID(0)`、`isActionStatusTag(...)` 及 `PlayerMotionControl` 动作字段可在 MHR 运行时访问；本项目只采用这些互操作接口事实，未复制其自动反击逻辑或动作表。该仓库没有可发现的许可证，因此其数字映射只作为研究线索，不进入本仓库。
+
+[MHRice](https://github.com/wwylele/mhrice) 继续作为武器、技能与游戏数据结构的优先静态来源，但其当前代码不提供猎人实时动作语义。因此静态目录与运行时节点关联仍然是两个独立证据层。
+
+## 后续一次性实机门禁
+
+部署后用一个有界会话同时覆盖站立、普通攻击、翻滚、见切、特殊纳刀、居合与红蓝书切换。会话结束后离线聚类节点/标签转换，再由人工只确认聚类名称，而不是逐帧抄 Action ID。只有重复样本一致、游戏版本匹配且动作上下文明确的映射，才进入独立太刀动作数据包。
+
+条件派生与固定派生不受此层影响：怪物派生树继续完整展示 `fixed`、`conditional`、`random/observed`，猎人动作证据只负责训练结果与武器建议的可信度。
