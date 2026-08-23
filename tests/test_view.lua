@@ -32,6 +32,7 @@ local model = {
     response_candidates = {},
 }
 function model:training_timeline_revision() return revision end
+function model:coaching_state() return { phase = "unknown" } end
 function model:training_timeline_snapshot()
     snapshot_calls = snapshot_calls + 1
     return { last_round = { round_id = revision, outcome = "hit", events = {
@@ -60,6 +61,19 @@ for _, text in ipairs(drawn) do
     if string.find(text, "复盘:", 1, true) then found_review = true end
 end
 assert(found_review, "completed round review is visible when enabled")
+
+config.show_prediction = true
+model.current_action = "2"
+model.prediction = { kind = "conditional", candidates = { { name = "冲锋急停" } } }
+drawn = {}
+view:draw(model, runtime, false, nil)
+assert(table.concat(drawn, "\n"):find("Next (condition):", 1, true),
+    "conditional branches are visibly distinct from generic candidates")
+model.prediction.kind = "random"
+drawn = {}
+view:draw(model, runtime, false, nil)
+assert(table.concat(drawn, "\n"):find("Next (random):", 1, true),
+    "random branches are never presented as conditional or fixed")
 
 revision = 2
 view:draw(model, runtime, false, nil)

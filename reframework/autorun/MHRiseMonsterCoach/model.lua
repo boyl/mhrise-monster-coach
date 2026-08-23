@@ -208,6 +208,8 @@ function M.training_catalog(self)
         independent = { id = "independent", name = "独立关键招式", order = 10 },
         fixed_branch = { id = "fixed_branch", name = "固定派生起手", order = 20 },
         conditional_branch = { id = "conditional_branch", name = "条件派生起手", order = 30 },
+        random_branch = { id = "random_branch", name = "随机派生起手", order = 40 },
+        observed_branch = { id = "observed_branch", name = "仅观察派生起手", order = 50 },
     }
     local groups = {}
     for _, scenario in ipairs(self.scenarios or {}) do
@@ -560,6 +562,16 @@ local function learned_prediction(self, action)
     }
 end
 
+local function normalized_prediction_kind(kind, candidate_count)
+    kind = tostring(kind or "conditional")
+    if kind == "fixed" then
+        return candidate_count == 1 and "fixed" or "unresolved"
+    end
+    if kind == "conditional" or kind == "random" or kind == "observed"
+        or kind == "unresolved" then return kind end
+    return "unresolved"
+end
+
 local function profile_prediction(self, move)
     if not move or type(move.next) ~= "table" then return nil end
     local candidates = {}
@@ -572,8 +584,7 @@ local function profile_prediction(self, move)
             probability = item.probability,
         }
     end
-    local kind = move.next_kind or "conditional"
-    if kind == "fixed" and #candidates ~= 1 then kind = "conditional" end
+    local kind = normalized_prediction_kind(move.next_kind, #candidates)
     return {
         kind = kind,
         samples = move.samples,
@@ -598,7 +609,7 @@ local function static_prediction(self, action, metadata)
             evidence_count = item.evidence_count,
         }
     end
-    local kind = row.kind == "fixed" and #candidates == 1 and "fixed" or "conditional"
+    local kind = normalized_prediction_kind(row.kind, #candidates)
     return {
         kind = kind,
         source = "static_ai",

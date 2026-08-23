@@ -77,7 +77,7 @@ equal(model.prediction.kind, "fixed", "profile fixed prediction wins")
 equal(model.prediction.candidates[1].action, "11", "fixed target")
 
 model:observe_action("30", 1.5)
-equal(model.prediction.kind, "conditional", "invalid multi-target fixed data is downgraded")
+equal(model.prediction.kind, "unresolved", "invalid multi-target fixed data is not mislabeled as conditional")
 model:observe_action("10", 1.75)
 
 local static_profile = { id = "static", name = "Static", moves = {}, scenarios = {} }
@@ -90,6 +90,8 @@ local static_ai = {
     actions = {
         ["15"] = { kind = "fixed", evidence_count = 3, next = { { action = "2" } } },
         ["2"] = { kind = "conditional", next = { { action = "6" }, { action = "10" } } },
+        ["30"] = { kind = "random", next = { { action = "6" }, { action = "10" } } },
+        ["31"] = { kind = "observed", next = { { action = "6" } } },
     },
 }
 local static_model = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
@@ -117,6 +119,10 @@ equal(static_model.prediction.kind, "fixed", "static unique ActionEnd edge is fi
 equal(static_model.prediction.candidates[1].action, "2", "static fixed target")
 static_model:observe_action("2", 2, { action_category = 4 })
 equal(static_model.prediction.kind, "conditional", "static multiple targets remain conditional")
+static_model:observe_action("30", 2.25, { action_category = 4 })
+equal(static_model.prediction.kind, "random", "static random branch remains explicitly random")
+static_model:observe_action("31", 2.5, { action_category = 4 })
+equal(static_model.prediction.kind, "observed", "static observed branch is not upgraded to deterministic")
 local wrong_category = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
 wrong_category:set_context({ in_quest = true, is_online = false, target_found = true, reader_ready = true, safe_mode = true })
 wrong_category:observe_action("15", 1, { action_category = 3 })

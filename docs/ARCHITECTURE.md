@@ -73,9 +73,14 @@ app (composition root)
 ### BranchPrediction
 
 - `fixed`：来自校准数据的确定派生。
-- `conditional` / `random`：来自校准数据的候选及条件。
+- `conditional`：存在明确条件但当前尚不能唯一确定的候选。
+- `random`：由原生随机选择的候选，不得显示为条件或固定。
+- `observed`：数据包仅保存运行观察，尚未证明条件或随机机制。
+- `unresolved`：来源冲突、类型未知或数据自称固定却包含多个候选。
 - `observed_single` / `observed_candidates`：来自本次会话计数，只描述观察结果。
 - 样本不足时返回空预测并显示“正在采集”。
+
+上述确定性必须在数据包、Model、派生树与 Overlay 间端到端保留，不能把所有非固定边折叠成 `conditional/candidate`。固定边必须且只能有一个候选；违反该不变量时降级为 `unresolved`。
 
 ### TrainingTimeline
 

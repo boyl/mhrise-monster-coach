@@ -69,7 +69,16 @@ local function prediction_text(prediction)
         if item.probability then suffix = string.format(" %.0f%%", item.probability * 100) end
         pieces[#pieces + 1] = tostring(item.name) .. suffix
     end
-    local prefix = prediction.kind == "fixed" and "Next (fixed): " or "Next (candidate): "
+    local prefixes = {
+        fixed = "Next (fixed): ",
+        conditional = "Next (condition): ",
+        random = "Next (random): ",
+        observed = "Next (observed): ",
+        observed_single = "Next (observed): ",
+        observed_candidates = "Next (observed): ",
+        unresolved = "Next (unresolved): ",
+    }
+    local prefix = prefixes[prediction.kind] or "Next (unresolved): "
     return prefix .. table.concat(pieces, " / ")
 end
 
