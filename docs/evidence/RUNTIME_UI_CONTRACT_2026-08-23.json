@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "mod_version": "0.40.4-runtime-ui-contract",
-  "session_id": "a52ec9b59f5140fc87867a3ad8ceeba8",
+  "mod_version": "0.42.0-long-range-starter",
+  "session_id": "f81f4e4a95334b829217027a8add1334",
   "probe_kind": "ui_contract_snapshot",
   "status": "completed",
   "frames": 1,
@@ -17,6 +17,13 @@
       "scenario_id": "tigrex_half_turn_bite_short",
       "effective_repeats": 1,
       "start_label": "开始：短距半回转钩咬 × 1",
+      "repeat_gate_message": "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。"
+    },
+    {
+      "scenario_id": "tigrex_half_turn_bite_long",
+      "effective_repeats": 1,
+      "start_label": "开始：长距半回转钩咬 × 1",
+      "branch": "5002 -> 5001",
       "repeat_gate_message": "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。"
     }
   ],
