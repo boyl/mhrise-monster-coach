@@ -69,6 +69,7 @@ function Get-ArenaDistanceBandCommand {
         $command = Get-WorldVectorMovementCommand -Areas $Areas `
             -DeltaX (-$fromEnemyX) -DeltaZ (-$fromEnemyZ)
         $command | Add-Member CurrentDistance $distance
+        $command | Add-Member Mode 'approach'
         $command | Add-Member CandidateIndex 0
         $command | Add-Member TargetPoint ([pscustomobject]@{ x = $enemy.x; z = $enemy.z })
         $command | Add-Member RemainingDistance $distance
@@ -76,7 +77,7 @@ function Get-ArenaDistanceBandCommand {
     }
     if ($distance -ge $TargetDistance - $Tolerance) {
         return [pscustomobject]@{ Action = 'wait'; Reason = 'inside target distance band'
-            CurrentDistance = $distance; CandidateIndex = $CandidateIndex }
+            CurrentDistance = $distance; CandidateIndex = $CandidateIndex; Mode = 'hold' }
     }
     if ($distance -lt 0.001) { $fromEnemyX = 1.0; $fromEnemyZ = 0.0; $distance = 1.0 }
     $baseAngle = [Math]::Atan2($fromEnemyZ, $fromEnemyX)
@@ -88,6 +89,7 @@ function Get-ArenaDistanceBandCommand {
     $deltaZ = $targetZ - [double]$player.z
     $command = Get-WorldVectorMovementCommand -Areas $Areas -DeltaX $deltaX -DeltaZ $deltaZ
     $command | Add-Member CurrentDistance $distance
+    $command | Add-Member Mode 'flee'
     $command | Add-Member CandidateIndex $CandidateIndex
     $command | Add-Member TargetPoint ([pscustomobject]@{ x = $targetX; z = $targetZ })
     $command | Add-Member RemainingDistance (Get-PlanarLength -X $deltaX -Z $deltaZ)

@@ -73,6 +73,7 @@ $directFlee = Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28 
 if ($directFlee.Action -ne 'hold' -or [Math]::Abs($directFlee.TargetPoint.z - -72.0) -gt 0.01) {
     throw 'distance planner must target the radial away point first'
 }
+if ($directFlee.Mode -ne 'flee') { throw 'radial target must identify flee mode' }
 $leftDetour = Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28 -CandidateIndex 1
 $rightDetour = Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28 -CandidateIndex 2
 if ($leftDetour.TargetPoint.x -ge 0 -or $rightDetour.TargetPoint.x -le 0) {
@@ -81,6 +82,10 @@ if ($leftDetour.TargetPoint.x -ge 0 -or $rightDetour.TargetPoint.x -le 0) {
 $bandAreas.player_position.z = -128.5
 if ((Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28).Action -ne 'wait') {
     throw 'distance planner must stop inside the requested band'
+}
+$bandAreas.player_position.z = -140.0
+if ((Get-ArenaDistanceBandCommand -Areas $bandAreas -TargetDistance 28).Mode -ne 'approach') {
+    throw 'outside the target ring must use direct approach without wall-detour rotation'
 }
 
 'test_arena_navigation.ps1: PASS'

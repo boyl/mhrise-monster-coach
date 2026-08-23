@@ -513,7 +513,7 @@ do {
                     -TargetDistance $targetDistance -Tolerance 2.0 `
                     -CandidateIndex ([int]$distanceSweepPlan.candidate)
                 if ($command.Action -eq 'hold') {
-                    if ($null -ne $command.RemainingDistance) {
+                    if ($command.Mode -eq 'flee' -and $null -ne $command.RemainingDistance) {
                         $remaining = [double]$command.RemainingDistance
                         if ($remaining -lt $distanceSweepPlan.best_remaining - 0.5) {
                             $distanceSweepPlan.best_remaining = $remaining
