@@ -272,4 +272,43 @@ assert(controller.training_state == "completed" and controller.training_complete
     "verified native successor completes the condition-guided round")
 assert(training_requests == 3, "natural condition training never calls forced Action injection")
 
+local conditional = {
+    id = "conditional", name_zh = "条件起手", actions = { 6000 },
+    execution_mode = "natural_condition", branch_kind = "conditional",
+    expected_branches = {
+        { action = 6001, name_zh = "近距分支", condition = "近距离" },
+        { action = 6002, name_zh = "远距分支", condition = "远距离" },
+    },
+    positioning = { metric = "horizontal_distance", target = 10, tolerance = 10 },
+    max_verified_repeats = 1, verification = { status = "verified" },
+}
+model.training_branch_tree = function() return {
+    action = "6000", name = "条件起手", kind = "conditional", candidates = {}
+} end
+controller.training_state = "idle"
+assert(controller:preview_training_scenario(conditional))
+assert(controller:start_training_scenario(conditional))
+training_snapshot = { category = 4, action = 6000 }
+controller.frame_counter = controller.frame_counter + 1
+controller:update_training_scenario()
+training_snapshot = { category = 4, action = 6002 }
+controller.frame_counter = controller.frame_counter + 1
+controller:update_training_scenario()
+assert(controller.training_state == "completed"
+    and model.training_scenario.actual_branch.action == 6002
+    and model.training_scenario.actual_branch.condition == "远距离",
+    "any declared conditional branch completes and records the branch actually taken")
+
+controller.training_state = "idle"
+assert(controller:preview_training_scenario(conditional))
+assert(controller:start_training_scenario(conditional))
+training_snapshot = { category = 4, action = 6000 }
+controller.frame_counter = controller.frame_counter + 1
+controller:update_training_scenario()
+training_snapshot = { category = 4, action = 6003 }
+controller.frame_counter = controller.frame_counter + 11
+controller:update_training_scenario()
+assert(controller.training_state == "failed",
+    "an undeclared successor fails instead of being mislabeled as a valid condition branch")
+
 print("test_controller.lua: PASS")

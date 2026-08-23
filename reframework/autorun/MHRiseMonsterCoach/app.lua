@@ -156,6 +156,7 @@ function M.start()
             completed_rounds = controller.training_completed_rounds,
             target_rounds = controller.training_target_rounds,
             actual_path = model.training_scenario and model.training_scenario.actual_path or nil,
+            actual_branch = model.training_scenario and model.training_scenario.actual_branch or nil,
         }
     end
     function probe_api:training_menu_snapshot(requested_repeats)

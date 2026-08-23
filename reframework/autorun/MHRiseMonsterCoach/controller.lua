@@ -51,6 +51,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         training_behavior_tracker = nil,
         training_last_behavior_path = nil,
         training_root_frame = nil,
+        training_actual_branch = nil,
     }, { __index = M })
 end
 
@@ -81,6 +82,7 @@ function M.set_training_state(self, state, status, scenario)
         target_rounds = self.training_target_rounds,
         actual_path = self.training_behavior_tracker and self.training_behavior_tracker:result()
             or self.training_last_behavior_path,
+        actual_branch = self.training_actual_branch,
     }
 end
 
@@ -175,6 +177,7 @@ function M.start_training_scenario(self, scenario)
     self.training_completed_rounds = 0
     self.training_behavior_tracker = nil
     self.training_last_behavior_path = nil
+    self.training_actual_branch = nil
     self.training_next_request_frame = self.frame_counter
     M.set_training_state(self, "waiting", "训练已开始，等待安全空档", scenario)
     M.issue_training_scenario(self)
@@ -203,10 +206,25 @@ local function positioning_status(scenario, distance)
     return string.format("距离 %.1fm 合适：等待目标起手", distance), true
 end
 
+local function expected_branch_map(scenario)
+    local result = {}
+    if type(scenario.expected_branches) == "table" then
+        for _, branch in ipairs(scenario.expected_branches) do
+            local action = type(branch) == "table" and tonumber(branch.action) or nil
+            if action ~= nil then result[action] = branch end
+        end
+    end
+    local legacy = tonumber(scenario.expected_successor)
+    if legacy ~= nil and result[legacy] == nil then
+        result[legacy] = { action = legacy, kind = "fixed" }
+    end
+    return result
+end
+
 function M.update_natural_condition_training(self, current)
     local scenario = self.training_scenario or {}
     local root = scenario.actions and tonumber(scenario.actions[1]) or nil
-    local successor = tonumber(scenario.expected_successor)
+    local branches = expected_branch_map(scenario)
     local category, action = tonumber(current.category), tonumber(current.action)
     if self.training_behavior_tracker and self.runtime.behavior_tree_snapshot then
         self.training_behavior_tracker:sample(self.frame_counter,
@@ -216,7 +234,7 @@ function M.update_natural_condition_training(self, current)
         if category == 4 and action == root then
             self.training_root_frame = self.frame_counter
             self.training_matched_frame = self.frame_counter
-            M.set_training_state(self, "running", "起手已出现：等待固定派生", scenario)
+            M.set_training_state(self, "running", "起手已出现：等待后续派生", scenario)
             return
         end
         local geometry = self.runtime.target_geometry_snapshot
@@ -227,13 +245,20 @@ function M.update_natural_condition_training(self, current)
         return
     end
     if self.training_state ~= "running" then return end
-    if category == 4 and action == successor then
+    local matched_branch = category == 4 and branches[action] or nil
+    if matched_branch ~= nil then
+        self.training_actual_branch = {
+            action = action,
+            name = matched_branch.name_zh or matched_branch.name,
+            condition = matched_branch.condition,
+            kind = matched_branch.kind or scenario.branch_kind or "candidate",
+        }
         self.training_last_behavior_path = self.training_behavior_tracker
             and self.training_behavior_tracker:result() or nil
         self.training_behavior_tracker = nil
         self.training_completed_rounds = self.training_completed_rounds + 1
         if self.training_completed_rounds >= self.training_target_rounds then
-            M.set_training_state(self, "completed", string.format("固定派生已确认：%d/%d",
+            M.set_training_state(self, "completed", string.format("派生已确认：%d/%d",
                 self.training_completed_rounds, self.training_target_rounds), scenario)
         else
             self.training_next_request_frame = self.frame_counter + 30
@@ -243,9 +268,9 @@ function M.update_natural_condition_training(self, current)
         return
     end
     if self.frame_counter - (self.training_root_frame or self.frame_counter) > 180
-        or (category == 4 and action ~= root and action ~= successor
+        or (category == 4 and action ~= root and branches[action] == nil
             and self.frame_counter - (self.training_root_frame or self.frame_counter) > 10) then
-        M.set_training_state(self, "failed", "目标起手未进入预期固定派生")
+        M.set_training_state(self, "failed", "目标起手未进入已收录派生")
     end
 end
 
