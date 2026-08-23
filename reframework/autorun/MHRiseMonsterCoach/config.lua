@@ -29,6 +29,7 @@ local DEFAULTS = {
     safety_health_lock = false,
     protect_monster_health = false,
     transition_history_limit = 256,
+    timeline_event_limit = 128,
     learned_action_limit = 128,
     min_prediction_samples = 3,
     keys = {
@@ -82,6 +83,7 @@ function M.load()
 
     config.slowmo_scale = clamp(config.slowmo_scale, 0.05, 1.0)
     config.transition_history_limit = math.floor(clamp(config.transition_history_limit, 32, 512))
+    config.timeline_event_limit = math.floor(clamp(config.timeline_event_limit, 32, 512))
     config.learned_action_limit = math.floor(clamp(config.learned_action_limit, 16, 256))
     config.min_prediction_samples = math.floor(clamp(config.min_prediction_samples, 2, 20))
     config.quick_reset_cooldown_frames = math.floor(clamp(config.quick_reset_cooldown_frames, 60, 600))

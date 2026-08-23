@@ -18,6 +18,7 @@ app (composition root)
 任务重开由 `quest_restart.lua` 保存跨场景状态，只依赖 Runtime 提供的语义操作：原生重置、据点就绪、柜台接取和出发。Controller 只启动用例并展示状态；任务 ID 来自怪物 Profile。运行时实现参考 AutoQuest 已验证的任务柜台 FSM 入口，但不依赖或复制其模块。
 
 - `model.lua` 只处理训练状态、动作转换、派生语义和有界历史，不调用游戏 API。
+- `training_timeline.lua` 是有界的纯领域对象，只接受 Action 起点、判定开闭、受击和结果五类事件；它不读取游戏、不渲染 UI、不写校准文件。
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
 - `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
 - `action_reader.lua` 是游戏版本变化最大的边界，优先沿怪物继承链查找明确白名单中的零参数 Getter 或字段。直接成员不可用时，只枚举已知只读对象 `EnemyActionParam` 的成员定义，并且只读取 ActionNo/ActionID/ActionCategory 精确白名单字段或调用精确白名单零参数 Getter；枚举出的其他方法只记录名称，不执行。仍不可用时才降级为 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询名称和结束帧；脚本重载时释放该实例。诊断必须分别标记 `action_param_field`、`action_param_method` 或 `motion`。
@@ -73,6 +74,13 @@ app (composition root)
 - `conditional` / `random`：来自校准数据的候选及条件。
 - `observed_single` / `observed_candidates`：来自本次会话计数，只描述观察结果。
 - 样本不足时返回空预测并显示“正在采集”。
+
+### TrainingTimeline
+
+- 每次 Action 开始建立一轮，事件严格按观察顺序保存；判定与受击事件同时保留 Motion 帧，不能用渲染帧或墙钟时间冒充动画时机。
+- 开启结果追踪时，Action 切换可得 `hit` 或 `no_damage`；只读模式只能给出 `observed_hit` 或 `unclassified`，不得把“未观察到掉血”升级为成功。
+- 活跃事件默认最多 128 条，溢出时显式累计 `dropped_events`；快照是只读副本，上一完整轮可跨普通重置保留以供复盘。
+- 当前契约不包含视频、世界状态、玩家关键输入或防御/回避语义。后两项只有在 Runtime 提供已验证的语义事件后才能扩展，不能由 Action 结果反推。
 
 ### TrainingScenario
 

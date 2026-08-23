@@ -32,6 +32,10 @@ assert(row.status == "confirmed")
 assert(row.aggregate_windows[1].min_start_frame == 10)
 assert(row.aggregate_windows[1].max_end_frame == 15)
 assert(row.observations[1][1].max_active_count == 2)
+local completed_timeline = model:training_timeline_snapshot().last_round
+local timeline_kinds = {}
+for _, event in ipairs(completed_timeline.events) do timeline_kinds[event.kind] = true end
+assert(timeline_kinds.hitbox_open and timeline_kinds.hitbox_close)
 model.current_state_key = "4:10"
 model.current_metadata = { motion_name = "em032_attack", current_frame = 9 }
 assert(model:current_monster_phase() == "startup")

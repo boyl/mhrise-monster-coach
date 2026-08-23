@@ -1,6 +1,7 @@
 local M = {}
 local LongSwordResponse = require("MHRiseMonsterCoach.response_long_sword")
 local MonsterPhase = require("MHRiseMonsterCoach.monster_phase")
+local TrainingTimeline = require("MHRiseMonsterCoach.training_timeline")
 
 M.states = {
     INITIAL = "initial",
@@ -122,6 +123,7 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         round_damage = 0,
         last_result = nil,
         last_hit_event = nil,
+        training_timeline = TrainingTimeline.new(config.timeline_event_limit or 128),
         config = config,
         context = { in_quest = false, is_online = false, target_found = false },
     }, { __index = M })
@@ -311,6 +313,12 @@ function M.observe_hitboxes(self, sample)
     if active and not observation.was_active then
         observation.open_window = { start_frame = frame, start_progress = progress,
             entries = sample.entries, max_active_count = tonumber(sample.active_count) or 0 }
+        self.training_timeline:record("hitbox_open", nil, {
+            motion_frame = frame,
+            motion_progress = progress,
+            active_count = tonumber(sample.active_count) or 0,
+            source = sample.source,
+        })
     elseif active and observation.open_window then
         observation.open_window.max_active_count = math.max(
             observation.open_window.max_active_count, tonumber(sample.active_count) or 0)
@@ -324,6 +332,12 @@ function M.observe_hitboxes(self, sample)
         observation.open_window.last_active_frame = nil
         observation.open_window.last_active_progress = nil
         observation.windows[#observation.windows + 1] = observation.open_window
+        self.training_timeline:record("hitbox_close", nil, {
+            motion_frame = frame,
+            last_active_frame = observation.open_window.end_frame,
+            motion_progress = progress,
+            source = sample.source,
+        })
         observation.open_window = nil
     end
     observation.was_active = active
@@ -346,6 +360,11 @@ function M.finalize_hitbox_observation(self)
         observation.open_window.last_active_frame = nil
         observation.open_window.last_active_progress = nil
         observation.windows[#observation.windows + 1] = observation.open_window
+        self.training_timeline:record("hitbox_close", nil, {
+            motion_frame = observation.open_window.end_frame,
+            motion_progress = observation.open_window.end_progress,
+            reason = "action_ended",
+        })
         observation.open_window = nil
     end
     self.current_hitbox_observation = nil
@@ -414,6 +433,7 @@ function M.set_context(self, context)
     local was_in_quest = self.context.in_quest
     if was_in_quest and not context.in_quest then
         M.finalize_hitbox_observation(self)
+        self.training_timeline:reset("left_quest")
         self.current_action = nil
         self.current_state_key = nil
         self.current_move = nil
@@ -618,9 +638,15 @@ local function record_transition(self, from_action, to_action)
     row.next[next_key] = (row.next[next_key] or 0) + 1
 end
 
-function M.finish_round(self)
+function M.finish_round(self, now)
     if self.current_action == nil then return end
     self.rounds = self.rounds + 1
+    local outcome = self.round_damage > 0 and "hit" or "no_damage"
+    self.training_timeline:finish(now, outcome, {
+        action = tostring(self.current_action),
+        state_key = self.current_state_key,
+        damage = self.round_damage,
+    })
     if self.round_damage > 0 then
         self.failures = self.failures + 1
         self.streak = 0
@@ -654,8 +680,14 @@ function M.observe_action(self, action, now, metadata)
     if previous ~= nil then
         M.finalize_hitbox_observation(self)
         if self.context.outcome_tracking == true then
-            M.finish_round(self)
+            M.finish_round(self, now)
         else
+            local outcome = self.training_timeline:has_event("damage") and "observed_hit" or "unclassified"
+            self.training_timeline:finish(now, outcome, {
+                action = tostring(previous),
+                state_key = previous_state_key,
+                outcome_tracking = false,
+            })
             self.state_changes = self.state_changes + 1
         end
         if is_coaching_action(self, previous_metadata) and is_coaching_action(self, metadata) then
@@ -675,6 +707,13 @@ function M.observe_action(self, action, now, metadata)
     self.prediction = self.current_move and (profile_prediction(self, self.current_move)
         or static_prediction(self, action, metadata)
         or learned_prediction(self, next_state_key)) or nil
+    self.training_timeline:start(event_time, {
+        action = action,
+        state_key = next_state_key,
+        move_name = self.current_move and (self.current_move.short_name or self.current_move.name) or nil,
+        motion_name = metadata and metadata.motion_name or nil,
+        motion_frame = metadata and tonumber(metadata.current_frame) or nil,
+    })
     if self.context.safe_mode then
         self.state = M.states.DISABLED
         self.status = "Diagnostic mode: polling and guarded training controls enabled"
@@ -755,6 +794,7 @@ function M.observe_damage(self, amount)
             relation = relation,
             relative_frame = relative_frame,
         }
+        self.training_timeline:record("damage", nil, self.last_hit_event)
         local row = self.hit_timing_evidence[key]
         if row == nil then
             row = {
@@ -784,6 +824,7 @@ function M.observe_damage(self, amount)
 end
 
 function M.reset_round(self, reason)
+    self.training_timeline:reset(reason or "Training round reset")
     self.round_damage = 0
     self.last_hit_event = nil
     self.last_result = reason or "Training round reset"
@@ -793,6 +834,7 @@ end
 
 function M.clear_round_runtime(self, reason)
     M.finalize_hitbox_observation(self)
+    self.training_timeline:reset(reason or "Training round reset")
     self.current_action = nil
     self.current_state_key = nil
     self.current_move = nil
@@ -808,6 +850,10 @@ function M.clear_round_runtime(self, reason)
     self.last_result = reason or "Training round reset"
     self.state = M.states.READY
     self.status = self.last_result
+end
+
+function M.training_timeline_snapshot(self)
+    return self.training_timeline:snapshot()
 end
 
 function M.fail(self, message)

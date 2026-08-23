@@ -133,6 +133,10 @@ model:observe_damage(12.5)
 model:observe_action("11", 2)
 equal(model.failures, 1, "damage closes failed round")
 equal(model.streak, 0, "failure resets streak")
+local failed_timeline = model:training_timeline_snapshot().last_round
+equal(failed_timeline.outcome, "hit", "training timeline classifies an outcome-tracked hit")
+equal(failed_timeline.events[1].kind, "action_start", "training timeline begins at action start")
+equal(failed_timeline.events[#failed_timeline.events].kind, "result", "training timeline ends with a result")
 
 model:observe_action("12", 3)
 equal(model.successes, 3, "no damage closes successful round")
@@ -195,6 +199,15 @@ equal(hit_timing.samples, 2, "hit timing aggregates samples without manual annot
 equal(hit_timing.min_hit_frame, 30, "hit timing keeps earliest observed frame")
 equal(hit_timing.max_hit_progress, 0.6, "hit timing keeps latest observed progress")
 equal(hit_timing.total_damage, 30, "hit timing retains total observed damage")
+
+readonly:observe_action("100", 2.0, {
+    action_category = 4,
+    motion_name = "em032_next",
+    current_frame = 0,
+})
+local readonly_timeline = readonly:training_timeline_snapshot().last_round
+equal(readonly_timeline.outcome, "observed_hit", "read-only timeline reports observed hits without scoring success")
+equal(readonly.rounds, 0, "read-only timeline does not change scored rounds")
 
 readonly:clear_round_runtime("Round reset in place")
 equal(readonly.current_action, nil, "quick reset clears the previous action prompt")
