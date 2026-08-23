@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "runtime": "mhrise_tdb71",
+  "policy": "Forced Action results validate only starter execution safety; they do not classify native successors.",
+  "session_id": "a8a4e8d6b6014a7c9d3151163f25bd3f",
+  "initial_batch": [
+    { "action": 22, "result": "withheld", "reason": "matched but did not exit within 900 frames" },
+    { "action": 23, "result": "candidate", "duration_frames": 106 },
+    { "action": 26, "result": "withheld", "reason": "matched but did not exit within 900 frames" },
+    { "action": 29, "result": "candidate", "duration_frames": 133 }
+  ],
+  "repeat_session": {
+    "session_id": "eebc2d7e82124af99e343592e2b4fbd8",
+    "results": [
+      { "action": 23, "completed": 2, "failed_to_exit": 1, "decision": "withheld as forced training" },
+      { "action": 29, "completed": 1, "failed_to_exit": 2, "decision": "withheld as forced training" }
+    ]
+  },
+  "remaining_route": "These actions may still become natural-condition or conditional-branch starters if native AI evidence identifies reproducible entry conditions and successor candidates."
+}

@@ -55,6 +55,15 @@ function Write-AtomicJson {
     }
 }
 
+function Test-ProbeTerminal {
+    try {
+        $latest = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+        return $latest.session_id -eq $sessionId -and $latest.status -in @('completed', 'failed')
+    } catch {
+        return $false
+    }
+}
+
 if ($game) {
     $installedVersion = if (Test-Path -LiteralPath $receiptPath) {
         (Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json).version
@@ -449,6 +458,7 @@ do {
                         } else { [byte]0 }
                         if (-not [MonsterCoachInput]::BeginHoldMovement(
                             $game.MainWindowHandle, $primaryKey, $secondaryKey)) {
+                            if (Test-ProbeTerminal) { continue }
                             throw "Could not focus the game and hold coordinate navigation input $desiredKeys"
                         }
                         $combatRunHeld = $true
@@ -468,6 +478,7 @@ do {
                         Stop-ArenaMovement
                         if (-not [MonsterCoachInput]::BeginHoldMovement(
                             $game.MainWindowHandle, $virtualKeys.W, [byte]0)) {
+                            if (Test-ProbeTerminal) { continue }
                             throw 'Could not focus the game and start the bounded map survey'
                         }
                         $combatRunHeld = $true
@@ -544,6 +555,7 @@ do {
                         } else { [byte]0 }
                         if (-not [MonsterCoachInput]::BeginHoldMovement(
                             $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
+                            if (Test-ProbeTerminal) { continue }
                             throw "Could not apply behavior distance sweep input $desiredKeys"
                         }
                         $combatRunHeld = $true
@@ -578,6 +590,7 @@ do {
                         } else { [byte]0 }
                         if (-not [MonsterCoachInput]::BeginHoldMovement(
                             $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
+                            if (Test-ProbeTerminal) { continue }
                             throw "Could not apply condition-induction movement $desiredKeys"
                         }
                         $combatRunHeld = $true
@@ -617,6 +630,7 @@ do {
                         } else { [byte]0 }
                         if (-not [MonsterCoachInput]::BeginHoldMovement(
                             $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
+                            if (Test-ProbeTerminal) { continue }
                             throw "Could not apply product condition-training movement $desiredKeys"
                         }
                         $combatRunHeld = $true
