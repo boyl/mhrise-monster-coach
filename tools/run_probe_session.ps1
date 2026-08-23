@@ -24,11 +24,17 @@ param(
     [switch]$FullReport,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
     [ValidateRange(5, 30)][int]$SurveyTimeoutSeconds = 12,
-    [ValidateRange(5, 60)][int]$TransferTimeoutSeconds = 15
+    [ValidateRange(5, 60)][int]$TransferTimeoutSeconds = 15,
+    [string]$ProbeArchiveRoot = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$resolvedArchiveRoot = if ([string]::IsNullOrWhiteSpace($ProbeArchiveRoot)) {
+    Join-Path $repositoryRoot 'artifacts\probe_reports'
+} else {
+    [IO.Path]::GetFullPath($ProbeArchiveRoot)
+}
 Import-Module (Join-Path $PSScriptRoot 'ArenaNavigation.psm1') -Force
 $resolvedGameRoot = [IO.Path]::GetFullPath($GameRoot)
 $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
@@ -644,6 +650,12 @@ do {
         }
         if ($report -and ($report.session_id -eq $sessionId) -and
             ($report.status -in @('completed', 'failed'))) {
+            New-Item -ItemType Directory -Path $resolvedArchiveRoot -Force | Out-Null
+            $safeKind = ([string]$report.kind) -replace '[^A-Za-z0-9_.-]', '_'
+            $archivePath = Join-Path $resolvedArchiveRoot `
+                "$($report.session_id).$safeKind.$($report.status).json"
+            Copy-Item -LiteralPath $reportPath -Destination $archivePath -Force
+            Write-Host "Probe report archived: $archivePath"
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
             if ($FullReport) {
                 $report | ConvertTo-Json -Depth 12
