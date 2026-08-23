@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "mod_version": "0.42.0-long-range-starter",
-  "session_id": "f81f4e4a95334b829217027a8add1334",
+  "mod_version": "0.45.0-straight-rush-branches",
+  "session_id": "2a689ab33bb04b109c7949fc6a78d48c",
   "probe_kind": "ui_contract_snapshot",
   "status": "completed",
   "frames": 1,
@@ -14,6 +14,12 @@
       "repeat_gate_message": null
     },
     {
+      "scenario_id": "tigrex_mr_rock_launcher_left",
+      "effective_repeats": 3,
+      "start_label": "开始：MR 左投石 × 3",
+      "repeat_gate_message": "该场景当前仅开放 3 轮：更高重复次数尚未通过稳定性门禁。"
+    },
+    {
       "scenario_id": "tigrex_half_turn_bite_short",
       "effective_repeats": 1,
       "start_label": "开始：短距半回转钩咬 × 1",
@@ -24,6 +30,14 @@
       "effective_repeats": 1,
       "start_label": "开始：长距半回转钩咬 × 1",
       "branch": "5002 -> 5001",
+      "repeat_gate_message": "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。"
+    },
+    {
+      "scenario_id": "tigrex_straight_rush_branches",
+      "group": "conditional_branch",
+      "effective_repeats": 1,
+      "start_label": "开始：直线冲锋派生 × 1",
+      "branches": ["2 -> 10", "2 -> 15 -> 2"],
       "repeat_gate_message": "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。"
     }
   ],
