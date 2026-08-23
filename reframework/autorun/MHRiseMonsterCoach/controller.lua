@@ -535,21 +535,28 @@ function M.draw_training_menu(self)
             changed = true
         end
     end
-    for _, scenario in ipairs(self.model.scenarios or {}) do
-        local verified = scenario.verification and scenario.verification.status == "verified"
-        local name = tostring(scenario.name_zh or scenario.name or scenario.id)
-        if verified then
-            if imgui.button("查看派生树：" .. name .. "##branch_" .. tostring(scenario.id)) then
-                M.preview_training_scenario(self, scenario)
-            end
-            if self.training_preview_scenario_id == tostring(scenario.id) then
-                local presentation = M.training_scenario_presentation(self, scenario)
-                imgui.same_line()
-                if imgui.button(presentation.start_label .. "##" .. tostring(scenario.id)) then
-                    M.start_training_scenario(self, scenario)
+    local catalog = self.model.training_catalog and self.model:training_catalog()
+        or { { id = "legacy", name = "精选起手", scenarios = self.model.scenarios or {} } }
+    for _, group in ipairs(catalog) do
+        imgui.separator()
+        imgui.text(group.name)
+        for _, scenario in ipairs(group.scenarios or {}) do
+            local verified = scenario.verification and scenario.verification.status == "verified"
+            local name = tostring(scenario.name_zh or scenario.name or scenario.id)
+            if verified then
+                if imgui.button("查看派生树：" .. name .. "##branch_" .. tostring(scenario.id)) then
+                    M.preview_training_scenario(self, scenario)
                 end
-                if presentation.repeat_gate_message then
-                    ui_text_wrapped(presentation.repeat_gate_message)
+                if self.training_preview_scenario_id == tostring(scenario.id) then
+                    if scenario.summary_zh then ui_text_wrapped(scenario.summary_zh) end
+                    local presentation = M.training_scenario_presentation(self, scenario)
+                    imgui.same_line()
+                    if imgui.button(presentation.start_label .. "##" .. tostring(scenario.id)) then
+                        M.start_training_scenario(self, scenario)
+                    end
+                    if presentation.repeat_gate_message then
+                        ui_text_wrapped(presentation.repeat_gate_message)
+                    end
                 end
             end
         end

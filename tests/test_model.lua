@@ -94,6 +94,17 @@ local static_ai = {
 }
 local static_model = Model.new(static_profile, { moves = {}, scenarios = {} }, config, static_ai)
 equal(static_model.scenarios[1].id, "roar", "static AI contributes deployable training scenarios")
+static_model.scenarios = {
+    { id = "later", training_category = "fixed_branch", training_order = 20 },
+    { id = "roar", training_category = "independent", training_order = 10 },
+    { id = "earlier", training_category = "fixed_branch", training_order = 10 },
+}
+local catalog = static_model:training_catalog()
+equal(catalog[1].id, "independent", "training catalog puts independent key moves first")
+equal(catalog[1].scenarios[1].id, "roar", "training catalog retains its scenario")
+equal(catalog[2].id, "fixed_branch", "verified branch starters form a separate group")
+equal(catalog[2].scenarios[1].id, "earlier", "training catalog uses profile-defined order")
+equal(catalog[2].scenarios[2].id, "later", "training catalog ordering is deterministic")
 local branch_tree = static_model:training_branch_tree({ actions = { 15 } }, 3)
 equal(branch_tree.name, "Drift", "training tree labels its root from monster knowledge")
 equal(branch_tree.kind, "fixed", "training tree preserves fixed branch semantics")

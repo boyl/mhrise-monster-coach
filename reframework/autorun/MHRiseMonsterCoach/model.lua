@@ -201,6 +201,40 @@ function M.training_branch_tree(self, scenario, max_depth)
     return build(root, 0)
 end
 
+function M.training_catalog(self)
+    local group_definitions = {
+        independent = { id = "independent", name = "独立关键招式", order = 10 },
+        fixed_branch = { id = "fixed_branch", name = "固定派生起手", order = 20 },
+        conditional_branch = { id = "conditional_branch", name = "条件派生起手", order = 30 },
+    }
+    local groups = {}
+    for _, scenario in ipairs(self.scenarios or {}) do
+        local group = group_definitions[scenario.training_category]
+            or { id = "other", name = "其他已验证训练", order = 90 }
+        local bucket = groups[group.id]
+        if bucket == nil then
+            bucket = { id = group.id, name = group.name, order = group.order, scenarios = {} }
+            groups[group.id] = bucket
+        end
+        bucket.scenarios[#bucket.scenarios + 1] = scenario
+    end
+    local result = {}
+    for _, group in pairs(groups) do
+        table.sort(group.scenarios, function(left, right)
+            local left_order = tonumber(left.training_order) or 1000
+            local right_order = tonumber(right.training_order) or 1000
+            if left_order ~= right_order then return left_order < right_order end
+            return tostring(left.id) < tostring(right.id)
+        end)
+        result[#result + 1] = group
+    end
+    table.sort(result, function(left, right)
+        if left.order ~= right.order then return left.order < right.order end
+        return left.id < right.id
+    end)
+    return result
+end
+
 function M.coaching_state(self)
     local phase, source = monster_phase(self)
     local state = { phase = phase, source = source }
