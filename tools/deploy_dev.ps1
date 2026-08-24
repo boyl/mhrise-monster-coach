@@ -84,6 +84,7 @@ $files = @(
     'autorun\MHRiseMonsterCoach\monster_pack_validator.lua',
     'autorun\MHRiseMonsterCoach\monster_respawn.lua',
     'autorun\MHRiseMonsterCoach\monster_phase.lua',
+    'autorun\MHRiseMonsterCoach\outcome_classifier.lua',
     'autorun\MHRiseMonsterCoach\long_sword_switch_skills.lua',
     'autorun\MHRiseMonsterCoach\player_action_observer.lua',
     'autorun\MHRiseMonsterCoach\player_action_reader.lua',

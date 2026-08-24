@@ -3,6 +3,7 @@ local LongSwordResponse = require("MHRiseMonsterCoach.response_long_sword")
 local MonsterPhase = require("MHRiseMonsterCoach.monster_phase")
 local TrainingTimeline = require("MHRiseMonsterCoach.training_timeline")
 local PlayerActionSemantics = require("MHRiseMonsterCoach.player_action_semantics")
+local OutcomeClassifier = require("MHRiseMonsterCoach.outcome_classifier")
 
 M.states = {
     INITIAL = "initial",
@@ -267,7 +268,18 @@ function M.coaching_state(self)
     return state
 end
 
-function M.update_player_combat_state(self, state)
+local function timeline_player_action(self, semantic)
+    local event = {}
+    for key, value in pairs(semantic) do event[key] = value end
+    local phase = M.coaching_state(self)
+    event.monster_phase = phase.phase
+    event.frames_to_next_active = phase.frames_to_next_active
+    event.frames_from_final_active = phase.frames_from_final_active
+    event.monster_motion_frame = self.current_metadata and tonumber(self.current_metadata.current_frame) or nil
+    return event
+end
+
+function M.update_player_combat_state(self, state, at)
     self.player_combat_state = state
     local semantic = nil
     if type(state) == "table" then
@@ -285,7 +297,7 @@ function M.update_player_combat_state(self, state)
                 tostring(semantic.node_id), tostring(semantic.node_name),
             }, "|")
             if key ~= self.last_player_action_semantic_key then
-                self.training_timeline:record("player_action", nil, semantic)
+                self.training_timeline:record("player_action", at, timeline_player_action(self, semantic))
                 self.last_player_action_semantic_key = key
             end
         else
@@ -684,22 +696,29 @@ end
 function M.finish_round(self, now)
     if self.current_action == nil then return end
     self.rounds = self.rounds + 1
-    local outcome = self.round_damage > 0 and "hit" or "no_damage"
-    self.training_timeline:finish(now, outcome, {
+    local classification = OutcomeClassifier.classify(self.training_timeline.events, {
+        outcome_tracking = true,
+        damage = self.round_damage,
+    })
+    self.training_timeline:finish(now, classification.outcome, {
         action = tostring(self.current_action),
         state_key = self.current_state_key,
         damage = self.round_damage,
+        classification = classification,
     })
-    if self.round_damage > 0 then
+    if classification.score == "failure" then
         self.failures = self.failures + 1
         self.streak = 0
         self.state = M.states.FAILURE
-        self.last_result = string.format("Hit taken: %.1f damage", self.round_damage)
-    else
+        self.last_result = string.format("%s: %.1f damage", classification.label, self.round_damage)
+    elseif classification.score == "success" then
         self.successes = self.successes + 1
         self.streak = self.streak + 1
         self.state = M.states.SUCCESS
-        self.last_result = "No damage during the action"
+        self.last_result = classification.label
+    else
+        self.state = M.states.RUNNING
+        self.last_result = classification.label
     end
     self.round_damage = 0
 end
@@ -725,11 +744,14 @@ function M.observe_action(self, action, now, metadata)
         if self.context.outcome_tracking == true then
             M.finish_round(self, now)
         else
-            local outcome = self.training_timeline:has_event("damage") and "observed_hit" or "unclassified"
-            self.training_timeline:finish(now, outcome, {
+            local classification = OutcomeClassifier.classify(self.training_timeline.events, {
+                outcome_tracking = false,
+            })
+            self.training_timeline:finish(now, classification.outcome, {
                 action = tostring(previous),
                 state_key = previous_state_key,
                 outcome_tracking = false,
+                classification = classification,
             })
             self.state_changes = self.state_changes + 1
         end

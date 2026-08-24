@@ -77,7 +77,7 @@ local player_state = {
     weapon_type = "long_sword", resources = {},
     action_state = { evidence = { node_id = 47, node_name = "atk.atk_147.atk_147" } },
 }
-semantic_model:update_player_combat_state(player_state)
+semantic_model:update_player_combat_state(player_state, 1.25)
 equal(player_state.action_state.current_action, "foresight_slash",
     "model exposes the resolved player action to response logic")
 equal(semantic_model.current_player_action_semantic.role, "attempt",
@@ -85,10 +85,18 @@ equal(semantic_model.current_player_action_semantic.role, "attempt",
 local semantic_timeline = semantic_model:training_timeline_snapshot()
 equal(semantic_timeline.events[#semantic_timeline.events].kind, "player_action",
     "player action transition enters the active monster round timeline")
+equal(semantic_timeline.events[#semantic_timeline.events].at, 1.25,
+    "player action evidence retains its position on the monster timeline")
 local event_count = #semantic_timeline.events
 semantic_model:update_player_combat_state(player_state)
 equal(#semantic_model:training_timeline_snapshot().events, event_count,
     "stable player action does not duplicate timeline events")
+semantic_model:observe_action("11", 2)
+local classified_attempt = semantic_model:training_timeline_snapshot().last_round
+equal(classified_attempt.outcome, "response_attempt",
+    "read-only counter attempts remain explicit but unscored")
+equal(classified_attempt.classification.score, "unclassified",
+    "an attempt without a success node never becomes a successful round")
 model.current_action = nil
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.state, Model.states.WAITING, "outside quest")

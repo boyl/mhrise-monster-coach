@@ -27,6 +27,21 @@ local counter = Presenter.summarize({
 })
 assert(counter.text == "复盘: 直线冲锋 | 判定未采集 | 结果待分类 | 应对 见切斩(成功节点)")
 
+local classified = Presenter.summarize({
+    outcome = "response_success_candidate",
+    classification = {
+        outcome = "response_success_candidate",
+        label = "观察到见切斩成功候选节点",
+        tone = "muted",
+    },
+    events = {
+        { kind = "action_start", data = { action = "2", move_name = "直线冲锋" } },
+        { kind = "player_action", data = { semantic = "foresight_slash", name = "见切斩", role = "success" } },
+    },
+})
+assert(classified.text == "复盘: 直线冲锋 | 判定未采集 | 观察到见切斩成功候选节点 | 应对 见切斩(成功节点)")
+assert(classified.tone == "muted")
+
 local multi = Presenter.summarize({
     outcome = "no_damage",
     events = {

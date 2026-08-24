@@ -356,7 +356,7 @@ function M.update_context(self)
     self.frame_counter = self.frame_counter + 1
     if self.frame_counter % 15 == 1 then
         self.model:set_context(self.runtime:context())
-        self.model:update_player_combat_state(self.runtime:player_combat_state())
+        self.model:update_player_combat_state(self.runtime:player_combat_state(), now())
     end
 end
 
@@ -365,7 +365,7 @@ function M.observe_enemy(self)
     if action ~= nil then self.model:observe_action(action, now(), metadata) end
     local hitboxes = self.runtime:read_hitboxes()
     if hitboxes ~= nil then self.model:observe_hitboxes(hitboxes) end
-    self.model:update_player_combat_state(self.runtime:player_combat_state())
+    self.model:update_player_combat_state(self.runtime:player_combat_state(), now())
     if self.frame_counter % 30 == 0 and self.runtime.observe_environment_creatures then
         self.runtime:observe_environment_creatures()
     end

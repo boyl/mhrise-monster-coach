@@ -28,7 +28,7 @@ end
 function M.new(limit)
     limit = math.max(8, math.floor(tonumber(limit) or 128))
     return setmetatable({
-        schema_version = 2,
+        schema_version = 3,
         limit = limit,
         next_round_id = 1,
         revision = 0,
@@ -65,6 +65,7 @@ function M:finish(at, outcome, payload)
         started_at = self.started_at,
         finished_at = tonumber(at),
         outcome = result_payload.outcome,
+        classification = copy(result_payload.classification),
         dropped_events = self.dropped_events,
         events = copy(self.events),
     }

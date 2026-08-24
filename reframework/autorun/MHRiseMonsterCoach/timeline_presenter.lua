@@ -72,7 +72,9 @@ function M.summarize(round)
         end
     end
     local move = action_name or (action and ("Action " .. tostring(action))) or "未知招式"
-    local outcome = OUTCOMES[round.outcome] or { label = tostring(round.outcome or "结果待分类"), tone = "muted" }
+    local classification = type(round.classification) == "table" and round.classification or nil
+    local outcome = classification or OUTCOMES[round.outcome]
+        or { label = tostring(round.outcome or "结果待分类"), tone = "muted" }
     local text = "复盘: " .. tostring(move) .. " | "
         .. windows_text(hitbox_windows(round.events)) .. " | " .. outcome.label
     local player_action = player_action_text(round.events)
