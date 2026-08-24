@@ -6,7 +6,7 @@ param(
     [int]$TimeoutSeconds = 900,
     [switch]$RequireCombatArea,
     [switch]$MonsterRespawn,
-    [int[]]$ForcedActions = @(),
+    [string[]]$ForcedActions = @(),
     [string]$TrainingScenarioId = '',
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
     [switch]$BehaviorSurvey,
@@ -30,6 +30,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$normalizedForcedActions = @()
+foreach ($rawForcedAction in $ForcedActions) {
+    foreach ($token in ([string]$rawForcedAction -split ',')) {
+        $parsedAction = 0
+        if (-not [int]::TryParse($token.Trim(), [ref]$parsedAction)) {
+            throw "ForcedActions contains an invalid Action ID: '$token'"
+        }
+        $normalizedForcedActions += $parsedAction
+    }
+}
+$ForcedActions = @($normalizedForcedActions)
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $resolvedArchiveRoot = if ([string]::IsNullOrWhiteSpace($ProbeArchiveRoot)) {
     Join-Path $repositoryRoot 'artifacts\probe_reports'

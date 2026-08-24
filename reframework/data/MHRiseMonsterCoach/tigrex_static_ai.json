@@ -79,6 +79,52 @@
       }
     },
     {
+      "id": "tigrex_max_bite_single",
+      "name": "Max bite",
+      "name_zh": "大咬",
+      "training_category": "independent",
+      "training_order": 40,
+      "summary_zh": "练习处理正面长前摇大咬；该项目是独立单招，退出后由原生 AI 自行选择后续。",
+      "actions": [21],
+      "execution_mode": "forced_single",
+      "max_verified_repeats": 1,
+      "entry_policy": "non_attack_or_recovery_without_active_hitbox",
+      "positioning": "manual",
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "observed_motion": "MaxBite_IdleC_L",
+        "completed_sessions": 1,
+        "completed_repeats": 1,
+        "product_acceptance": "pending",
+        "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json"
+      }
+    },
+    {
+      "id": "tigrex_rotate_attack_right_single",
+      "name": "Right rotate attack",
+      "name_zh": "右回旋攻击",
+      "training_category": "independent",
+      "training_order": 50,
+      "summary_zh": "练习处理身体与尾部回旋范围；该项目是独立单招，退出后由原生 AI 自行选择后续。",
+      "actions": [26],
+      "execution_mode": "forced_single",
+      "max_verified_repeats": 1,
+      "entry_policy": "non_attack_or_recovery_without_active_hitbox",
+      "positioning": "manual",
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "observed_motion": "em032_00_08050",
+        "completed_sessions": 3,
+        "completed_repeats": 6,
+        "product_acceptance": "pending",
+        "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json"
+      }
+    },
+    {
       "id": "tigrex_half_turn_bite_short",
       "name": "Short-range half-turn hook bite",
       "name_zh": "短距半回转钩咬",

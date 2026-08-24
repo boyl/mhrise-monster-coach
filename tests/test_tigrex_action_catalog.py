@@ -55,7 +55,7 @@ class TigrexActionCatalogTests(unittest.TestCase):
         self.assertEqual(edge["kind"], "fixed")
         self.assertEqual([row["action"] for row in edge["next"]], ["5001"])
 
-    def test_only_repeatedly_stable_check_bite_enters_new_starter_catalog(self):
+    def test_check_bite_preserves_its_repeated_product_acceptance(self):
         payload = self.load_payload()
         scenarios = {row["id"]: row for row in payload["training_scenarios"]}
         scenario = scenarios["tigrex_check_bite_single"]
@@ -69,8 +69,21 @@ class TigrexActionCatalogTests(unittest.TestCase):
             if row["execution_mode"] == "forced_single"
         }
         self.assertNotIn(20, forced_actions)
-        self.assertNotIn(21, forced_actions)
-        self.assertNotIn(26, forced_actions)
+
+    def test_high_value_starters_are_staged_behind_single_repeat_gate(self):
+        payload = self.load_payload()
+        scenarios = {row["id"]: row for row in payload["training_scenarios"]}
+        expected = {
+            "tigrex_max_bite_single": 21,
+            "tigrex_rotate_attack_right_single": 26,
+        }
+        for scenario_id, action in expected.items():
+            scenario = scenarios[scenario_id]
+            self.assertEqual(scenario["actions"], [action])
+            self.assertEqual(scenario["execution_mode"], "forced_single")
+            self.assertEqual(scenario["max_verified_repeats"], 1)
+            self.assertEqual(scenario["verification"]["product_acceptance"], "pending")
+            self.assertIn("TIGREX_KEY_STARTER_CANDIDATES", scenario["verification"]["evidence"])
 
     def test_branch_graph_and_training_scenarios_obey_pack_contract(self):
         payload = self.load_payload()
