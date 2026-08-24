@@ -92,7 +92,7 @@
 
 `0.49.1` 批量验收关键独立起手，并修复猎人死亡后批量动作探针停在准备区的问题。Action 29 正面咬击在两个会话中 6/6 完整进入并退出，现作为最多 5 轮的独立关键起手开放；Action 20、21、26 存在无法可靠退出的样本，Action 24、27、28 未进入写入白名单，均继续只读识别而不进入产品目录。
 
-`0.49.2` 修正指定起手训练只依赖 Action ID 变化判断结束的问题。实机证明行为树已从 `Attack.CheckBite` 返回 `Normal.Search / Wait.NoCombatMode` 后，Action ID 与 Motion 名仍可能残留；训练控制器现在以已观察到的 `Attack.* -> Normal/Wait/Move` 转换确认真实退出，并保留 Action ID 变化作为兼容回退。未知节点或只看到非攻击节点时不会凭 Motion 名臆测完成。
+`0.49.2` 修正指定起手训练只依赖 Action ID 变化判断结束的问题。实机证明行为树已从 `Attack.CheckBite` 返回 `Normal.Search / Wait.NoCombatMode` 后，Action ID 与 Motion 名仍可能残留；训练控制器现在以已观察到的 `Attack.* -> Normal/Wait/Move` 转换确认真实退出，并保留 Action ID 变化作为兼容回退。未知节点或只看到非攻击节点时不会凭 Motion 名臆测完成。自动化产品验收会话 `5c3e72e557fd4f0b9d9366797619a3ea` 已完成正面咬击 5/5，实际路径稳定包含 `Attack.CheckBite.Phase00 -> Phase01 -> Normal.Search.Phase00`。
 
 当前主线已由“逐项强制 Action”收敛为“指定起手、原生续接、实时派生训练”。首个用户入口“执行：咆哮”已在 `0.33.0-specified-move-training` 由用户实机确认，`0.34.0-repeat-training` 又通过真实 Controller 自动完成 3/3 循环；小咬扩充仅完成 1/3 后出现 Action 不退出，证明一次注入成功不能代表可重复训练，入口已撤回。下一批先建立稳定空闲入口和 `native_branch` 路径追踪，再选择一个具有明确派生的根动作验证，后续不逐个强塞 Action。直接局内重置仍只接受引擎原生重建/重置接口，不恢复已证明会崩溃的 Transform 写回路径。古塔准备区到战斗区已采用坐标导航、一次性交互和战斗层判定自动完成，开发探针可在单项异常后通过 F7 恢复并继续采样。
 

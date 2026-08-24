@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "mod_version": "0.49.1-check-bite-starter",
+  "mod_version": "0.49.2-behavior-exit-training",
   "runtime": { "game_name": "mhrise", "tdb_version": 71 },
   "monster": "em032",
   "action_category": 4,
@@ -33,6 +33,21 @@
     "max_duration_frames": 134,
     "result": "verified_forced_single",
     "max_product_repeats": 5
+  },
+  "product_acceptance": {
+    "session_id": "5c3e72e557fd4f0b9d9366797619a3ea",
+    "report": "artifacts/probe_reports/5c3e72e557fd4f0b9d9366797619a3ea.training_scenario_acceptance.completed.json",
+    "state": "completed",
+    "completed_rounds": 5,
+    "target_rounds": 5,
+    "status": "训练完成：5/5",
+    "observed_behavior_exit": [
+      "Attack.CheckBite.Phase00",
+      "Attack.CheckBite.Phase01",
+      "Normal.Search.Phase00"
+    ],
+    "sticky_action_observed": 29,
+    "result": "verified_product_training"
   },
   "withheld": {
     "20": "4/6 complete; two runs required isolated recovery",
