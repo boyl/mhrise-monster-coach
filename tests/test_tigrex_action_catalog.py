@@ -82,7 +82,6 @@ class TigrexActionCatalogTests(unittest.TestCase):
             self.assertEqual(scenario["actions"], [action])
             self.assertEqual(scenario["execution_mode"], "forced_single")
             self.assertEqual(scenario["max_verified_repeats"], 1)
-            self.assertEqual(scenario["verification"]["product_acceptance"], "pending")
             self.assertIn("TIGREX_KEY_STARTER_CANDIDATES", scenario["verification"]["evidence"])
 
     def test_branch_graph_and_training_scenarios_obey_pack_contract(self):

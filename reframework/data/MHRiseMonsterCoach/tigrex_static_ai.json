@@ -97,7 +97,6 @@
         "observed_motion": "MaxBite_IdleC_L",
         "completed_sessions": 1,
         "completed_repeats": 1,
-        "product_acceptance": "pending",
         "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json"
       }
     },
@@ -120,7 +119,6 @@
         "observed_motion": "em032_00_08050",
         "completed_sessions": 3,
         "completed_repeats": 6,
-        "product_acceptance": "pending",
         "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json"
       }
     },
