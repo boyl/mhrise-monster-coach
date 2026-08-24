@@ -45,6 +45,8 @@ python tools/analyze_player_action_evidence.py `
   --output artifacts\player_action_analysis.json
 ```
 
+分析器默认加载仓库的 `long_sword_knowledge.json`，同时输出探索性名称关键词候选和严格、版本限定的 `semantic_mappings`。后者会注明动作语义、尝试/成功角色、匹配方式、社区来源以及本机观察次数；本机出现节点不会自动把 `community_candidate` 升级为已验证语义。
+
 分析器汇总目录覆盖、实际节点、标签组合与运行时转换，并按 `foresight/mikiri`、`iai`、`sacred` 等名称词根列出候选。词根命中只用于缩小审核范围，输出明确标记为候选，不会直接写回运行时语义映射。
 
 部署后的确定性门禁使用 `tools/run_probe_session.ps1 -PlayerActionEvidence`。探针自动进入战斗层，只有当前玩家节点 ID 与全名都可读取时才完成；报告同时保存实际武器类型。探针只读，不切换装备、红蓝书或技能。

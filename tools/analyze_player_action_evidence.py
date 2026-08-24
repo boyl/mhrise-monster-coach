@@ -59,7 +59,70 @@ def catalog_candidates(catalog: dict[str, str]) -> dict[str, list[dict[str, str]
     return result
 
 
-def analyze(document: dict[str, Any]) -> dict[str, Any]:
+def runtime_matches(scope: Any, runtime: Any) -> bool:
+    if not isinstance(scope, dict):
+        return True
+    if not isinstance(runtime, dict):
+        return False
+    return all(runtime.get(key) == value for key, value in scope.items())
+
+
+def pattern_match(node_name: str, row: dict[str, Any]) -> tuple[int, str, str] | None:
+    matches: list[tuple[int, str, str]] = []
+    for value in row.get("exact") or []:
+        if node_name == value:
+            matches.append((20_000 + len(value), "exact", value))
+    for value in row.get("prefixes") or []:
+        if node_name.startswith(value):
+            matches.append((10_000 + len(value), "prefix", value))
+    return max(matches, default=None)
+
+
+def semantic_mappings(
+    catalog: dict[str, str],
+    document: dict[str, Any],
+    knowledge: dict[str, Any] | None,
+    observed_samples: Counter[str],
+) -> list[dict[str, Any]]:
+    if not isinstance(knowledge, dict):
+        return []
+    actions = knowledge.get("actions") or {}
+    sources = {
+        row.get("id"): row for row in knowledge.get("sources") or []
+        if isinstance(row, dict) and row.get("id")
+    }
+    result = []
+    for node_id, node_name in catalog.items():
+        winner: dict[str, Any] | None = None
+        winner_match: tuple[int, str, str] | None = None
+        for row in knowledge.get("runtime_node_patterns") or []:
+            if not isinstance(row, dict) or not runtime_matches(row.get("runtime_scope"), document.get("runtime")):
+                continue
+            matched = pattern_match(node_name, row)
+            if matched is not None and (winner_match is None or matched[0] > winner_match[0]):
+                winner, winner_match = row, matched
+        if winner is None or winner_match is None:
+            continue
+        source = sources.get(winner.get("source_id")) or {}
+        action = actions.get(winner.get("semantic")) or {}
+        result.append({
+            "id": node_id,
+            "name": node_name,
+            "semantic": winner.get("semantic"),
+            "action_name": action.get("name") or winner.get("semantic"),
+            "role": winner.get("role") or "action",
+            "match_type": winner_match[1],
+            "matched_pattern": winner_match[2],
+            "mapping_status": winner.get("evidence_status") or "community_candidate",
+            "source_id": winner.get("source_id"),
+            "source_url": source.get("url"),
+            "runtime_observed": observed_samples[node_id] > 0,
+            "observed_samples": observed_samples[node_id],
+        })
+    return sorted(result, key=lambda row: (row["semantic"], row["role"], row["name"], row["id"]))
+
+
+def analyze(document: dict[str, Any], knowledge: dict[str, Any] | None = None) -> dict[str, Any]:
     catalog = action_catalog(document)
     events = [row for row in document.get("events") or [] if isinstance(row, dict)]
     nodes: dict[str, dict[str, Any]] = {}
@@ -107,9 +170,13 @@ def analyze(document: dict[str, Any]) -> dict[str, Any]:
         prefix = re.split(r"[./:]", name, maxsplit=1)[0]
         prefixes[prefix] += 1
 
+    observed_samples: Counter[str] = Counter({row["id"]: row["samples"] for row in observed})
+    mappings = semantic_mappings(catalog, document, knowledge, observed_samples)
+    mapped_ids = {row["id"] for row in mappings}
+
     return {
-        "schema_version": 1,
-        "policy": "catalog_and_observed_transitions_are_evidence_not_semantic_truth",
+        "schema_version": 2,
+        "policy": "runtime_observation_confirms_node_presence_not_community_semantic_truth",
         "runtime": document.get("runtime"),
         "reader": document.get("reader"),
         "summary": {
@@ -118,12 +185,16 @@ def analyze(document: dict[str, Any]) -> dict[str, Any]:
             "observed_nodes": len(nodes),
             "observed_transitions": sum(transitions.values()),
             "dropped_events": document.get("dropped_events", 0),
+            "semantic_mapped_nodes": len(mappings),
+            "observed_semantic_nodes": sum(row["runtime_observed"] for row in mappings),
         },
         "catalog_prefixes": dict(sorted(prefixes.items(), key=lambda item: (-item[1], item[0]))),
         "semantic_candidates": catalog_candidates(catalog),
+        "semantic_mappings": mappings,
         "observed_nodes": observed,
         "observed_transitions": transition_rows,
         "unmatched_observed_nodes": [row for row in observed if not row["catalogued"]],
+        "unmapped_semantic_observed_nodes": [row for row in observed if row["id"] not in mapped_ids],
     }
 
 
@@ -131,12 +202,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("evidence", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--knowledge", type=Path, help="武器语义数据包；默认使用仓库太刀数据")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    report = analyze(load_json(args.evidence))
+    knowledge_path = args.knowledge or (
+        Path(__file__).resolve().parents[1]
+        / "reframework/data/MHRiseMonsterCoach/long_sword_knowledge.json"
+    )
+    report = analyze(load_json(args.evidence), load_json(knowledge_path))
     encoded = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
