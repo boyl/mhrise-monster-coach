@@ -51,7 +51,11 @@ model:update_player_combat_state({
     action_state = {},
 })
 assert(#model.response_candidates >= 1, "model evaluates weapon response candidates")
-assert(model.response_candidates[#model.response_candidates].action == "evade", "unknown loadout retains safe fallback")
+local has_evade = false
+for _, response in ipairs(model.response_candidates) do
+    if response.action == "evade" then has_evade = true break end
+end
+assert(has_evade, "unknown loadout retains safe fallback")
 
 local semantic_knowledge = {
     actions = { foresight_slash = { name = "见切斩" } },

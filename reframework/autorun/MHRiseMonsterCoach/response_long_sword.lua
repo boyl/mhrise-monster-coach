@@ -1,6 +1,6 @@
 local M = {}
 
-local function candidate(action, availability, timing, reason, risk, resources)
+local function candidate(action, availability, timing, reason, risk, resources, priority)
     return {
         action = action,
         availability = availability,
@@ -9,7 +9,22 @@ local function candidate(action, availability, timing, reason, risk, resources)
         risk = risk,
         required_resources = resources or {},
         input_action = action,
+        priority = tonumber(priority) or 0,
     }
+end
+
+local AVAILABILITY_ORDER = { available = 4, wait = 3, unknown = 2, unavailable = 1 }
+
+local function sort_candidates(results)
+    table.sort(results, function(left, right)
+        local left_availability = AVAILABILITY_ORDER[left.availability] or 0
+        local right_availability = AVAILABILITY_ORDER[right.availability] or 0
+        if left_availability ~= right_availability then
+            return left_availability > right_availability
+        end
+        if left.priority ~= right.priority then return left.priority > right.priority end
+        return tostring(left.action) < tostring(right.action)
+    end)
 end
 
 local function active_switch_skills(player)
@@ -40,35 +55,38 @@ function M.evaluate(monster, player)
     local special_sheathe = has_skill(skills, "special_sheathe_combo")
     local sacred_sheathe = has_skill(skills, "sacred_sheathe_combo")
     local startup_window = monster.phase == "startup"
-    local can_prepare = startup_window and action_state.cancelable == true
+    local current_action = action_state.current_action
 
     if startup_window and action_state.cancelable == true and (resources.spirit_gauge or 0) > 0 then
         results[#results + 1] = candidate("foresight_slash", "available", "before_hit",
-            "怪物处于前摇，当前动作可取消且气刃槽可用。", "medium", { spirit_gauge = "positive" })
+            "怪物处于前摇，当前动作可取消且气刃槽可用。", "medium",
+            { spirit_gauge = "positive" }, 100)
     elseif action_state.cancelable == false then
         results[#results + 1] = candidate("foresight_slash", "wait", "next_cancel_window",
-            "当前动作不可取消。", "high", { spirit_gauge = "positive" })
+            "当前动作不可取消。", "high", { spirit_gauge = "positive" }, 100)
     end
 
     if special_sheathe == true then
-        results[#results + 1] = candidate("iai_spirit_slash", can_prepare and "available" or "wait",
-            can_prepare and "during_startup" or "next_confirmed_cancel_window",
-            can_prepare and "当前书装备特殊纳刀，且已确认前摇与可取消窗口。"
-                or "已装备特殊纳刀，但尚未确认当前动作可取消且怪物处于前摇。", "high")
+        local iai_ready = startup_window and current_action == "special_sheathe_combo"
+        results[#results + 1] = candidate("iai_spirit_slash", iai_ready and "available" or "wait",
+            iai_ready and "during_startup" or "after_special_sheathe",
+            iai_ready and "当前已处于特殊纳刀姿态，且怪物处于前摇。"
+                or "已装备特殊纳刀；进入并确认纳刀姿态后再使用居合。", "high", nil, 120)
     elseif special_sheathe == false then
         results[#results + 1] = candidate("iai_spirit_slash", "unavailable", "none",
-            "当前书未装备特殊纳刀。", "high")
+            "当前书未装备特殊纳刀。", "high", nil, 120)
     else
         results[#results + 1] = candidate("iai_spirit_slash", "unknown", "none",
-            "当前交换技书尚不可读。", "unknown")
+            "当前交换技书尚不可读。", "unknown", nil, 120)
     end
 
     if sacred_sheathe == true then
-        results[#results + 1] = candidate("sacred_sheathe", can_prepare and "available" or "wait",
-            can_prepare and "during_startup" or "next_confirmed_cancel_window",
-            can_prepare and "当前书装备神威居合，且已确认前摇与可取消窗口；自动反击会消耗刃色。"
-                or "已装备神威居合，但尚未确认当前动作可取消且怪物处于前摇。", "high",
-            { spirit_level = "one_or_more" })
+        local sacred_ready = startup_window and current_action == "sacred_sheathe_combo"
+        results[#results + 1] = candidate("sacred_sheathe", sacred_ready and "available" or "wait",
+            sacred_ready and "during_startup" or "after_sacred_sheathe",
+            sacred_ready and "当前已处于神威纳刀姿态；自动反击会消耗刃色。"
+                or "已装备神威居合；进入并确认神威纳刀姿态后再判断反击。", "high",
+            { spirit_level = "one_or_more" }, 115)
     end
 
     local tempered = has_skill(skills, "tempered_spirit_blade")
@@ -77,7 +95,16 @@ function M.evaluate(monster, player)
             startup_window and "before_hit" or "next_confirmed_startup",
             startup_window and "当前书装备刚·气刃斩、翔虫可用，且怪物处于前摇。"
                 or "刚·气刃斩与翔虫可用，但尚未识别到怪物前摇窗口。", "medium",
-            { usable_wirebugs = 1 })
+            { usable_wirebugs = 1 }, 90)
+    end
+
+    local serene_pose = has_skill(skills, "serene_pose")
+    if serene_pose == true and tonumber(resources.usable_wirebugs or 0) >= 2 then
+        results[#results + 1] = candidate("serene_pose", startup_window and "available" or "wait",
+            startup_window and "before_hit" or "next_confirmed_startup",
+            startup_window and "当前书装备水月架势、两只翔虫可用，且怪物处于前摇。"
+                or "水月架势资源可用，但尚未识别到怪物前摇窗口。", "medium",
+            { usable_wirebugs = 2 }, 85)
     end
 
     if monster.phase == "recovery" then
@@ -87,18 +114,20 @@ function M.evaluate(monster, player)
         if soaring_kick == true and wirebugs and wirebugs >= 1 and spirit_level and spirit_level >= 1 then
             results[#results + 1] = candidate("spirit_helmbreaker", "available", "after_recovery",
                 "怪物处于收招，飞翔踢、翔虫和刃色条件满足。", "medium",
-                { usable_wirebugs = 1, spirit_level = 1 })
+                { usable_wirebugs = 1, spirit_level = 1 }, 110)
         end
         if has_skill(skills, "silkbind_sakura_slash") == true and wirebugs and wirebugs >= 1 then
             results[#results + 1] = candidate("silkbind_sakura_slash", "available", "after_recovery",
                 "怪物处于收招，樱花铁虫气刃斩与翔虫条件满足。", "medium",
-                { usable_wirebugs = 1 })
+                { usable_wirebugs = 1 }, 80)
         end
     end
 
     results[#results + 1] = candidate("evade", "available", "before_hit",
         monster.phase == "active" and "攻击判定已生效，优先离开攻击范围。"
-            or "通用保底应对；方向仍需结合攻击范围。", "low")
+            or "通用保底应对；方向仍需结合攻击范围。", "low", nil,
+        monster.phase == "active" and 130 or 10)
+    sort_candidates(results)
     return results, nil
 end
 
