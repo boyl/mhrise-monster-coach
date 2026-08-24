@@ -151,6 +151,7 @@ local scenario = {
     id = "tigrex_roar_single", name_zh = "咆哮", actions = { 19 },
     verification = { status = "verified" },
 }
+local requested_scenario = scenario
 config.forced_action_training_enabled = true
 config.training_repeat_count = 3
 model.profile = { training_quest = { id = 200032001 } }
@@ -163,7 +164,7 @@ model.training_branch_tree = function(_, requested)
     return { action = "19", name = "咆哮", kind = "unverified", candidates = {} }
 end
 runtime.request_training_scenario = function(_, requested)
-    assert(requested == scenario) training_requests = training_requests + 1 return true
+    assert(requested == requested_scenario) training_requests = training_requests + 1 return true
 end
 runtime.current_action_snapshot = function() return training_snapshot end
 runtime.behavior_tree_snapshot = function()
@@ -209,6 +210,49 @@ assert(controller.training_state == "completed" and controller.training_complete
     and training_requests == 3, "repeat training completes exactly the configured number of rounds")
 assert(model.training_scenario.actual_path.events[1].node.name == "Attack.Roar.Phase00",
     "completed product training exposes its actual semantic FSM path to the overlay model")
+
+-- The engine can retain the requested ActionNo after its behavior tree has
+-- returned to Normal/Wait. Product training must still finish that round.
+local sticky_node = "Attack.CheckBite.Phase00"
+local sticky_scenario = {
+    id = "tigrex_check_bite_single", name_zh = "正面咬击", actions = { 29 },
+    execution_mode = "forced_single", max_verified_repeats = 1,
+    verification = { status = "verified" },
+}
+model.training_branch_tree = function() return {
+    action = "29", name = "正面咬击", kind = "fixed", candidates = {}
+} end
+runtime.behavior_tree_snapshot = function()
+    return { layers = { { layer = 0, active_nodes = {
+        { id = sticky_node, index = 29, name = sticky_node, status1 = 2, status2 = 2 },
+    } } } }
+end
+controller.training_state = "idle"
+config.training_repeat_count = 1
+training_snapshot = { category = 4, action = 29, motion_name = "FrontContainBite_Start_L" }
+requested_scenario = sticky_scenario
+assert(controller:preview_training_scenario(sticky_scenario))
+assert(controller:start_training_scenario(sticky_scenario))
+controller.frame_counter = 200
+controller:update_training_scenario()
+assert(controller.training_state == "running")
+sticky_node = "Attack.CheckBite.Phase01"
+controller.frame_counter = 205
+controller:update_training_scenario()
+assert(controller.training_state == "running")
+sticky_node = "Normal.Search.Phase00"
+training_snapshot.motion_name = "em032_00_08274"
+controller.frame_counter = 211
+controller:update_training_scenario()
+assert(controller.training_state == "completed" and controller.training_completed_rounds == 1,
+    "behavior-tree attack exit completes a round even when category and ActionNo remain stale")
+training_requests = 3
+requested_scenario = scenario
+model.training_branch_tree = function(_, requested)
+    assert(requested == scenario)
+    return { action = "19", name = "咆哮", kind = "unverified", candidates = {} }
+end
+assert(controller:preview_training_scenario(scenario))
 model.current_metadata = { action_category = 4 }
 model.coaching_state = function() return { phase = "startup" } end
 controller.training_state = "idle"

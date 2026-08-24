@@ -310,7 +310,10 @@ function M.update_training_scenario(self)
         return
     end
     local left_requested = tonumber(current.category) ~= 4 or tonumber(current.action) ~= action
-    if self.frame_counter - (self.training_matched_frame or self.frame_counter) >= 10 and left_requested then
+    local left_attack_tree = self.training_behavior_tracker
+        and self.training_behavior_tracker:attack_cycle_completed_since(self.training_matched_frame)
+    if self.frame_counter - (self.training_matched_frame or self.frame_counter) >= 10
+        and (left_requested or left_attack_tree) then
         self.training_last_behavior_path = self.training_behavior_tracker
             and self.training_behavior_tracker:result() or nil
         self.training_behavior_tracker = nil

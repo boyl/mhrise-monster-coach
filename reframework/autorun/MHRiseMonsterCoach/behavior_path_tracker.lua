@@ -32,6 +32,17 @@ local function select_primary(snapshot)
     return preferred or fallback
 end
 
+local function node_family(name)
+    local value = tostring(name or "")
+    if value == "Attack" or value:sub(1, 7) == "Attack." then return "attack" end
+    if value == "Normal" or value:sub(1, 7) == "Normal."
+        or value == "Wait" or value:sub(1, 5) == "Wait."
+        or value == "Move" or value:sub(1, 5) == "Move." then
+        return "non_attack"
+    end
+    return "unknown"
+end
+
 function M.new(max_events)
     return setmetatable({
         max_events = tonumber(max_events) or 128,
@@ -73,6 +84,25 @@ function M:result()
         truncated = self.truncated,
         events = self.events,
     }
+end
+
+-- ActionNo can remain stale after the behavior tree has already left an attack.
+-- Treat only an observed Attack.* -> known non-attack family transition as a
+-- semantic attack exit; motion names are deliberately ignored.
+function M:attack_cycle_completed_since(start_frame)
+    local saw_attack = false
+    local threshold = tonumber(start_frame) or -math.huge
+    for _, event in ipairs(self.events) do
+        if tonumber(event.frame) and tonumber(event.frame) >= threshold then
+            local family = node_family(event.node and event.node.name)
+            if family == "attack" then
+                saw_attack = true
+            elseif saw_attack and family == "non_attack" then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 return M
