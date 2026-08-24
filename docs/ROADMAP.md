@@ -94,6 +94,8 @@
 
 `0.49.2` 修正指定起手训练只依赖 Action ID 变化判断结束的问题。实机证明行为树已从 `Attack.CheckBite` 返回 `Normal.Search / Wait.NoCombatMode` 后，Action ID 与 Motion 名仍可能残留；训练控制器现在以已观察到的 `Attack.* -> Normal/Wait/Move` 转换确认真实退出，并保留 Action ID 变化作为兼容回退。未知节点或只看到非攻击节点时不会凭 Motion 名臆测完成。自动化产品验收会话 `5c3e72e557fd4f0b9d9366797619a3ea` 已完成正面咬击 5/5，实际路径稳定包含 `Attack.CheckBite.Phase00 -> Phase01 -> Normal.Search.Phase00`。
 
+`0.49.3` 将同一行为树退出语义加入开发批量探针。此前“未在 900 帧内退出”的结论可能同时混入真实卡住与 Action ID 残留两类情况；新报告以 `completion_basis` 明确区分 `action_identity_changed` 与 `behavior_tree_attack_exit`，随后只复测既有白名单候选，且复测结果仍需经过产品入口验收才可开放。
+
 当前主线已由“逐项强制 Action”收敛为“指定起手、原生续接、实时派生训练”。首个用户入口“执行：咆哮”已在 `0.33.0-specified-move-training` 由用户实机确认，`0.34.0-repeat-training` 又通过真实 Controller 自动完成 3/3 循环；小咬扩充仅完成 1/3 后出现 Action 不退出，证明一次注入成功不能代表可重复训练，入口已撤回。下一批先建立稳定空闲入口和 `native_branch` 路径追踪，再选择一个具有明确派生的根动作验证，后续不逐个强塞 Action。直接局内重置仍只接受引擎原生重建/重置接口，不恢复已证明会崩溃的 Transform 写回路径。古塔准备区到战斗区已采用坐标导航、一次性交互和战斗层判定自动完成，开发探针可在单项异常后通过 F7 恢复并继续采样。
 
 `0.34.3` 的自动批量探针进一步否定了“由静态 Action 边直接挑根动作”的捷径：Action 15 和 18 的真实退出均为 category 1/action 8，而不是静态图的 category 4/action 2；Action 16 进入 `TigDashLoop_New` 后未在 900 帧内退出并被自动恢复。因此下一步不扩大 Action ID 白名单，改为寻找能保留 Think/Combo/FSM 上下文的高层入口；在找到安全写入口前，运行时自然选中根动作的只读追踪可先用于验证派生树。

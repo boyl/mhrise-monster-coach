@@ -178,6 +178,43 @@ assert(forced_reports[#forced_reports].forced_actions.results[1].exit_to.action 
 assert(#forced_reports[#forced_reports].forced_actions.results[1].behavior_path.events >= 2,
     "forced report records deduplicated FSM and Action transitions for the complete root action")
 
+local sticky_reports = {}
+local sticky_current = { category = 4, action = 29, motion_name = "FrontContainBite_Start_L" }
+local sticky_node = "Attack.CheckBite.Phase00"
+local sticky_api = { quest_api = quest_api }
+function sticky_api:get_context() return forced_context end
+function sticky_api:read_request() return nil end
+function sticky_api:write_report(report) sticky_reports[#sticky_reports + 1] = report end
+function sticky_api:environment_evidence() return {} end
+function sticky_api:area_snapshot() return {} end
+function sticky_api:action_request_evidence() return {} end
+function sticky_api:request_forced_action() return true end
+function sticky_api:current_action() return sticky_current end
+function sticky_api:behavior_tree_snapshot()
+    return { layers = { { layer = 0, active_nodes = {
+        { id = sticky_node, index = 29, name = sticky_node, status1 = 2, status2 = 2 },
+    } } } }
+end
+local sticky_probe = Probe.new(sticky_api, 200032001, { stable_frames = 1 })
+sticky_probe.request = { session_id = "forced-sticky", kind = "forced_action_sequence" }
+sticky_probe.forced_actions = { 29 }
+sticky_probe.forced_index = 1
+sticky_probe:set_state("forced_prepare")
+sticky_probe:update()
+sticky_probe:update()
+assert(sticky_probe.state == "forced_wait_exit")
+sticky_node = "Attack.CheckBite.Phase01"
+for _ = 1, 5 do sticky_probe:update() end
+assert(sticky_probe.state == "forced_wait_exit",
+    "an ActionNo that remains in the attack tree must not complete early")
+sticky_node = "Normal.Search.Phase00"
+for _ = 1, 6 do sticky_probe:update() end
+sticky_probe:update()
+assert(sticky_reports[#sticky_reports].status == "completed"
+    and sticky_reports[#sticky_reports].forced_actions.results[1].completion_basis
+        == "behavior_tree_attack_exit",
+    "forced probe completes sticky ActionNo only after the observed behavior-tree attack exit")
+
 local batch_probe = Probe.new(forced_api, 200032001, { stable_frames = 1 })
 batch_probe.request = {
     session_id = "forced-batch", kind = "forced_action_sequence",

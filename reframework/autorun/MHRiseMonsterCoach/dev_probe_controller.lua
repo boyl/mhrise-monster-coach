@@ -647,10 +647,14 @@ function M:update()
         end
         local left_requested = tonumber(current.category) ~= 4
             or tonumber(current.action) ~= tonumber(result.action)
-        if self.state_frames >= 10 and left_requested then
+        local left_attack_tree = self.behavior_path
+            and self.behavior_path:attack_cycle_completed_since(result.matched_at_frame)
+        if self.state_frames >= 10 and (left_requested or left_attack_tree) then
             result.status = "completed"
             result.completed_at_frame = self.frame
             result.duration_frames = self.frame - result.matched_at_frame
+            result.completion_basis = left_attack_tree and "behavior_tree_attack_exit"
+                or "action_identity_changed"
             result.exit_to = {
                 category = current.category,
                 action = current.action,
