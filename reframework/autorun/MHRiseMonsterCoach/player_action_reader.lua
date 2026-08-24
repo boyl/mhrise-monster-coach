@@ -60,6 +60,7 @@ function M.new(game_name, tdb_version, event_limit, dump_interval)
         state = nil,
         status = "waiting for player action evidence",
         node_catalog_key = nil,
+        node_tree = nil,
         node_catalog = {},
         node_catalog_count = 0,
         dump_interval = math.max(1, math.floor(tonumber(dump_interval) or 60)),
@@ -72,12 +73,14 @@ function M.refresh_node_catalog(self, motion_fsm)
     local catalog_key = object_key(motion_fsm)
     if catalog_key == self.node_catalog_key then return false end
     self.node_catalog_key = catalog_key
+    self.node_tree = nil
     self.node_catalog = {}
     self.node_catalog_count = 0
     if motion_fsm == nil then return true end
 
     local layer = safe(function() return motion_fsm:call("getLayer", 0) end)
     local tree = layer and safe(function() return layer:get_tree_object() end) or nil
+    self.node_tree = tree
     local count = tonumber(tree and safe(function() return tree:get_node_count() end) or nil)
     if count == nil or count < 0 or count > 4096 then return true end
     for index = 0, count - 1 do
@@ -88,8 +91,23 @@ function M.refresh_node_catalog(self, motion_fsm)
             self.node_catalog[tostring(id)] = name
         end
     end
-    self.node_catalog_count = count
+    for _ in pairs(self.node_catalog) do self.node_catalog_count = self.node_catalog_count + 1 end
     return true
+end
+
+function M.resolve_node_name(self, node_id)
+    if node_id == nil then return nil, false end
+    local key = tostring(node_id)
+    local cached = self.node_catalog[key]
+    if cached ~= nil then return cached, false end
+    local node = self.node_tree and safe(function()
+        return self.node_tree:get_node_by_id(node_id)
+    end) or nil
+    local name = node and safe(function() return node:get_full_name() end) or nil
+    if type(name) ~= "string" or name == "" then return nil, false end
+    self.node_catalog[key] = name
+    self.node_catalog_count = self.node_catalog_count + 1
+    return name, true
 end
 
 function M.catalog(self)
@@ -166,8 +184,8 @@ function M.capture(self, player)
             or motion_type:get_method("getCurrentNodeID")
     end) or nil
     local node_id = node_method and primitive(safe(function() return node_method:call(motion_fsm, 0) end)) or nil
-    local catalog_changed = self:refresh_node_catalog(motion_fsm)
-    local node_name = node_id ~= nil and self.node_catalog[tostring(node_id)] or nil
+    local catalog_reset = self:refresh_node_catalog(motion_fsm)
+    local node_name, resolved_new = self:resolve_node_name(node_id)
 
     local tags = {}
     local tag_count = 0
@@ -204,8 +222,10 @@ function M.capture(self, player)
     self.status = string.format("node=%s; tags=%d; source=%s",
         tostring(node_id or "unknown"), tag_count, tostring(state.source or "unavailable"))
     local changed = self.observer:sample(self.sample_index, state)
-    self.evidence_dirty = self.evidence_dirty or changed or catalog_changed
-    self:flush_evidence(catalog_changed)
+    self.evidence_dirty = self.evidence_dirty or changed or catalog_reset or resolved_new
+    -- A new FSM instance is rare and should be persisted immediately. Individual
+    -- newly seen nodes remain under the normal interval to avoid combo-time I/O.
+    self:flush_evidence(catalog_reset)
     return changed
 end
 

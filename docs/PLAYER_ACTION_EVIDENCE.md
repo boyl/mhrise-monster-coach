@@ -8,7 +8,7 @@
 
 `player_action_reader.lua` 每次只读采样：
 
-- `PlayerBase.getMotionFsm2()` 的第 0 层当前节点 ID；首次遇到该 FSM 实例时只读建立最多 4096 项的 `node ID → full name` 目录，后续按 ID 常数时间查名；
+- `PlayerBase.getMotionFsm2()` 的第 0 层当前节点 ID；优先用树的 `get_node_by_id` 只解析当前出现的节点并有界缓存，树支持枚举时才批量建立最多 4096 项的 `node ID → full name` 目录；
 - `PlayerBase.isActionStatusTag(ActStatus)` 的 `Attack`、`Escape`、`Damage`、`Jump`、`WireJump`、`Ride` 与可用时的 `Guard` 标签；
 - 采样来源、可用性与缺失字段。
 
@@ -26,6 +26,8 @@
 [REFramework](https://github.com/praydog/REFramework) 提供 RE Engine 托管对象反射与 Lua 访问能力。[MHR AutoDodge](https://github.com/Atomoxide/MHR_AutoDodge) 的公开实现证明 `getMotionFsm2()`、`getCurrentNodeID(0)`、`isActionStatusTag(...)` 及 `PlayerMotionControl` 动作字段可在 MHR 运行时访问；本项目只采用这些互操作接口事实，未复制其自动反击逻辑或动作表。该仓库没有可发现的许可证，因此其数字映射只作为研究线索，不进入本仓库。
 
 [MHRice](https://github.com/wwylele/mhrice) 继续作为武器、技能与游戏数据结构的优先静态来源，但其当前代码不提供猎人实时动作语义。因此静态目录与运行时节点关联仍然是两个独立证据层。
+
+[Custom GP Frames](https://github.com/AlexQFMM2/MHRS-Custom-GP-Frames) 的公开实现提供了玩家 Motion FSM 树可通过 `get_node_by_id(node_id):get_full_name()` 直接解析当前节点这一互操作事实。实机证明玩家树可能在当前版本返回 `get_node_count() == 0`，因此本项目采用“当前节点直查、出现后缓存”，不复制其 GP 帧覆盖、行为树跳转或奖励补偿逻辑。
 
 ## 后续一次性实机门禁
 

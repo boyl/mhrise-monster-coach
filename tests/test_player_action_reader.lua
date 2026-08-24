@@ -29,8 +29,15 @@ local tree_nodes = {
     { get_id = function() return 201 end, get_full_name = function() return "LongSword/Escape" end },
 }
 local tree = {
-    get_node_count = function() return #tree_nodes end,
+    -- Player MotionFsm2 can expose the active node by ID while reporting no
+    -- enumerable nodes.  The reader must resolve the current node directly.
+    get_node_count = function() return 0 end,
     get_node = function(_, index) return tree_nodes[index + 1] end,
+    get_node_by_id = function(_, id)
+        for _, node in ipairs(tree_nodes) do
+            if node:get_id() == id then return node end
+        end
+    end,
 }
 local layer = { get_tree_object = function() return tree end }
 local motion_type = {
