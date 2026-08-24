@@ -57,6 +57,28 @@
       }
     },
     {
+      "id": "tigrex_check_bite_single",
+      "name": "Front check bite",
+      "name_zh": "正面咬击",
+      "training_category": "independent",
+      "training_order": 30,
+      "summary_zh": "练习处理正面钩咬；该项目是独立单招，退出后由原生 AI 自行选择后续。",
+      "actions": [29],
+      "execution_mode": "forced_single",
+      "max_verified_repeats": 5,
+      "entry_policy": "non_attack_or_recovery_without_active_hitbox",
+      "positioning": "manual",
+      "repeatable": true,
+      "verification": {
+        "status": "verified",
+        "runtime": "mhrise_tdb71",
+        "observed_motion": "FrontContainBite_Start_R",
+        "completed_sessions": 2,
+        "completed_repeats": 6,
+        "evidence": "docs/evidence/TIGREX_CHECK_BITE_ACCEPTANCE_2026-08-24.json"
+      }
+    },
+    {
       "id": "tigrex_half_turn_bite_short",
       "name": "Short-range half-turn hook bite",
       "name_zh": "短距半回转钩咬",

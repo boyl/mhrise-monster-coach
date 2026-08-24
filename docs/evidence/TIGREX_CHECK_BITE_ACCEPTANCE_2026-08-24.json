@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "mod_version": "0.49.1-check-bite-starter",
+  "runtime": { "game_name": "mhrise", "tdb_version": 71 },
+  "monster": "em032",
+  "action_category": 4,
+  "action": 29,
+  "name_zh": "正面咬击",
+  "request_method": "requestNoChangeTargetActionSet(SetupActionData)",
+  "policy": "only repeated complete entry-and-exit sequences may enter the product training catalog",
+  "sessions": [
+    {
+      "session_id": "b693356884044704aee7ba58842d098c",
+      "report": "artifacts/probe_reports/b693356884044704aee7ba58842d098c.forced_action_sequence.completed.json",
+      "completed": 1,
+      "failed": 0,
+      "durations_frames": [134],
+      "observed_motion": "FrontContainBite_Start_R"
+    },
+    {
+      "session_id": "14aad1043a6d463b96aae090b7337bcf",
+      "report": "artifacts/probe_reports/14aad1043a6d463b96aae090b7337bcf.forced_action_sequence.completed.json",
+      "completed": 5,
+      "failed": 0,
+      "durations_frames": [126, 126, 128, 127, 126],
+      "observed_motion": "FrontContainBite_Start_R"
+    }
+  ],
+  "aggregate": {
+    "completed": 6,
+    "failed": 0,
+    "min_duration_frames": 126,
+    "max_duration_frames": 134,
+    "result": "verified_forced_single",
+    "max_product_repeats": 5
+  },
+  "withheld": {
+    "20": "4/6 complete; two runs required isolated recovery",
+    "21": "entered successfully but did not finish within the bounded window",
+    "26": "5/6 complete; one run required isolated recovery",
+    "24": "outside the forced-probe allowlist",
+    "27": "outside the forced-probe allowlist",
+    "28": "outside the forced-probe allowlist"
+  }
+}

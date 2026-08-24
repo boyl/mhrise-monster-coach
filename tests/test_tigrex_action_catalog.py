@@ -55,6 +55,23 @@ class TigrexActionCatalogTests(unittest.TestCase):
         self.assertEqual(edge["kind"], "fixed")
         self.assertEqual([row["action"] for row in edge["next"]], ["5001"])
 
+    def test_only_repeatedly_stable_check_bite_enters_new_starter_catalog(self):
+        payload = self.load_payload()
+        scenarios = {row["id"]: row for row in payload["training_scenarios"]}
+        scenario = scenarios["tigrex_check_bite_single"]
+        self.assertEqual(scenario["actions"], [29])
+        self.assertEqual(scenario["execution_mode"], "forced_single")
+        self.assertEqual(scenario["max_verified_repeats"], 5)
+        self.assertEqual(scenario["verification"]["completed_repeats"], 6)
+        self.assertIn("TIGREX_CHECK_BITE_ACCEPTANCE", scenario["verification"]["evidence"])
+        forced_actions = {
+            row["actions"][0] for row in payload["training_scenarios"]
+            if row["execution_mode"] == "forced_single"
+        }
+        self.assertNotIn(20, forced_actions)
+        self.assertNotIn(21, forced_actions)
+        self.assertNotIn(26, forced_actions)
+
     def test_branch_graph_and_training_scenarios_obey_pack_contract(self):
         payload = self.load_payload()
         moves = payload["moves"]

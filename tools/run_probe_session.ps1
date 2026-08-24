@@ -49,7 +49,9 @@ $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Sele
 $launchedGame = $false
 $effectiveBehaviorSurvey = [bool]($BehaviorSurvey -or $BehaviorDistanceSweep)
 $effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSurvey -or
-    $ConditionBranch -or $NativeThinkBranch -or $PlayerActionEvidence)
+    $ConditionBranch -or $NativeThinkBranch -or $PlayerActionEvidence -or
+    $ForcedActions.Count -gt 0 -or $MonsterRespawn -or
+    -not [string]::IsNullOrWhiteSpace($TrainingScenarioId))
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
