@@ -45,6 +45,21 @@ local function windows_text(windows)
     return "判定 " .. table.concat(parts, "/")
 end
 
+local function player_action_text(events)
+    local latest_attempt, latest_success = nil, nil
+    for _, event in ipairs(events or {}) do
+        if event.kind == "player_action" then
+            local data = event.data or {}
+            if data.role == "success" then latest_success = data
+            elseif data.role == "attempt" then latest_attempt = data end
+        end
+    end
+    local action = latest_success or latest_attempt
+    if action == nil then return nil end
+    local suffix = latest_success and "成功节点" or "尝试节点"
+    return tostring(action.name or action.semantic or "猎人动作") .. "(" .. suffix .. ")"
+end
+
 function M.summarize(round)
     if type(round) ~= "table" or type(round.events) ~= "table" then return nil end
     local action_name, action = nil, nil
@@ -60,6 +75,8 @@ function M.summarize(round)
     local outcome = OUTCOMES[round.outcome] or { label = tostring(round.outcome or "结果待分类"), tone = "muted" }
     local text = "复盘: " .. tostring(move) .. " | "
         .. windows_text(hitbox_windows(round.events)) .. " | " .. outcome.label
+    local player_action = player_action_text(round.events)
+    if player_action ~= nil then text = text .. " | 应对 " .. player_action end
     if tonumber(round.dropped_events) and tonumber(round.dropped_events) > 0 then
         text = text .. " | 事件不完整"
     end

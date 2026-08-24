@@ -14,6 +14,8 @@
 
 `player_action_observer.lua` 只在节点或标签变化时记录事件，默认最多保存 128 项并显式记录丢弃数量。完整节点目录也随证据保存；运行时最多每 60 个采样帧落盘一次，稳定帧会冲刷尚未写出的最后变化，避免每个动作转换都写磁盘。`runtime_player_combat_state.json` 不以动作变化作为落盘键；实时 Model 仍取得每帧内存状态。运行证据写入 `runtime_player_action_evidence.json`，它不是静态数据包，也不会由开发部署覆盖。
 
+`0.49.0` 起，`long_sword_knowledge.json` 可提供版本限定的动作节点候选，`player_action_semantics.lua` 以“最长精确匹配优先、其次最长前缀”的确定性规则解析。当前候选来自公开的 [MHRS Custom GP Frames](https://github.com/AlexQFMM2/MHRS-Custom-GP-Frames) 实现，只参考其只读节点名称与查询接口；本项目自行实现解析，不引入其动作树修改、GP 帧修改或自动反击代码。候选在本机被观察后仍保留来源与 `community_candidate` 状态，直到单独的实机动作验收将其升级。
+
 当前明确不做：
 
 - 不安装 `PlayerMotionControl.lateUpdate` 或伤害计算钩子；

@@ -1,8 +1,14 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "weapon": "long_sword",
   "language": "zh-CN",
   "sources": [
+    {
+      "id": "custom_gp_frames",
+      "name": "MHRS Custom GP Frames",
+      "url": "https://github.com/AlexQFMM2/MHRS-Custom-GP-Frames",
+      "scope": "公开实现中的太刀动作树节点名称；仅作为只读语义候选，不采用动作树写入逻辑"
+    },
     {
       "name": "Monster Hunter Rise: Sunbreak Official Web Manual",
       "url": "https://game.capcom.com/manual/Multi-Platform/en/xone/page/10/2",
@@ -17,6 +23,60 @@
       "name": "MHRice extracted data",
       "url": "https://d2d662ws3kt2jd.cloudfront.net/about.html",
       "scope": "游戏提取数据及版本校验来源"
+    }
+  ],
+  "runtime_node_patterns": [
+    {
+      "semantic": "foresight_slash",
+      "role": "success",
+      "exact": ["atk.atk_147.atk_147_end"],
+      "evidence_status": "community_candidate",
+      "source_id": "custom_gp_frames",
+      "runtime_scope": { "game_name": "mhrise", "tdb_version": 71 }
+    },
+    {
+      "semantic": "foresight_slash",
+      "role": "attempt",
+      "exact": ["atk.atk_147.atk_147"],
+      "prefixes": ["atk.atk_147.atk_147."],
+      "evidence_status": "community_candidate",
+      "source_id": "custom_gp_frames",
+      "runtime_scope": { "game_name": "mhrise", "tdb_version": 71 }
+    },
+    {
+      "semantic": "special_sheathe_combo",
+      "role": "stance",
+      "exact": ["atk.atk151.atk_152"],
+      "prefixes": ["atk.atk151.atk_152."],
+      "evidence_status": "community_candidate",
+      "source_id": "custom_gp_frames",
+      "runtime_scope": { "game_name": "mhrise", "tdb_version": 71 }
+    },
+    {
+      "semantic": "iai_spirit_slash",
+      "role": "success",
+      "exact": ["atk.atk151.atk_155.success", "atk.atk_161_MR.カウンター成功"],
+      "evidence_status": "community_candidate",
+      "source_id": "custom_gp_frames",
+      "runtime_scope": { "game_name": "mhrise", "tdb_version": 71 }
+    },
+    {
+      "semantic": "iai_spirit_slash",
+      "role": "attempt",
+      "exact": ["atk.atk151.atk_155"],
+      "prefixes": ["atk.atk151.atk_155."],
+      "evidence_status": "community_candidate",
+      "source_id": "custom_gp_frames",
+      "runtime_scope": { "game_name": "mhrise", "tdb_version": 71 }
+    },
+    {
+      "semantic": "harvest_moon",
+      "role": "activation",
+      "exact": ["atk.WireReplaceF_MR.plw_LongSword_100_160"],
+      "prefixes": ["atk.WireReplaceF_MR.plw_LongSword_100_160."],
+      "evidence_status": "community_candidate",
+      "source_id": "custom_gp_frames",
+      "runtime_scope": { "game_name": "mhrise", "tdb_version": 71 }
     }
   ],
   "actions": {

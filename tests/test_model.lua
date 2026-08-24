@@ -52,6 +52,39 @@ model:update_player_combat_state({
 })
 assert(#model.response_candidates >= 1, "model evaluates weapon response candidates")
 assert(model.response_candidates[#model.response_candidates].action == "evade", "unknown loadout retains safe fallback")
+
+local semantic_knowledge = {
+    actions = { foresight_slash = { name = "见切斩" } },
+    runtime_node_patterns = {
+        {
+            semantic = "foresight_slash", role = "attempt",
+            exact = { "atk.atk_147.atk_147" }, evidence_status = "community_candidate",
+            runtime_scope = { game_name = "mhrise", tdb_version = 71 },
+        },
+    },
+}
+local semantic_model = Model.new(profile, { moves = {}, scenarios = {} }, config, nil, semantic_knowledge)
+semantic_model:set_context({
+    in_quest = true, is_online = false, target_found = true, reader_ready = true,
+    safe_mode = true, game_name = "mhrise", tdb_version = 71,
+})
+semantic_model:observe_action("10", 1)
+local player_state = {
+    weapon_type = "long_sword", resources = {},
+    action_state = { evidence = { node_id = 47, node_name = "atk.atk_147.atk_147" } },
+}
+semantic_model:update_player_combat_state(player_state)
+equal(player_state.action_state.current_action, "foresight_slash",
+    "model exposes the resolved player action to response logic")
+equal(semantic_model.current_player_action_semantic.role, "attempt",
+    "model keeps the read-only semantic evidence")
+local semantic_timeline = semantic_model:training_timeline_snapshot()
+equal(semantic_timeline.events[#semantic_timeline.events].kind, "player_action",
+    "player action transition enters the active monster round timeline")
+local event_count = #semantic_timeline.events
+semantic_model:update_player_combat_state(player_state)
+equal(#semantic_model:training_timeline_snapshot().events, event_count,
+    "stable player action does not duplicate timeline events")
 model.current_action = nil
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.state, Model.states.WAITING, "outside quest")

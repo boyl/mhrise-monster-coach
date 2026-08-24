@@ -6,6 +6,7 @@ local EVENT_KINDS = {
     hitbox_open = true,
     hitbox_close = true,
     damage = true,
+    player_action = true,
     result = true,
 }
 
@@ -27,7 +28,7 @@ end
 function M.new(limit)
     limit = math.max(8, math.floor(tonumber(limit) or 128))
     return setmetatable({
-        schema_version = 1,
+        schema_version = 2,
         limit = limit,
         next_round_id = 1,
         revision = 0,

@@ -60,7 +60,7 @@ app (composition root)
 
 静态 `MoveDefinition.advice` 只是无玩家上下文时的保底提示。武器专属建议采用 `MonsterMoveContext + PlayerCombatState → ResponseCandidate[]`，详细契约见 `RESPONSE_ENGINE.md`。Runtime 只负责把游戏字段转换为稳定语义，Model 保存状态并运行纯规则，View 不判断见切、居合或登龙是否可用。首个实现固定为太刀；第二种真实武器落地前不建立武器插件注册表。
 
-猎人实时动作采用 `player_action_reader → player_action_observer → PlayerCombatState.action_state.evidence` 的单向依赖。Reader 只接触 REFramework 对象，Observer 负责去重和有界历史，Model 只接收稳定契约。动作节点到“见切/居合”等名称的映射属于武器数据包，禁止写入 Reader、Controller 或 View；未经实机门禁时 `current_action=nil`。
+猎人实时动作采用 `player_action_reader → player_action_observer → PlayerCombatState.action_state.evidence → player_action_semantics → Model` 的单向依赖。Reader 只接触 REFramework 对象，Observer 负责去重和有界历史，语义解析器只消费武器数据包，Model 记录稳定契约。动作节点到“见切/居合”等名称的映射禁止写入 Reader、Controller 或 View。社区来源的节点只标记为候选；本机观察表示“节点确实出现”，不等于映射已经实机验证，更不等于反击成功。
 
 ### 离线怪物数据管线
 
@@ -83,6 +83,8 @@ app (composition root)
 上述确定性必须在数据包、Model、派生树与 Overlay 间端到端保留，不能把所有非固定边折叠成 `conditional/candidate`。固定边必须且只能有一个候选；违反该不变量时降级为 `unresolved`。
 
 ### TrainingTimeline
+
+时间轴 schema v2 除怪物动作、判定开闭、伤害与结果外，还可记录只读 `player_action`。该事件区分 `attempt`、`stance`、`activation` 与成功专用节点；结果分类不得仅凭“未受伤”推断见切或居合成功。
 
 - 每次 Action 开始建立一轮，事件严格按观察顺序保存；判定与受击事件同时保留 Motion 帧，不能用渲染帧或墙钟时间冒充动画时机。
 - 开启结果追踪时，Action 切换可得 `hit` 或 `no_damage`；只读模式只能给出 `observed_hit` 或 `unclassified`，不得把“未观察到掉血”升级为成功。

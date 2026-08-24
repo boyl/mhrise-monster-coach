@@ -104,6 +104,9 @@ function M.load()
     local long_sword_knowledge = json.load_file(LONG_SWORD_KNOWLEDGE_PATH)
     if type(long_sword_knowledge) ~= "table" then long_sword_knowledge = { actions = {} } end
     if type(long_sword_knowledge.actions) ~= "table" then long_sword_knowledge.actions = {} end
+    if type(long_sword_knowledge.runtime_node_patterns) ~= "table" then
+        long_sword_knowledge.runtime_node_patterns = {}
+    end
 
     return config, calibration, static_ai, long_sword_knowledge
 end

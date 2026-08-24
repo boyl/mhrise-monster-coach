@@ -17,6 +17,16 @@ local hit = Presenter.summarize({
 assert(hit.round_id == 7 and hit.tone == "failure")
 assert(hit.text == "复盘: 直线冲锋 | 判定 20–28帧 | 受击")
 
+local counter = Presenter.summarize({
+    outcome = "unclassified",
+    events = {
+        { kind = "action_start", data = { action = "2", move_name = "直线冲锋" } },
+        { kind = "player_action", data = { semantic = "foresight_slash", name = "见切斩", role = "attempt" } },
+        { kind = "player_action", data = { semantic = "foresight_slash", name = "见切斩", role = "success" } },
+    },
+})
+assert(counter.text == "复盘: 直线冲锋 | 判定未采集 | 结果待分类 | 应对 见切斩(成功节点)")
+
 local multi = Presenter.summarize({
     outcome = "no_damage",
     events = {
