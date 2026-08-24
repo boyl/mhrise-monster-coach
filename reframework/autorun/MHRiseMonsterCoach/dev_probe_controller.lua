@@ -53,6 +53,7 @@ function M.new(api, quest_id, options)
         native_branch = nil,
         condition_branch = nil,
         input_motion = nil,
+        player_action = nil,
         ui_contract = nil,
     }, { __index = M })
 end
@@ -98,6 +99,7 @@ function M:report(status, reason)
         native_branch = self.native_branch,
         condition_branch = self.condition_branch,
         input_motion = self.input_motion,
+        player_action = self.player_action,
         ui_contract = self.ui_contract,
     }
     self.api:write_report(report)
@@ -157,6 +159,7 @@ function M:accept_request(request, context)
             and request.kind ~= "behavior_path_survey"
             and request.kind ~= "condition_induced_branch"
             and request.kind ~= "input_motion_metadata"
+            and request.kind ~= "player_action_evidence"
             and request.kind ~= "input_motion_axis_write"
             and request.kind ~= "ui_contract_snapshot"
             and request.kind ~= "native_think_branch")
@@ -177,6 +180,7 @@ function M:accept_request(request, context)
     self.native_branch = nil
     self.condition_branch = nil
     self.input_motion = nil
+    self.player_action = nil
     self.ui_contract = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
@@ -335,6 +339,17 @@ function M:update()
                             and self.api:input_motion_diagnostics() or nil
                         if self.input_motion == nil then
                             return self:fail("Input motion diagnostics unavailable")
+                        end
+                        return self:complete()
+                    end
+                    if self.request.kind == "player_action_evidence" then
+                        self.player_action = self.api.player_action_diagnostics
+                            and self.api:player_action_diagnostics() or nil
+                        local action = self.player_action and self.player_action.player_action or nil
+                        if action == nil or action.availability ~= "available"
+                            or action.node_id == nil or type(action.node_name) ~= "string"
+                            or action.node_name == "" then
+                            return self:fail("Player action node name is unavailable")
                         end
                         return self:complete()
                     end

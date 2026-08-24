@@ -2177,6 +2177,10 @@ function M.player_state_probe(self)
     return self.player_state_reader:description()
 end
 
+function M.player_action_diagnostics(self)
+    return self.player_state_reader:description()
+end
+
 function M.player_combat_state(self)
     return self.player_state_reader.state
 end

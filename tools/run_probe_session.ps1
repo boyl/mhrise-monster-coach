@@ -16,6 +16,7 @@ param(
     [ValidateRange(1, 20)][int]$BehaviorSweepCycles = 1,
     [switch]$ConditionBranch,
     [switch]$InputMotionMetadata,
+    [switch]$PlayerActionEvidence,
     [switch]$InputMotionAxisWrite,
     [switch]$UiContract,
     [switch]$NativeThinkBranch,
@@ -48,7 +49,7 @@ $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue | Sele
 $launchedGame = $false
 $effectiveBehaviorSurvey = [bool]($BehaviorSurvey -or $BehaviorDistanceSweep)
 $effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSurvey -or
-    $ConditionBranch -or $NativeThinkBranch)
+    $ConditionBranch -or $NativeThinkBranch -or $PlayerActionEvidence)
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
@@ -111,6 +112,7 @@ if ($ResumeExisting) {
             elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
             elseif ($ConditionBranch) { 'condition_induced_branch' }
             elseif ($InputMotionMetadata) { 'input_motion_metadata' }
+            elseif ($PlayerActionEvidence) { 'player_action_evidence' }
             elseif ($InputMotionAxisWrite) { 'input_motion_axis_write' }
             elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
@@ -670,6 +672,7 @@ do {
                     training_acceptance = $report.training_acceptance
                     ui_contract = $report.ui_contract
                     input_motion = $report.input_motion
+                    player_action = $report.player_action
                     behavior_survey = if ($report.behavior_survey) { [ordered]@{
                         samples = $report.behavior_survey.samples
                         events = @($report.behavior_survey.events).Count

@@ -65,6 +65,9 @@ function M.start()
     function probe_api:input_motion_diagnostics()
         return runtime:input_motion_diagnostics()
     end
+    function probe_api:player_action_diagnostics()
+        return runtime:player_action_diagnostics()
+    end
     function probe_api:write_input_motion_axis(x, y)
         return runtime:write_input_motion_axis(x, y)
     end
@@ -247,7 +250,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.48.2-player-node-name-lookup loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.48.3-player-action-probe loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

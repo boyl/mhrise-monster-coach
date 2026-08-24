@@ -44,3 +44,5 @@ python tools/analyze_player_action_evidence.py `
 ```
 
 分析器汇总目录覆盖、实际节点、标签组合与运行时转换，并按 `foresight/mikiri`、`iai`、`sacred` 等名称词根列出候选。词根命中只用于缩小审核范围，输出明确标记为候选，不会直接写回运行时语义映射。
+
+部署后的确定性门禁使用 `tools/run_probe_session.ps1 -PlayerActionEvidence`。探针自动进入战斗层，只有当前玩家节点 ID 与全名都可读取时才完成；报告同时保存实际武器类型。探针只读，不切换装备、红蓝书或技能。

@@ -344,6 +344,25 @@ assert(metadata_reports[#metadata_reports].status == "completed"
     and metadata_reports[#metadata_reports].input_motion.device_available,
     "known HID metadata probe completes without any input write")
 
+function metadata_api:player_action_diagnostics()
+    return {
+        weapon_type = "long_sword",
+        player_action = {
+            availability = "available", node_id = 123,
+            node_name = "atk.atk_147.atk_147",
+        },
+    }
+end
+local player_action_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
+assert(player_action_probe:accept_request({
+    session_id = "player-action-evidence", kind = "player_action_evidence",
+}, forced_context))
+player_action_probe:update()
+assert(metadata_reports[#metadata_reports].status == "completed"
+    and metadata_reports[#metadata_reports].player_action.weapon_type == "long_sword"
+    and metadata_reports[#metadata_reports].player_action.player_action.node_name == "atk.atk_147.atk_147",
+    "player action probe requires a resolved current node name")
+
 local axis_reports, axis_writes, axis_releases = {}, 0, 0
 local axis_api = { quest_api = quest_api }
 function axis_api:get_context() return forced_context end
