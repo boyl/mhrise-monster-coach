@@ -52,6 +52,19 @@ local guard = Presenter.summarize({
 })
 assert(guard.text == "复盘: 大咬 | 判定未采集 | 观察到防御动作，结果待确认 | 应对 防御(动作状态)")
 
+local late = Presenter.summarize({
+    outcome = "response_attempt",
+    classification = {
+        label = "已尝试见切斩，结果待确认", tone = "muted",
+        timing = { relation = "after_active", label = "判定后 +4 帧", assessment = "possibly_late" },
+    },
+    events = {
+        { kind = "action_start", data = { move_name = "右回旋攻击" } },
+        { kind = "player_action", data = { name = "见切斩", role = "attempt" } },
+    },
+})
+assert(late.text == "复盘: 右回旋攻击 | 判定未采集 | 已尝试见切斩，结果待确认 | 时机 判定后 +4 帧（可能偏晚） | 应对 见切斩(尝试节点)")
+
 local multi = Presenter.summarize({
     outcome = "no_damage",
     events = {

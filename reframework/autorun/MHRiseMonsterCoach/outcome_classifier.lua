@@ -43,6 +43,52 @@ local function response_label(response)
     return tostring(response and (response.name or response.semantic) or "猎人应对")
 end
 
+local function frame_text(value)
+    value = tonumber(value)
+    if value == nil then return nil end
+    if value == math.floor(value) then return tostring(math.floor(value)) end
+    return string.format("%.1f", value)
+end
+
+local function timing_from_data(data, is_response)
+    if type(data) ~= "table" then return nil end
+    local relation = data.relation
+    local relative = tonumber(data.relative_frame)
+    if relation == "inside_active" then
+        return { relation = relation, label = relative and ("判定内 +" .. frame_text(relative) .. " 帧") or "判定中" }
+    elseif relation == "before_active" then
+        return { relation = relation, label = relative and ("判定前 " .. frame_text(math.abs(relative)) .. " 帧") or "判定前" }
+    elseif relation == "after_active" then
+        return { relation = relation, label = relative and ("判定后 +" .. frame_text(relative) .. " 帧") or "判定后" }
+    end
+
+    local phase = data.monster_phase
+    if phase == "startup" then
+        local frames = frame_text(data.frames_to_next_active)
+        return { relation = "before_active", label = frames and ("判定前 " .. frames .. " 帧") or "前摇阶段" }
+    elseif phase == "active" then
+        return { relation = "inside_active", label = "判定中" }
+    elseif phase == "recovery" then
+        local frames = frame_text(data.frames_from_final_active)
+        return {
+            relation = "after_active",
+            label = frames and ("判定后 +" .. frames .. " 帧") or "收招阶段",
+            assessment = is_response and "possibly_late" or nil,
+        }
+    end
+    return nil
+end
+
+local function latest_damage(events)
+    local latest = nil
+    for _, event in ipairs(events) do
+        if type(event) == "table" and event.kind == "damage" and type(event.data) == "table" then
+            latest = event.data
+        end
+    end
+    return latest
+end
+
 function M.classify(events, options)
     options = options or {}
     if type(events) ~= "table" then
@@ -57,6 +103,7 @@ function M.classify(events, options)
 
     local response = latest_response(events)
     local defense = latest_defense(events)
+    local response_timing = timing_from_data(response or (defense and defense.data), true)
     local result = {
         outcome = "unclassified",
         score = "unclassified",
@@ -64,6 +111,7 @@ function M.classify(events, options)
         tone = "muted",
         evidence = response,
         defense_evidence = defense,
+        timing = response_timing,
     }
 
     if options.interrupted == true then
@@ -79,6 +127,7 @@ function M.classify(events, options)
         result.label = options.outcome_tracking == true and "受击" or "观察到受击"
         result.tone = "failure"
         result.reason = "damage_observed"
+        result.timing = timing_from_data(latest_damage(events), false) or response_timing
         return result
     end
 

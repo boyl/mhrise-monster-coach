@@ -36,6 +36,29 @@ local attempt = { { kind = "player_action", data = {
 result = classify(attempt, { outcome_tracking = false })
 assert(result.outcome == "response_attempt" and result.score == "unclassified")
 
+result = classify({ { kind = "player_action", data = {
+    semantic = "foresight_slash", name = "见切斩", role = "attempt",
+    monster_phase = "startup", frames_to_next_active = 8.5,
+} } }, { outcome_tracking = false })
+assert(result.timing.relation == "before_active" and result.timing.label == "判定前 8.5 帧")
+
+result = classify({ { kind = "player_action", data = {
+    semantic = "foresight_slash", name = "见切斩", role = "attempt",
+    monster_phase = "active",
+} } }, { outcome_tracking = false })
+assert(result.timing.relation == "inside_active" and result.timing.label == "判定中")
+
+result = classify({ { kind = "player_action", data = {
+    semantic = "foresight_slash", name = "见切斩", role = "attempt",
+    monster_phase = "recovery", frames_from_final_active = 4,
+} } }, { outcome_tracking = false })
+assert(result.timing.relation == "after_active" and result.timing.assessment == "possibly_late")
+
+result = classify({ { kind = "damage", data = {
+    relation = "inside_active", relative_frame = 3,
+} } }, { outcome_tracking = false })
+assert(result.timing.label == "判定内 +3 帧")
+
 result = classify({}, { outcome_tracking = true, damage = 0 })
 assert(result.outcome == "no_damage" and result.label == "无伤（应对方式待确认）")
 result = classify({}, { outcome_tracking = false })

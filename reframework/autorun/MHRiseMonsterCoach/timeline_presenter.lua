@@ -82,6 +82,10 @@ function M.summarize(round)
         or { label = tostring(round.outcome or "结果待分类"), tone = "muted" }
     local text = "复盘: " .. tostring(move) .. " | "
         .. windows_text(hitbox_windows(round.events)) .. " | " .. outcome.label
+    if classification and type(classification.timing) == "table" and classification.timing.label then
+        text = text .. " | 时机 " .. tostring(classification.timing.label)
+        if classification.timing.assessment == "possibly_late" then text = text .. "（可能偏晚）" end
+    end
     local player_action = player_action_text(round.events)
     if player_action ~= nil then text = text .. " | 应对 " .. player_action end
     if tonumber(round.dropped_events) and tonumber(round.dropped_events) > 0 then
