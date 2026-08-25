@@ -97,6 +97,37 @@ equal(classified_attempt.outcome, "response_attempt",
     "read-only counter attempts remain explicit but unscored")
 equal(classified_attempt.classification.score, "unclassified",
     "an attempt without a success node never becomes a successful round")
+
+local status_model = Model.new(profile, { moves = {}, scenarios = {} }, config)
+status_model:set_context({
+    in_quest = true, is_online = false, target_found = true, reader_ready = true,
+    safe_mode = true, outcome_tracking = false,
+})
+status_model:observe_action("10", 3, { current_frame = 12 })
+local neutral_state = { weapon_type = "long_sword", resources = {},
+    action_state = { evidence = { tags = { guard = false, escape = false, damage = false } } } }
+status_model:update_player_combat_state(neutral_state, 3.1)
+equal(#status_model:training_timeline_snapshot().events, 1,
+    "neutral status does not add timeline noise")
+local evade_state = { weapon_type = "long_sword", resources = {}, action_state = { evidence = {
+    node_id = 90, node_name = "escape", source = "test",
+    tags = { guard = false, escape = true, damage = false },
+} } }
+status_model:update_player_combat_state(evade_state, 3.2)
+local evade_events = status_model:training_timeline_snapshot().events
+equal(evade_events[#evade_events].kind, "player_status", "Escape enters the monster timeline")
+equal(evade_events[#evade_events].at, 3.2, "status event preserves sampling time")
+equal(evade_events[#evade_events].data.monster_motion_frame, 12,
+    "status event preserves monster frame context")
+local status_event_count = #evade_events
+status_model:update_player_combat_state(evade_state, 3.3)
+equal(#status_model:training_timeline_snapshot().events, status_event_count,
+    "stable status is deduplicated")
+status_model:update_player_combat_state(neutral_state, 3.4)
+status_model:observe_action("11", 4)
+local evade_round = status_model:training_timeline_snapshot().last_round
+equal(evade_round.outcome, "evade_attempt", "Escape is explicit but remains unscored")
+equal(evade_round.classification.score, "unclassified")
 model.current_action = nil
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.state, Model.states.WAITING, "outside quest")

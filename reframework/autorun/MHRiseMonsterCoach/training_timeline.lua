@@ -7,6 +7,7 @@ local EVENT_KINDS = {
     hitbox_close = true,
     damage = true,
     player_action = true,
+    player_status = true,
     result = true,
 }
 

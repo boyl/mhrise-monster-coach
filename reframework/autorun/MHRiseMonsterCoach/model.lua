@@ -98,6 +98,8 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         player_combat_state = nil,
         current_player_action_semantic = nil,
         last_player_action_semantic_key = nil,
+        last_player_status_key = nil,
+        last_player_status_active = false,
         response_candidates = {},
         response_error = nil,
         current_action = nil,
@@ -279,10 +281,43 @@ local function timeline_player_action(self, semantic)
     return event
 end
 
+local function timeline_player_status(self, state, at)
+    local evidence = type(state.action_state) == "table" and state.action_state.evidence or nil
+    local tags = type(evidence) == "table" and evidence.tags or nil
+    if type(tags) ~= "table" then
+        self.last_player_status_key = nil
+        self.last_player_status_active = false
+        return
+    end
+    local guard, escape, damage = tags.guard == true, tags.escape == true, tags.damage == true
+    local key = table.concat({ tostring(guard), tostring(escape), tostring(damage) }, "|")
+    if key == self.last_player_status_key then return end
+    local was_active = self.last_player_status_active == true
+    local active = guard or escape or damage
+    self.last_player_status_key = key
+    self.last_player_status_active = active
+    if not active and not was_active then return end
+    local phase = M.coaching_state(self)
+    self.training_timeline:record("player_status", at, {
+        guard = guard,
+        escape = escape,
+        damage = damage,
+        active = active,
+        node_id = evidence.node_id,
+        node_name = evidence.node_name,
+        source = evidence.source,
+        monster_phase = phase.phase,
+        frames_to_next_active = phase.frames_to_next_active,
+        frames_from_final_active = phase.frames_from_final_active,
+        monster_motion_frame = self.current_metadata and tonumber(self.current_metadata.current_frame) or nil,
+    })
+end
+
 function M.update_player_combat_state(self, state, at)
     self.player_combat_state = state
     local semantic = nil
     if type(state) == "table" then
+        timeline_player_status(self, state, at)
         semantic = PlayerActionSemantics.resolve(state, self.long_sword_knowledge, {
             game_name = self.context.game_name,
             tdb_version = self.context.tdb_version,
@@ -306,6 +341,8 @@ function M.update_player_combat_state(self, state, at)
     else
         self.current_player_action_semantic = nil
         self.last_player_action_semantic_key = nil
+        self.last_player_status_key = nil
+        self.last_player_status_active = false
     end
     if type(state) ~= "table" or self.current_action == nil then
         self.response_candidates = {}
@@ -484,6 +521,8 @@ function M.set_context(self, context)
         self.prediction = nil
         self.current_player_action_semantic = nil
         self.last_player_action_semantic_key = nil
+        self.last_player_status_key = nil
+        self.last_player_status_active = false
         self.round_damage = 0
         self.live_hitbox_seen = false
         self.live_hitbox_state_key = nil
@@ -782,6 +821,8 @@ function M.observe_action(self, action, now, metadata)
     -- A player action already in progress still belongs in the newly opened
     -- monster round. Allow the next read-only sample to record it once.
     self.last_player_action_semantic_key = nil
+    self.last_player_status_key = nil
+    self.last_player_status_active = false
     if self.context.safe_mode then
         self.state = M.states.DISABLED
         self.status = "Diagnostic mode: polling and guarded training controls enabled"
@@ -913,6 +954,8 @@ function M.clear_round_runtime(self, reason)
     self.response_error = nil
     self.current_player_action_semantic = nil
     self.last_player_action_semantic_key = nil
+    self.last_player_status_key = nil
+    self.last_player_status_active = false
     self.round_damage = 0
     self.last_hit_event = nil
     self.live_hitbox_seen = false

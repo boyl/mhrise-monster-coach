@@ -42,6 +42,16 @@ local classified = Presenter.summarize({
 assert(classified.text == "复盘: 直线冲锋 | 判定未采集 | 观察到见切斩成功候选节点 | 应对 见切斩(成功节点)")
 assert(classified.tone == "muted")
 
+local guard = Presenter.summarize({
+    outcome = "guard_attempt",
+    classification = { label = "观察到防御动作，结果待确认", tone = "muted" },
+    events = {
+        { kind = "action_start", data = { move_name = "大咬" } },
+        { kind = "player_status", data = { guard = true } },
+    },
+})
+assert(guard.text == "复盘: 大咬 | 判定未采集 | 观察到防御动作，结果待确认 | 应对 防御(动作状态)")
+
 local multi = Presenter.summarize({
     outcome = "no_damage",
     events = {

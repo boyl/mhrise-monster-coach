@@ -40,6 +40,29 @@ result = classify({}, { outcome_tracking = true, damage = 0 })
 assert(result.outcome == "no_damage" and result.label == "无伤（应对方式待确认）")
 result = classify({}, { outcome_tracking = false })
 assert(result.outcome == "unclassified")
+
+local guard = { { kind = "player_status", data = { guard = true, escape = false, damage = false } } }
+result = classify(guard, { outcome_tracking = false })
+assert(result.outcome == "guard_attempt" and result.score == "unclassified")
+result = classify(guard, { outcome_tracking = true })
+assert(result.outcome == "no_damage" and string.find(result.label, "防御动作", 1, true))
+
+local evade = { { kind = "player_status", data = { guard = false, escape = true, damage = false } } }
+result = classify(evade, { outcome_tracking = false })
+assert(result.outcome == "evade_attempt" and result.score == "unclassified")
+
+local damage_status = { { kind = "player_status", data = { damage = true } } }
+result = classify(damage_status, { outcome_tracking = false })
+assert(result.outcome == "observed_hit" and result.reason == "damage_observed")
+result = classify(damage_status, { outcome_tracking = true })
+assert(result.outcome == "hit" and result.score == "failure")
+
+result = classify({
+    { kind = "player_status", data = { escape = true } },
+    { kind = "player_action", data = { semantic = "foresight_slash", name = "见切斩", role = "attempt" } },
+}, { outcome_tracking = false })
+assert(result.outcome == "response_attempt", "specific weapon semantics outrank generic Escape status")
+
 result = classify({}, { interrupted = true })
 assert(result.outcome == "interrupted")
 result = classify(nil, {})

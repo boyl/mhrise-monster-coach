@@ -47,15 +47,20 @@ end
 
 local function player_action_text(events)
     local latest_attempt, latest_success = nil, nil
+    local latest_status = nil
     for _, event in ipairs(events or {}) do
         if event.kind == "player_action" then
             local data = event.data or {}
             if data.role == "success" then latest_success = data
             elseif data.role == "attempt" then latest_attempt = data end
+        elseif event.kind == "player_status" then
+            local data = event.data or {}
+            if data.guard == true then latest_status = "防御(动作状态)"
+            elseif data.escape == true then latest_status = "回避(动作状态)" end
         end
     end
     local action = latest_success or latest_attempt
-    if action == nil then return nil end
+    if action == nil then return latest_status end
     local suffix = latest_success and "成功节点" or "尝试节点"
     return tostring(action.name or action.semantic or "猎人动作") .. "(" .. suffix .. ")"
 end
