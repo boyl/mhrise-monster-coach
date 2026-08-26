@@ -1,5 +1,7 @@
 # 第三方资料说明
 
+仓库自有代码和文档采用根目录 `LICENSE` 中的 MIT License。该许可证不覆盖 Capcom 游戏资源、游戏商标、第三方 Mod、解析器或外部数据。
+
 本 Mod 代码为本项目独立实现。开发时参考了以下公开项目的 REFramework/MHRise API 使用方式：
 
 - REFramework — MIT License — https://github.com/praydog/REFramework

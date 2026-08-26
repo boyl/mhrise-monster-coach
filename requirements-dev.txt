@@ -1,0 +1,2 @@
+# Lua behavior and syntax tests run through an embedded Lua runtime.
+lupa==2.8

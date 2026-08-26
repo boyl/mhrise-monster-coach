@@ -1,5 +1,7 @@
 # 《怪物猎人崛起：曙光》怪物陪练 Mod
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
 > 当前状态：开发预览版 `0.49.8-response-timing-evidence`。轰龙核心闭环已有多项实机证据，但仓库源码可能领先于已安装副本；尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
@@ -65,16 +67,54 @@ F7 与 F9 的语义不同：F7 让游戏原生系统完整重建任务对象、A
 - 不分发 Capcom 原始资源；离线工具只生成结构化研究结果。
 - 游戏或 REFramework 更新后，需要先通过兼容门禁再重新开放写入能力。
 
-## 安装说明
+## 玩家安装
 
-当前仓库是开发源码，不建议普通玩家直接覆盖游戏目录。开发环境依赖：
+### 必需依赖
 
-- Steam 版《怪物猎人崛起：曙光》；
-- [REFramework](https://github.com/praydog/REFramework)；
-- [RiseQuestLoader](https://github.com/Fexty12573/RiseQuestLoader)；
-- 已备份的存档和离线单人测试环境。
+| 依赖 | 用途 | 当前验证基线 |
+|---|---|---|
+| Steam《怪物猎人崛起：曙光》 | 游戏本体 | `16.0.2.0` |
+| [REFramework](https://github.com/praydog/REFramework) | Lua 运行时、游戏对象访问和 Overlay | `mhrise / TDB 71`；实机使用 `v1.5.9+7-5bae4701` |
+| [RiseQuestLoader](https://github.com/Fexty12573/RiseQuestLoader) | 加载专用陪练任务 JSON | 必需 |
 
-开发副本可使用 `tools/deploy_dev.ps1` 部署。它按白名单复制文件、逐项校验 SHA-256，并保留配置、校准和运行证据。请不要把仓库源码版本当成当前游戏内已安装版本。
+[HitboxViewer 2.2.0](https://www.nexusmods.com/monsterhunterrise/mods/2182) 只是可选的判定交叉验证后端；不安装也能使用原生只读判定提供器。手柄快捷键同样不是必需项，且当前默认关闭。
+
+### 从源码安装
+
+当前还没有面向普通玩家的稳定 Release 安装包。希望试用开发预览版时：
+
+1. 备份 Steam App `1446780` 的存档，并确保只进入单人环境。
+2. 按各自上游说明安装 REFramework 与 RiseQuestLoader；启动一次游戏，确认 Insert 菜单和 Quest Loader 均能正常出现。
+3. 下载本仓库当前分支，正常退出游戏。
+4. 把仓库中的 `reframework` 文件夹合并到游戏根目录；不要删除或整体替换已有 `reframework` 目录。
+5. 核对入口文件为 `MonsterHunterRise/reframework/autorun/MHRiseMonsterCoach.lua`，任务文件为 `MonsterHunterRise/reframework/quests/q200032001.json`。
+6. 启动游戏并进入离线大厅，在集会所 MR 4★ 任务中选择 `[陪练] 轰龙·塔之秘境`。
+
+升级时保留 `reframework/data/MHRiseMonsterCoach/config.json`、校准文件和运行证据。仓库源码可能领先于已安装副本，请以游戏目录中的 `dev_install_receipt.json` 和运行日志为准。
+
+## 开发环境
+
+### 基础依赖
+
+- Windows 10/11 64 位；
+- PowerShell 7.0+ 和 Git for Windows；
+- CPython 3.10+，推荐 3.12；
+- `requirements-dev.txt` 中锁定的 `lupa`，用于运行纯 Lua 行为与语法测试；
+- 上述游戏、REFramework 和 RiseQuestLoader，仅在实机验收时需要。
+
+```powershell
+git clone https://github.com/boyl/mhrise-monster-coach.git
+Set-Location .\mhrise-monster-coach
+git switch feature/tigrex-training-quest
+
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r .\requirements-dev.txt
+```
+
+离线 AI/碰撞体研究还会用到可选的 .NET 8 SDK、RszTool 0.3.5、RETool 和对应游戏版本文件列表；它们不影响普通功能开发，也不随仓库分发。完整初始化、部署、证据边界和贡献规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+开发副本可使用 `tools/deploy_dev.ps1` 部署。它按白名单复制文件、逐项校验 SHA-256，并保留配置、校准、运行证据、日志和其他 Mod。游戏必须先退出；如果目标位于 `Program Files`，请从具有写权限的 PowerShell 7 执行。
 
 ## 证据与架构
 
@@ -102,9 +142,9 @@ F7 与 F9 的语义不同：F7 让游戏原生系统完整重建任务对象、A
 仓库将纯领域测试、Lua 语法、Python 工具和部署白名单分别验证：
 
 ```powershell
-python tests/run_lua_tests.py
-python tests/check_lua_syntax.py
-python -m unittest discover -s tests -p 'test_*.py' -v
+.\.venv\Scripts\python.exe tests/run_lua_tests.py
+.\.venv\Scripts\python.exe tests/check_lua_syntax.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
 pwsh -NoProfile -File tests/test_deploy_dev.ps1
 ```
 
@@ -118,3 +158,7 @@ pwsh -NoProfile -File tests/test_deploy_dev.ps1
 4. 稳定轰龙闭环后，以第二只复杂怪物验证数据包扩展能力。
 
 详细排期、每项安全门禁以及明确不开发的功能见[路线图](docs/ROADMAP.md)。
+
+## 许可证
+
+本项目代码和项目自有文档采用 [MIT License](LICENSE)。Capcom 游戏资源、第三方 Mod、解析器和外部数据不包含在该授权中，分别遵循其所有者的条款；详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

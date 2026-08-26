@@ -8,6 +8,7 @@ reframework/data/MHRiseMonsterCoach/runtime_*.json
 re2_framework_log.txt
 node_modules/
 __pycache__/
+.venv/
 bin/
 obj/
 work/
