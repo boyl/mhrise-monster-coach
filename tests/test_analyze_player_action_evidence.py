@@ -15,10 +15,10 @@ class PlayerActionEvidenceTests(unittest.TestCase):
                 {"id": "20", "name": "LongSword.Sacred.Release"},
             ],
             "events": [
-                {"sample": 1, "node_id": 10, "tags": {"attack": True}},
-                {"sample": 2, "node_id": 11, "tags": {"escape": True}},
-                {"sample": 3, "node_id": 10, "tags": {"attack": True}},
-                {"sample": 4, "node_id": 99, "node_name": "Unknown", "tags": {}},
+                {"sample": 1, "player_type": "snow.player.LongSword", "node_id": 10, "tags": {"attack": True}},
+                {"sample": 2, "player_type": "snow.player.LongSword", "node_id": 11, "tags": {"escape": True}},
+                {"sample": 3, "player_type": "snow.player.LongSword", "node_id": 10, "tags": {"attack": True}},
+                {"sample": 4, "player_type": "snow.player.LongSword", "node_id": 99, "node_name": "Unknown", "tags": {}},
             ],
         })
         self.assertEqual(report["summary"]["catalogued_nodes"], 3)
@@ -31,10 +31,12 @@ class PlayerActionEvidenceTests(unittest.TestCase):
         first = next(row for row in report["observed_nodes"] if row["id"] == "10")
         self.assertEqual(first["samples"], 2)
         self.assertEqual(first["active_tags"], ["attack"])
+        self.assertEqual(report["weapon_context"]["event_attribution"], "per_event")
 
     def test_applies_runtime_scoped_data_pack_without_upgrading_semantic_truth(self):
         report = analyze({
             "runtime": {"game_name": "mhrise", "tdb_version": 71},
+            "reader": {"player_type": "snow.player.LongSword"},
             "node_catalog": [
                 {"id": "10", "name": "atk.atk_147.atk_147"},
                 {"id": "11", "name": "atk.atk_147.atk_147_end"},
@@ -73,9 +75,32 @@ class PlayerActionEvidenceTests(unittest.TestCase):
                             for row in report["semantic_mappings"]))
         self.assertEqual([row["id"] for row in report["unmapped_semantic_observed_nodes"]], [])
 
+    def test_weapon_specific_knowledge_fails_closed_for_other_weapon(self):
+        report = analyze({
+            "runtime": {"game_name": "mhrise", "tdb_version": 71},
+            "reader": {"player_type": "snow.player.ChargeAxe"},
+            "node_catalog": [{"id": "10", "name": "atk.atk_147.atk_147"}],
+            "events": [{
+                "sample": 1,
+                "player_type": "snow.player.ChargeAxe",
+                "node_id": 10,
+                "node_name": "atk.atk_147.atk_147",
+            }],
+        }, {
+            "weapon": "long_sword",
+            "runtime_node_patterns": [{
+                "semantic": "foresight_slash", "role": "attempt",
+                "exact": ["atk.atk_147.atk_147"],
+                "runtime_scope": {"game_name": "mhrise", "tdb_version": 71},
+            }],
+        })
+        self.assertFalse(report["weapon_context"]["knowledge_applicable"])
+        self.assertEqual(report["semantic_mappings"], [])
+
     def test_runtime_scope_fails_closed(self):
         report = analyze({
             "runtime": {"game_name": "mhrise", "tdb_version": 72},
+            "reader": {"player_type": "snow.player.LongSword"},
             "node_catalog": [{"id": "10", "name": "atk.atk_147.atk_147"}],
             "events": [{"sample": 1, "node_id": 10}],
         }, {

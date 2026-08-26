@@ -68,6 +68,9 @@ function M.start()
     function probe_api:player_action_diagnostics()
         return runtime:player_action_diagnostics()
     end
+    function probe_api:training_timeline_diagnostics()
+        return model:training_timeline_snapshot()
+    end
     function probe_api:write_input_motion_axis(x, y)
         return runtime:write_input_motion_axis(x, y)
     end
@@ -250,7 +253,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.8-response-timing-evidence loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.9-weapon-scoped-player-evidence loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

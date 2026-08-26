@@ -67,6 +67,19 @@ def runtime_matches(scope: Any, runtime: Any) -> bool:
     return all(runtime.get(key) == value for key, value in scope.items())
 
 
+def knowledge_matches_reader(knowledge: dict[str, Any] | None, player_type: str | None) -> bool:
+    """Fail closed when a weapon-specific pack does not match the active player class."""
+    if not isinstance(knowledge, dict):
+        return False
+    weapon = knowledge.get("weapon")
+    if weapon is None:
+        return True
+    normalized_type = (player_type or "").lower()
+    if weapon == "long_sword":
+        return "longsword" in normalized_type
+    return False
+
+
 def pattern_match(node_name: str, row: dict[str, Any]) -> tuple[int, str, str] | None:
     matches: list[tuple[int, str, str]] = []
     for value in row.get("exact") or []:
@@ -125,15 +138,25 @@ def semantic_mappings(
 def analyze(document: dict[str, Any], knowledge: dict[str, Any] | None = None) -> dict[str, Any]:
     catalog = action_catalog(document)
     events = [row for row in document.get("events") or [] if isinstance(row, dict)]
-    nodes: dict[str, dict[str, Any]] = {}
-    transitions: Counter[tuple[str, str]] = Counter()
-    previous: str | None = None
+    reader = document.get("reader") if isinstance(document.get("reader"), dict) else {}
+    current_player_type = reader.get("player_type") if isinstance(reader.get("player_type"), str) else None
+    explicit_player_types = {
+        row.get("player_type") for row in events
+        if isinstance(row.get("player_type"), str) and row.get("player_type")
+    }
+    attribution = "per_event" if explicit_player_types else "legacy_top_level_fallback"
+    nodes: dict[tuple[str | None, str], dict[str, Any]] = {}
+    transitions: Counter[tuple[tuple[str | None, str], tuple[str | None, str]]] = Counter()
+    previous: tuple[str | None, str] | None = None
     for row in events:
         node_id = normalize_node_id(row.get("node_id"))
         if node_id is None:
             continue
-        entry = nodes.setdefault(node_id, {
+        player_type = row.get("player_type") if isinstance(row.get("player_type"), str) else current_player_type
+        node_key = (player_type, node_id)
+        entry = nodes.setdefault(node_key, {
             "id": node_id,
+            "player_type": player_type,
             "name": row.get("node_name") or catalog.get(node_id),
             "samples": 0,
             "first_sample": row.get("sample"),
@@ -145,22 +168,26 @@ def analyze(document: dict[str, Any], knowledge: dict[str, Any] | None = None) -
         for tag, active in (row.get("tags") or {}).items():
             if active is True:
                 entry["active_tags"].add(str(tag))
-        if previous is not None and previous != node_id:
-            transitions[(previous, node_id)] += 1
-        previous = node_id
+        if previous is not None and previous != node_key and previous[0] == player_type:
+            transitions[(previous, node_key)] += 1
+        previous = node_key
 
     observed = []
     for entry in nodes.values():
         entry["active_tags"] = sorted(entry["active_tags"])
-        entry["catalogued"] = entry["id"] in catalog
+        entry["catalogued"] = entry["player_type"] == current_player_type and entry["id"] in catalog
         observed.append(entry)
     observed.sort(key=lambda row: (-row["samples"], row["id"]))
 
     transition_rows = [{
-        "from": source,
-        "from_name": catalog.get(source) or nodes.get(source, {}).get("name"),
-        "to": target,
-        "to_name": catalog.get(target) or nodes.get(target, {}).get("name"),
+        "from": source[1],
+        "from_player_type": source[0],
+        "from_name": (catalog.get(source[1]) if source[0] == current_player_type else None)
+            or nodes.get(source, {}).get("name"),
+        "to": target[1],
+        "to_player_type": target[0],
+        "to_name": (catalog.get(target[1]) if target[0] == current_player_type else None)
+            or nodes.get(target, {}).get("name"),
         "count": count,
         "certainty": "observed_runtime_only",
     } for (source, target), count in transitions.most_common()]
@@ -170,8 +197,12 @@ def analyze(document: dict[str, Any], knowledge: dict[str, Any] | None = None) -
         prefix = re.split(r"[./:]", name, maxsplit=1)[0]
         prefixes[prefix] += 1
 
-    observed_samples: Counter[str] = Counter({row["id"]: row["samples"] for row in observed})
-    mappings = semantic_mappings(catalog, document, knowledge, observed_samples)
+    observed_samples: Counter[str] = Counter({
+        row["id"]: row["samples"] for row in observed
+        if row["player_type"] == current_player_type
+    })
+    knowledge_applicable = knowledge_matches_reader(knowledge, current_player_type)
+    mappings = semantic_mappings(catalog, document, knowledge, observed_samples) if knowledge_applicable else []
     mapped_ids = {row["id"] for row in mappings}
 
     return {
@@ -179,6 +210,13 @@ def analyze(document: dict[str, Any], knowledge: dict[str, Any] | None = None) -
         "policy": "runtime_observation_confirms_node_presence_not_community_semantic_truth",
         "runtime": document.get("runtime"),
         "reader": document.get("reader"),
+        "weapon_context": {
+            "current_player_type": current_player_type,
+            "observed_player_types": sorted(value for value in explicit_player_types if value),
+            "event_attribution": attribution,
+            "knowledge_weapon": knowledge.get("weapon") if isinstance(knowledge, dict) else None,
+            "knowledge_applicable": knowledge_applicable,
+        },
         "summary": {
             "catalogued_nodes": len(catalog),
             "observed_events": len(events),

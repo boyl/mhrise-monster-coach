@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "scope": "0.49.8 deployment integrity and concentrated real-game acceptance",
+  "runtime": {
+    "game_name": "mhrise",
+    "game_version": "16.0.2",
+    "tdb_version": 71,
+    "platform": "Steam PC",
+    "mode": "offline training quest"
+  },
+  "source": {
+    "git_commit": "fe48706001f041b386bb4869f2c4d947f4e787a9",
+    "version": "0.49.8-response-timing-evidence"
+  },
+  "deployment": {
+    "installed_version": "0.49.8-response-timing-evidence",
+    "managed_files_verified": 40,
+    "verification": "source, destination and install receipt SHA-256 all matched",
+    "preserved_user_files_verified": 27,
+    "preserved_user_files_result": "unchanged",
+    "rollback_backup": "artifacts/install-backups/20260826-211537-0.49.3-probe-behavior-exit",
+    "runtime_load_evidence": "[2026-08-26 23:10:38.958] [MHRiseMonsterCoach] 0.49.8-response-timing-evidence loaded; diagnostic safe mode=true"
+  },
+  "product_acceptance": [
+    {
+      "scenario_id": "tigrex_max_bite_single",
+      "name_zh": "大咬",
+      "action_category": 4,
+      "action": 21,
+      "session_id": "9e7b90007c0b41debbd9dbcc7aacb265",
+      "report": "artifacts/probe_reports/9e7b90007c0b41debbd9dbcc7aacb265.training_scenario_acceptance.completed.json",
+      "result": "completed",
+      "rounds": "1/1",
+      "samples": 337,
+      "path": [
+        "Attack.BiteMax.Phase00",
+        "Attack.BiteMax.Phase01",
+        "Normal.Search.Phase00"
+      ],
+      "completion_basis": "behavior_tree_attack_exit"
+    },
+    {
+      "scenario_id": "tigrex_rotate_attack_right_single",
+      "name_zh": "右回旋攻击",
+      "action_category": 4,
+      "action": 26,
+      "session_id": "3a2dbb803fcd406496cc0f872d76c346",
+      "report": "artifacts/probe_reports/3a2dbb803fcd406496cc0f872d76c346.training_scenario_acceptance.completed.json",
+      "result": "completed",
+      "rounds": "1/1",
+      "samples": 330,
+      "path": [
+        "Attack.RotateAttackR.Phase00",
+        "Normal.Search.Phase00"
+      ],
+      "completion_basis": "behavior_tree_attack_exit"
+    }
+  ],
+  "player_action_probe": {
+    "session_id": "b0bcd0cdccf6457185483ffab7ce7670",
+    "report": "artifacts/probe_reports/b0bcd0cdccf6457185483ffab7ce7670.player_action_evidence.completed.json",
+    "result": "current node ID and full name readable",
+    "actual_player_type": "snow.player.ChargeAxe",
+    "weapon_type_raw": 11,
+    "observed_events": 128,
+    "dropped_events": 61,
+    "dominant_evidence": "damage, knockdown, stand-up, death and native arena transfer",
+    "long_sword_acceptance": "not performed because the actual runtime weapon was not Long Sword",
+    "safety": "probe was read-only and did not change equipment, switch skills or scroll"
+  },
+  "evidence_boundaries": {
+    "source": "Git commit and version identify the tested source snapshot",
+    "installed": "install receipt and independent hashes identify the deployed files",
+    "runtime": "REFramework log proves the deployed version loaded",
+    "behavior": "terminal probe archives prove both product scenarios entered and exited",
+    "not_proven": [
+      "Long Sword-specific semantic mapping",
+      "real-game rendering of the timing review text",
+      "multi-repeat stability above each scenario's current one-round limit"
+    ]
+  }
+}

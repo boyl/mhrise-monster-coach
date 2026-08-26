@@ -12,7 +12,7 @@
 - `PlayerBase.isActionStatusTag(ActStatus)` 的 `Attack`、`Escape`、`Damage`、`Jump`、`WireJump`、`Ride` 与可用时的 `Guard` 标签；
 - 采样来源、可用性与缺失字段。
 
-`player_action_observer.lua` 只在节点或标签变化时记录事件，默认最多保存 128 项并显式记录丢弃数量。完整节点目录也随证据保存；运行时最多每 60 个采样帧落盘一次，稳定帧会冲刷尚未写出的最后变化，避免每个动作转换都写磁盘。`runtime_player_combat_state.json` 不以动作变化作为落盘键；实时 Model 仍取得每帧内存状态。运行证据写入 `runtime_player_action_evidence.json`，它不是静态数据包，也不会由开发部署覆盖。
+`player_action_observer.lua` 只在节点、标签或玩家武器运行时类型变化时记录事件，默认最多保存 128 项并显式记录丢弃数量。每个事件单独携带 `player_type`，防止切换武器后把旧动作误归入当前武器；离线分析器对旧版无逐事件类型的证据显式标记 `legacy_top_level_fallback`，武器专属知识包与当前玩家类型不匹配时拒绝生成语义映射。完整节点目录也随证据保存；运行时最多每 60 个采样帧落盘一次，稳定帧会冲刷尚未写出的最后变化，避免每个动作转换都写磁盘。`runtime_player_combat_state.json` 不以动作变化作为落盘键；实时 Model 仍取得每帧内存状态。运行证据写入 `runtime_player_action_evidence.json`，它不是静态数据包，也不会由开发部署覆盖。
 
 `0.49.0` 起，`long_sword_knowledge.json` 可提供版本限定的动作节点候选，`player_action_semantics.lua` 以“最长精确匹配优先、其次最长前缀”的确定性规则解析。当前候选来自公开的 [MHRS Custom GP Frames](https://github.com/AlexQFMM2/MHRS-Custom-GP-Frames) 实现，只参考其只读节点名称与查询接口；本项目自行实现解析，不引入其动作树修改、GP 帧修改或自动反击代码。候选在本机被观察后仍保留来源与 `community_candidate` 状态，直到单独的实机动作验收将其升级。
 
@@ -49,4 +49,4 @@ python tools/analyze_player_action_evidence.py `
 
 分析器汇总目录覆盖、实际节点、标签组合与运行时转换，并按 `foresight/mikiri`、`iai`、`sacred` 等名称词根列出候选。词根命中只用于缩小审核范围，输出明确标记为候选，不会直接写回运行时语义映射。
 
-部署后的确定性门禁使用 `tools/run_probe_session.ps1 -PlayerActionEvidence`。探针自动进入战斗层，只有当前玩家节点 ID 与全名都可读取时才完成；报告同时保存实际武器类型。探针只读，不切换装备、红蓝书或技能。
+部署后的确定性门禁使用 `tools/run_probe_session.ps1 -PlayerActionEvidence`。探针自动进入战斗层，只有当前玩家节点 ID 与全名都可读取时才完成；报告同时保存实际武器类型和当前训练时间轴快照。探针只读，不切换装备、红蓝书或技能。任意训练场景验收报告也携带同一时间轴快照，因此判定窗、玩家状态、受击和结果分类可以与起手验收一次采集。

@@ -204,6 +204,7 @@ function M.capture(self, player)
 
     local state = {
         availability = node_id ~= nil and "available" or (tag_count > 0 and "partial" or "unavailable"),
+        player_type = self.bindings.player_type,
         node_id = node_id,
         node_name = node_name,
         tags = tags,

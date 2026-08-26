@@ -21,7 +21,13 @@
         "Attack.BiteMax.Phase01",
         "Normal.Search.Phase00"
       ],
-      "product_acceptance": "pending"
+      "product_acceptance": {
+        "status": "completed",
+        "session_id": "9e7b90007c0b41debbd9dbcc7aacb265",
+        "report": "artifacts/probe_reports/9e7b90007c0b41debbd9dbcc7aacb265.training_scenario_acceptance.completed.json",
+        "completed_rounds": 1,
+        "target_rounds": 1
+      }
     },
     {
       "action": 26,
@@ -34,7 +40,13 @@
         "Normal.Search.Phase00"
       ],
       "historical_complete_runs": 5,
-      "product_acceptance": "pending"
+      "product_acceptance": {
+        "status": "completed",
+        "session_id": "3a2dbb803fcd406496cc0f872d76c346",
+        "report": "artifacts/probe_reports/3a2dbb803fcd406496cc0f872d76c346.training_scenario_acceptance.completed.json",
+        "completed_rounds": 1,
+        "target_rounds": 1
+      }
     }
   ],
   "deferred": [

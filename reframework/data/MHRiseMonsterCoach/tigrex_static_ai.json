@@ -97,7 +97,14 @@
         "observed_motion": "MaxBite_IdleC_L",
         "completed_sessions": 1,
         "completed_repeats": 1,
-        "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json"
+        "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json",
+        "product_acceptance": {
+          "status": "completed",
+          "session_id": "9e7b90007c0b41debbd9dbcc7aacb265",
+          "completed_rounds": 1,
+          "target_rounds": 1,
+          "evidence": "docs/evidence/DEPLOYMENT_AND_STARTER_ACCEPTANCE_2026-08-26.json"
+        }
       }
     },
     {
@@ -119,7 +126,14 @@
         "observed_motion": "em032_00_08050",
         "completed_sessions": 3,
         "completed_repeats": 6,
-        "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json"
+        "evidence": "docs/evidence/TIGREX_KEY_STARTER_CANDIDATES_2026-08-24.json",
+        "product_acceptance": {
+          "status": "completed",
+          "session_id": "3a2dbb803fcd406496cc0f872d76c346",
+          "completed_rounds": 1,
+          "target_rounds": 1,
+          "evidence": "docs/evidence/DEPLOYMENT_AND_STARTER_ACCEPTANCE_2026-08-26.json"
+        }
       }
     },
     {

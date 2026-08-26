@@ -390,6 +390,9 @@ function metadata_api:player_action_diagnostics()
         },
     }
 end
+function metadata_api:training_timeline_diagnostics()
+    return { schema_version = 3, revision = 7, last_round = { outcome = "hit" } }
+end
 local player_action_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
 assert(player_action_probe:accept_request({
     session_id = "player-action-evidence", kind = "player_action_evidence",
@@ -399,6 +402,9 @@ assert(metadata_reports[#metadata_reports].status == "completed"
     and metadata_reports[#metadata_reports].player_action.weapon_type == "long_sword"
     and metadata_reports[#metadata_reports].player_action.player_action.node_name == "atk.atk_147.atk_147",
     "player action probe requires a resolved current node name")
+assert(metadata_reports[#metadata_reports].training_timeline.revision == 7
+    and metadata_reports[#metadata_reports].training_timeline.last_round.outcome == "hit",
+    "player action probe preserves the same training timeline consumed by the overlay")
 
 local axis_reports, axis_writes, axis_releases = {}, 0, 0
 local axis_api = { quest_api = quest_api }

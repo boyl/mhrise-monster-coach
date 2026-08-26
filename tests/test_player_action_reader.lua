@@ -84,6 +84,7 @@ local reader = Reader.new("mhrise", 71, 3, 1)
 
 assert(reader:capture(player) == true)
 assert(reader.state.availability == "available" and reader.state.node_id == 200)
+assert(reader.state.player_type == "snow.player.LongSwordPlayer")
 assert(reader.state.node_name == "LongSword/Idle")
 assert(reader.state.tags.attack == true and reader.state.tags.escape == false)
 assert(reader.state.tags.guard == nil, "missing enum values remain unknown rather than false")
@@ -100,6 +101,7 @@ assert(evidence.current.node_name == "LongSword/Escape")
 assert(evidence.reader.node_catalog_count == 2)
 assert(#evidence.node_catalog == 2 and evidence.node_catalog[1].id == "200")
 assert(#evidence.events == 2 and evidence.events[2].sample == 3)
+assert(evidence.schema_version == 2 and evidence.events[2].player_type == "snow.player.LongSwordPlayer")
 assert(reader:description().revision == 2)
 
 current_node = 200

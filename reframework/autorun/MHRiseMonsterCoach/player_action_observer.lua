@@ -14,6 +14,7 @@ local function copy_snapshot(snapshot)
     for index, value in ipairs(snapshot.unavailable or {}) do unavailable[index] = value end
     return {
         availability = snapshot.availability,
+        player_type = snapshot.player_type,
         node_id = snapshot.node_id,
         node_name = snapshot.node_name,
         tags = copy_tags(snapshot.tags),
@@ -34,6 +35,7 @@ local function snapshot_key(snapshot)
     table.sort(tags)
     return table.concat({
         tostring(snapshot.availability or "unknown"),
+        tostring(snapshot.player_type or "unknown"),
         tostring(snapshot.node_id or "unknown"),
         tostring(snapshot.node_name or "unknown"),
         table.concat(tags, ","),
@@ -42,7 +44,7 @@ end
 
 function M.new(limit)
     return setmetatable({
-        schema_version = 1,
+        schema_version = 2,
         limit = math.max(1, math.floor(tonumber(limit) or 128)),
         revision = 0,
         dropped_events = 0,

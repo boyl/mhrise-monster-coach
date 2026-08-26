@@ -100,6 +100,8 @@ function M:report(status, reason)
         condition_branch = self.condition_branch,
         input_motion = self.input_motion,
         player_action = self.player_action,
+        training_timeline = not ui_only and self.api.training_timeline_diagnostics
+            and self.api:training_timeline_diagnostics() or nil,
         ui_contract = self.ui_contract,
     }
     self.api:write_report(report)
