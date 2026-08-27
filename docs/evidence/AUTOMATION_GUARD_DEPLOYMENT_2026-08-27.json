@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-27",
+  "source_head": "f26c6d36e3285cddcfe0b3b720b610c4cb6cf370",
+  "source_version": "0.49.15-automation-takeover-guard",
+  "scope": "development_deployment_integrity",
+  "installed_file_count": 40,
+  "installed_app_hash_matches_source": true,
+  "game_process_count_after_deployment": 0,
+  "automation_request_present": false,
+  "temporary_quest_200032002_present": false,
+  "runtime_started": false,
+  "automation_started": false,
+  "acceptance_level": "installed_copy_verified_only"
+}
