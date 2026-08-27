@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "player_action_loadout_and_input_retest",
+  "captured_at": "2026-08-28T00:14:09.5490361+08:00",
+  "runtime": {
+    "game": "mhrise",
+    "tdb": 71,
+    "source_version": "0.49.16-input-correlation-resilience"
+  },
+  "sessions": {
+    "preflight": "34779d62c54543aebdd173c1c2bacdba",
+    "action_input": "9a04a675abd34185832b9e465f22eb01"
+  },
+  "artifacts": {
+    "preflight": "artifacts/probe_reports/34779d62c54543aebdd173c1c2bacdba.player_action_evidence.completed.json",
+    "preflight_sha256": "31A44F291F6239751AFBCF2FCFE098F9949137E2447B6A4FEA578A76640B314B",
+    "input_report": "artifacts/player_action_calibration/6fb3f58561b647e19ed21ee12bc31a23.json",
+    "input_report_sha256": "174FFE6747DDF5A2629377D0BAB2BAC9112F95A9EB037ED443A3109EB95FEA06",
+    "analysis": "artifacts/player_action_calibration/6fb3f58561b647e19ed21ee12bc31a23.analysis.json",
+    "analysis_sha256": "C3F11B1B9D313BFB59F8BBDA951D7F0BE418BA450BF04EE7CAB54C1F0910E841"
+  },
+  "loadout": {
+    "weapon_type": "long_sword",
+    "active_scroll": "red",
+    "red": [
+      "drawn_double_slash",
+      "spirit_reckoning_combo",
+      "sacred_sheathe_combo",
+      "soaring_kick",
+      "harvest_moon"
+    ],
+    "blue": [
+      "step_slash",
+      "spirit_roundslash_combo",
+      "special_sheathe_combo",
+      "soaring_kick",
+      "harvest_moon"
+    ]
+  },
+  "batch": {
+    "requested": 7,
+    "observed": 5,
+    "input_failed": 2,
+    "player_takeover": false,
+    "semantic_observed": 3,
+    "semantic_not_observed": 4,
+    "semantic_passed_steps": ["basic_overhead", "thrust", "dodge"],
+    "semantic_mismatch_steps": [
+      "foresight_attempt",
+      "special_sheathe",
+      "iai_slash_attempt",
+      "iai_spirit_attempt"
+    ]
+  },
+  "conclusions": [
+    "XBUTTON1 correction is not sufficient to represent the local Spirit Blade binding.",
+    "The red scroll equips Sacred Sheathe, so Special Sheathe and both Iai follow-ups were inapplicable plan items rather than valid failures.",
+    "Partial-step evidence and all remaining independent steps were preserved after action-signal timeouts.",
+    "The next calibration must derive its expected steps from the active switch-skill loadout and inspect the known input manager contract before another raw-button experiment."
+  ],
+  "safety": {
+    "equipment_writes": false,
+    "switch_skill_writes": false,
+    "save_writes": false,
+    "temporary_quest_removed": true,
+    "terminal_request_removed": true,
+    "game_left_running": true
+  }
+}

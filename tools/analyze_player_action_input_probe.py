@@ -112,6 +112,12 @@ def summarize_step(row: dict[str, Any]) -> dict[str, Any]:
 
 def analyze(document: dict[str, Any]) -> dict[str, Any]:
     rows = [row for row in document.get("results") or [] if isinstance(row, dict)]
+    declared_steps = document.get("expected_step_ids")
+    expected_steps = (
+        tuple(str(value) for value in declared_steps if value)
+        if isinstance(declared_steps, list)
+        else EXPECTED_STEPS
+    )
     steps = [summarize_step(row) for row in rows]
     by_id = {row.get("id"): row for row in steps if isinstance(row.get("id"), str)}
     node_steps: defaultdict[tuple[str, str], set[str]] = defaultdict(set)
@@ -131,23 +137,23 @@ def analyze(document: dict[str, Any]) -> dict[str, Any]:
             node["observed_in_steps"] = sorted(node_steps[key])
             node["exclusive_to_step"] = len(node_steps[key]) == 1
 
-    missing = [step_id for step_id in EXPECTED_STEPS if step_id not in by_id]
+    missing = [step_id for step_id in expected_steps if step_id not in by_id]
     incomplete = [
-        step_id for step_id in EXPECTED_STEPS
+        step_id for step_id in expected_steps
         if step_id in by_id and by_id[step_id]["capture_status"] != "observed"
     ]
     empty_observed = [
-        step_id for step_id in EXPECTED_STEPS
+        step_id for step_id in expected_steps
         if step_id in by_id
         and by_id[step_id]["capture_status"] == "observed"
         and not by_id[step_id]["correlated_nodes"]
     ]
     semantic_mismatches = [
-        step_id for step_id in EXPECTED_STEPS
+        step_id for step_id in expected_steps
         if step_id in by_id and by_id[step_id]["semantic_status"] == "not_observed"
     ]
     semantic_unavailable = [
-        step_id for step_id in EXPECTED_STEPS
+        step_id for step_id in expected_steps
         if step_id in by_id and by_id[step_id]["semantic_status"] == "unavailable"
     ]
     complete = (
@@ -174,12 +180,14 @@ def analyze(document: dict[str, Any]) -> dict[str, Any]:
             "weapon_type": document.get("weapon_type"),
             "player_type": document.get("player_type"),
             "active_scroll": document.get("active_scroll"),
+            "switch_skills": document.get("switch_skills"),
+            "plan": document.get("plan"),
             "equipment_writes": document.get("equipment_writes"),
             "save_writes": document.get("save_writes"),
         },
         "gate": {
             "status": "complete" if complete else "partial",
-            "expected_steps": list(EXPECTED_STEPS),
+            "expected_steps": list(expected_steps),
             "missing_steps": missing,
             "incomplete_steps": incomplete,
             "observed_steps_without_correlated_nodes": empty_observed,

@@ -44,6 +44,7 @@ $script:SupportedSteps = [ordered]@{
     }
     special_sheathe = [ordered]@{
         label = '特殊纳刀'
+        required_switch_skill = 'special_sheathe_combo'
         expected_tags = @('attack')
         expected_node_prefixes = @('atk.atk151.atk_152')
         operations = @(
@@ -58,6 +59,7 @@ $script:SupportedSteps = [ordered]@{
     }
     iai_slash_attempt = [ordered]@{
         label = '居合拔刀斩（尝试）'
+        required_switch_skill = 'special_sheathe_combo'
         expected_tags = @('attack')
         # atk_153 is a bounded community-data inference from the verified
         # atk_152 stance and atk_155 spirit route. Runtime evidence must confirm it.
@@ -80,6 +82,7 @@ $script:SupportedSteps = [ordered]@{
     }
     iai_spirit_attempt = [ordered]@{
         label = '居合拔刀气刃斩（尝试）'
+        required_switch_skill = 'special_sheathe_combo'
         expected_tags = @('attack')
         expected_node_prefixes = @('atk.atk151.atk_155')
         operations = @(
@@ -102,17 +105,31 @@ $script:SupportedSteps = [ordered]@{
 
 function Get-LongSwordDefaultInputPlan {
     [CmdletBinding()]
-    param([string[]]$Step = @())
+    param(
+        [string[]]$Step = @(),
+        [string[]]$ActiveSwitchSkill = @()
+    )
 
     $ids = if ($Step.Count -eq 0) { @($script:SupportedSteps.Keys) } else { @($Step) }
+    $availabilityKnown = $PSBoundParameters.ContainsKey('ActiveSwitchSkill')
     $result = foreach ($id in $ids) {
         if (-not $script:SupportedSteps.Contains($id)) {
             throw "Unsupported Long Sword input step '$id'. Supported: $($script:SupportedSteps.Keys -join ', ')"
         }
         $definition = $script:SupportedSteps[$id]
+        $requiredSwitchSkill = if ($definition.Contains('required_switch_skill')) {
+            [string]$definition.required_switch_skill
+        } else { $null }
+        $applicable = -not $availabilityKnown -or [string]::IsNullOrWhiteSpace($requiredSwitchSkill) `
+            -or $requiredSwitchSkill -in $ActiveSwitchSkill
         [pscustomobject]@{
             id = $id
             label = $definition.label
+            required_switch_skill = $requiredSwitchSkill
+            applicable = $applicable
+            inapplicable_reason = if ($applicable) { $null } else {
+                "Active switch-skill loadout does not contain '$requiredSwitchSkill'."
+            }
             expected_tags = @($definition.expected_tags)
             expected_node_prefixes = @($definition.expected_node_prefixes)
             operations = @($definition.operations | ForEach-Object { [pscustomobject]$_ })

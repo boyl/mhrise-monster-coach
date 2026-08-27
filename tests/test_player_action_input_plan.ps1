@@ -20,6 +20,22 @@ $expectedIds = @(
 if (($plan.id -join ',') -ne ($expectedIds -join ',')) {
     throw "Unexpected plan order: $($plan.id -join ',')"
 }
+$sacredScrollPlan = @(Get-LongSwordDefaultInputPlan `
+    -ActiveSwitchSkill @('sacred_sheathe_combo', 'soaring_kick'))
+$sacredApplicable = @($sacredScrollPlan | Where-Object applicable)
+$sacredExcluded = @($sacredScrollPlan | Where-Object { -not $_.applicable })
+if (($sacredApplicable.id -join ',') -ne 'basic_overhead,thrust,dodge,foresight_attempt' `
+    -or ($sacredExcluded.id -join ',') -ne 'special_sheathe,iai_slash_attempt,iai_spirit_attempt') {
+    throw 'Sacred Sheathe loadouts must exclude the Special Sheathe/Iai calibration family.'
+}
+if (@($sacredExcluded | Where-Object required_switch_skill -ne 'special_sheathe_combo').Count -ne 0) {
+    throw 'Every excluded Iai-family step must declare its switch-skill prerequisite.'
+}
+$specialScrollPlan = @(Get-LongSwordDefaultInputPlan `
+    -ActiveSwitchSkill @('special_sheathe_combo', 'soaring_kick'))
+if (@($specialScrollPlan | Where-Object { -not $_.applicable }).Count -ne 0) {
+    throw 'Special Sheathe loadouts must retain the complete seven-step plan.'
+}
 if (@($plan | Where-Object source -ne 'capcom_official_windows_default_controls').Count -ne 0) {
     throw 'Every step must retain the official default-control provenance.'
 }
@@ -130,6 +146,11 @@ if ($inputProbeSource -notmatch "status = 'input_failed'" `
     -or $inputProbeSource -notmatch "'action_signal_timeout'" `
     -or $inputProbeSource -notmatch 'player_takeover = \$takeoverDetected') {
     throw 'The batch must preserve partial evidence and classify expected input failures.'
+}
+if ($inputProbeSource -notmatch 'active_switch_skill_aware' `
+    -or $inputProbeSource -notmatch 'expected_step_ids' `
+    -or $inputProbeSource -notmatch 'inapplicable_reason') {
+    throw 'The runtime plan must be loadout-aware and explain excluded steps.'
 }
 $runtimeSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\reframework\autorun\MHRiseMonsterCoach\runtime.lua') -Raw

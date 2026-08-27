@@ -17,10 +17,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Import-Module (Join-Path $PSScriptRoot 'PlayerActionInput.psm1') -Force
-$plan = @(Get-LongSwordDefaultInputPlan -Step $Step)
 
 if ($DryRun) {
-    $plan | ConvertTo-Json -Depth 8
+    Get-LongSwordDefaultInputPlan -Step $Step | ConvertTo-Json -Depth 8
     exit 0
 }
 
@@ -215,6 +214,23 @@ $combat = Read-JsonFile -Path $combatStatePath
 if ($combat.weapon_type -ne 'long_sword' -or $combat.weapon_controller_type -ne 'snow.player.PlayerWeaponCtrlLS_Sword') {
     throw 'Current player is not using Long Sword; the probe will not change equipment.'
 }
+$activeScroll = [string]$combat.active_scroll
+$activeSwitchSkills = if ($activeScroll -in @('red', 'blue') -and $combat.switch_skills) {
+    @($combat.switch_skills.$activeScroll | Where-Object { $_ })
+} else { @() }
+$catalog = @(Get-LongSwordDefaultInputPlan -Step $Step `
+    -ActiveSwitchSkill $activeSwitchSkills)
+$inapplicable = @($catalog | Where-Object { -not $_.applicable })
+if ($Step.Count -gt 0 -and $inapplicable.Count -gt 0) {
+    $details = @($inapplicable | ForEach-Object {
+        "$($_.id): $($_.inapplicable_reason)"
+    }) -join '; '
+    throw "Requested action calibration is not applicable to the active '$activeScroll' scroll: $details"
+}
+$plan = @($catalog | Where-Object applicable)
+if ($plan.Count -eq 0) {
+    throw "No Long Sword calibration step applies to the active '$activeScroll' scroll."
+}
 
 Initialize-MonsterCoachInputBridge
 $game.Refresh()
@@ -346,6 +362,18 @@ $report = [ordered]@{
     weapon_type = $combat.weapon_type
     active_scroll = $combat.active_scroll
     switch_skills = $combat.switch_skills
+    expected_step_ids = @($plan.id)
+    plan = [ordered]@{
+        strategy = 'active_switch_skill_aware'
+        active_switch_skills = @($activeSwitchSkills)
+        excluded_steps = @($inapplicable | ForEach-Object {
+            [ordered]@{
+                id = $_.id
+                required_switch_skill = $_.required_switch_skill
+                reason = $_.inapplicable_reason
+            }
+        })
+    }
     results = @($results)
     summary = [ordered]@{
         requested = $plan.Count

@@ -62,11 +62,11 @@ app (composition root)
 
 猎人实时动作采用 `player_action_reader → player_action_observer → PlayerCombatState.action_state.evidence → player_action_semantics → Model` 的单向依赖。Reader 只接触 REFramework 对象，Observer 负责去重和有界历史，语义解析器只消费武器数据包，Model 记录稳定契约。动作节点到“见切/居合”等名称的映射禁止写入 Reader、Controller 或 View。社区来源的节点只标记为候选；本机观察表示“节点确实出现”，不等于映射已经实机验证，更不等于反击成功。
 
-开发期自动校准额外使用 `runtime_player_action_signal.json` 作为只读适配边界。它只在离线、支持版本且 Quest ID 为 `200032002` 时启用，只在节点转换时写当前节点与修订号；外部白名单输入适配器依据该信号连接复合按键。招式预期节点仍属于输入计划/数据契约，不下沉到通用按键桥或游戏 Runtime。正常陪练任务不产生该信号。
+开发期自动校准额外使用 `runtime_player_action_signal.json` 作为只读适配边界。它只在离线、支持版本且 Quest ID 为 `200032002` 时启用，只在节点转换时写当前节点与修订号；外部白名单输入适配器依据该信号连接复合按键。输入计划先读取活动红/蓝书的替换技，并把技能前置条件不满足的步骤写入 `excluded_steps`；显式请求不适用步骤时失败关闭。招式预期节点仍属于输入计划/数据契约，不下沉到通用按键桥或游戏 Runtime。正常陪练任务不产生该信号。
 
 外部输入适配器只允许在会话开始时取得一次游戏焦点。后续每个输入操作都要求游戏仍是前台窗口；玩家切走窗口即视为接管，采集器释放白名单按键并失败关闭，不得再次抢回焦点。临时请求只在匹配终态报告后删除，避免误删其他开发会话；正式 Mod 不依赖此外部输入路径。
 
-键位名称与 Win32 raw 值在输入边界集中转换。Capcom Windows 默认配置的 `Mouse Button 4` 映射到 Win32 `XBUTTON1 / dwData 0x0001`，不得按字符串中的数字误用 `XBUTTON2 / 0x0002`；映射依据同时保留[官方武器操作页](https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6)和[微软 `mouse_event` 定义](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event)。动作信号超时、玩家接管焦点和输入发送失败是三个不同的外部结果，批处理器保存当前步骤证据后，只对玩家接管立即停止。
+键位名称与 Win32 raw 值在输入边界集中转换。Capcom Windows 默认配置的 `Mouse Button 4` 映射到 Win32 `XBUTTON1 / dwData 0x0001`，不得按字符串中的数字误用 `XBUTTON2 / 0x0002`；映射依据同时保留[官方武器操作页](https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6)和[微软 `mouse_event` 定义](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event)。默认值只能作为来源明确的候选，不能代表玩家本机绑定；若目标语义未出现，先通过已知 `snow.StmInputManager` 的有界只读元数据契约定位真实入口，不继续枚举 X 按钮猜测。动作信号超时、玩家接管焦点和输入发送失败是三个不同的外部结果，批处理器保存当前步骤证据后，只对玩家接管立即停止。
 
 ### 离线怪物数据管线
 

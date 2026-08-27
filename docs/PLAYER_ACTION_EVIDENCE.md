@@ -85,3 +85,7 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.15` 根据一次被人工中止的部署校准收紧开发自动化生命周期。脚本不再关闭一个已经运行的游戏；它只在启动时取得一次焦点，玩家切换窗口后立即停止输入且不再抢回。终态探针请求会按会话 ID 清理，临时任务文件仍按校验和删除；校准结束默认保留游戏进程，只有显式传入 `-CloseGameAfterCalibration` 才正常关闭。该约束仅保护开发采集器，不改变普通玩家的 Mod 输入或任务行为。
 
 `0.49.15` 部署后的集中运行完成标题、据点、任务发布、准备区导航和原生传送，并采到 18 次玩家动作转换。直斩、突刺和翻滚均命中预期节点；所有依赖气刃键的步骤只产生普通 `atk_101`。排查确认输入表把 Capcom 默认 `Mouse Button 4` 错发成了 Win32 `XBUTTON2`，而 [Win32 文档](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event)规定第一个 X 按钮为 `XBUTTON1 / 0x0001`。`0.49.16` 修正该 raw 映射，并将超时、玩家接管和发送失败分开记录；单步超时不再丢弃整轮，也不会阻止后续独立步骤采样。
+
+`0.49.16` 修正后的完整七步复测仍只有直斩、突刺和翻滚命中预期语义；见切与特殊纳刀只产生普通 `atk_101`，两个后续居合步骤在等待特殊纳刀节点时超时。整批没有玩家接管，所有七项均被执行并保留部分证据，证明新的错误分类与批处理恢复有效，也证明 XBUTTON1 不是充分修复。该报告还确认活动红书为 `sacred_sheathe_combo`、蓝书才是 `special_sheathe_combo`；因此红书下要求特殊纳刀/居合三项属于测试计划错误，而非玩家动作失败。摘要见 `docs/evidence/PLAYER_ACTION_LOADOUT_RETEST_2026-08-28.json`。
+
+`0.49.17` 将活动书替换技提升为校准计划契约。默认批次仅执行当前配装适用步骤，报告同时保存 `expected_step_ids`、活动技能和带原因的 `excluded_steps`；分析器据此判断完整性。显式请求未装备的特殊纳刀或居合时直接拒绝，不自动切书或覆盖玩家配置。mhrice 的公开仓库提供静态游戏资源提取但不含运行时按键绑定解析；REFramework 提供 TDB/HID 访问但没有《崛起》现成的武器语义绑定 API。为避免继续猜侧键，既有输入元数据探针现只读筛选已知 `snow.StmInputManager` 层级中与 input/key/keyboard/mouse/button/bind/device/config 相关的字段和方法签名，等待下一次集中部署一次取证。

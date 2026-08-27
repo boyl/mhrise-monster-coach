@@ -12,6 +12,72 @@ local function method_contract(type_def, name)
     return { available = true, name = name, signature = tostring(method) }
 end
 
+local function type_name(type_def)
+    return type_def and safe(function() return type_def:get_full_name() end) or nil
+end
+
+local INPUT_CONTRACT_TERMS = {
+    "input", "key", "keyboard", "mouse", "button", "bind", "device", "config",
+}
+
+local function mentions_input_contract(value)
+    local lower = string.lower(tostring(value or ""))
+    for _, term in ipairs(INPUT_CONTRACT_TERMS) do
+        if string.find(lower, term, 1, true) ~= nil then return true end
+    end
+    return false
+end
+
+-- This is deliberately a bounded metadata probe over one known singleton
+-- hierarchy.  It never invokes an unknown input method or walks every TDB type.
+local function input_contract_hierarchy(type_def, instance)
+    local result, seen, depth = {}, {}, 0
+    while type_def ~= nil and depth < 8 do
+        local current_name = type_name(type_def) or "unknown"
+        if seen[current_name] then break end
+        seen[current_name] = true
+        local level = { type = current_name, fields = {}, methods = {} }
+        for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+            local name = safe(function() return field:get_name() end)
+            local field_type = safe(function() return field:get_type() end)
+            local field_type_name = type_name(field_type)
+            if mentions_input_contract(name) or mentions_input_contract(field_type_name) then
+                local value = safe(function() return field:get_data(instance) end)
+                if type(value) ~= "number" and type(value) ~= "boolean"
+                    and type(value) ~= "string" then value = nil end
+                level.fields[#level.fields + 1] = {
+                    name = name,
+                    type = field_type_name,
+                    is_static = safe(function() return field:is_static() end) == true,
+                    primitive_value = value,
+                }
+            end
+        end
+        for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+            local name = safe(function() return method:get_name() end)
+            local return_type = type_name(safe(function() return method:get_return_type() end))
+            local param_types = {}
+            for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+                param_types[#param_types + 1] = type_name(param_type) or "unknown"
+            end
+            if mentions_input_contract(name) or mentions_input_contract(return_type)
+                or mentions_input_contract(table.concat(param_types, " ")) then
+                level.methods[#level.methods + 1] = {
+                    name = name,
+                    return_type = return_type,
+                    param_types = param_types,
+                }
+            end
+        end
+        table.sort(level.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
+        table.sort(level.methods, function(a, b) return tostring(a.name) < tostring(b.name) end)
+        result[#result + 1] = level
+        type_def = safe(function() return type_def:get_parent_type() end)
+        depth = depth + 1
+    end
+    return result
+end
+
 function M.new()
     local button_type = safe(function() return sdk.find_type_definition("via.hid.GamePadButton") end)
     local emu_up_field = button_type and safe(function() return button_type:get_field("EmuLup") end) or nil
@@ -94,6 +160,7 @@ function M:diagnostics()
     local device_type = device and safe(function() return device:get_type_definition() end) or nil
     local axis = device and safe(function() return device:call("get_AxisL") end) or nil
     local stm = safe(function() return sdk.get_managed_singleton("snow.StmInputManager") end)
+    local stm_type = stm and safe(function() return stm:get_type_definition() end) or nil
     local active_device = stm and safe(function() return stm:get_field("_ActiveDevice") end) or nil
     return {
         schema_version = 1,
@@ -112,9 +179,8 @@ function M:diagnostics()
             set_button = method_contract(device_type, "set_Button(via.hid.GamePadButton)"),
         },
         stm_input_manager_available = stm ~= nil,
-        stm_input_manager_type = stm and safe(function()
-            return stm:get_type_definition():get_full_name()
-        end) or nil,
+        stm_input_manager_type = type_name(stm_type),
+        stm_input_contract = input_contract_hierarchy(stm_type, stm),
         stm_active_device = active_device and safe(function()
             return tonumber(active_device:get_field("_ActiveDevice"))
                 or tostring(active_device:get_field("_ActiveDevice"))

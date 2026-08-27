@@ -10,8 +10,30 @@ function device:call(name)
     if name == "get_AxisL" then return { x = 0.25, y = -0.5 } end
 end
 local stm = {}
+local stm_type = {}
+function stm_type:get_full_name() return "snow.StmInputManager" end
+function stm_type:get_parent_type() return nil end
+function stm_type:get_fields()
+    return {{
+        get_name = function() return "_KeyboardConfig" end,
+        get_type = function()
+            return { get_full_name = function() return "snow.KeyboardConfig" end }
+        end,
+        get_data = function() return 4 end,
+        is_static = function() return false end,
+    }}
+end
+function stm_type:get_methods()
+    return {{
+        get_name = function() return "get_ActiveInputDevice" end,
+        get_return_type = function()
+            return { get_full_name = function() return "snow.InputDevice" end }
+        end,
+        get_param_types = function() return {} end,
+    }}
+end
 function stm:get_type_definition()
-    return { get_full_name = function() return "snow.StmInputManager" end }
+    return stm_type
 end
 function stm:get_field(name)
     if name == "_ActiveDevice" then
@@ -46,6 +68,10 @@ assert(diagnostics.methods.set_axis_l.available)
 assert(not diagnostics.methods.set_button.available)
 assert(diagnostics.stm_input_manager_available)
 assert(diagnostics.stm_active_device == 1 and diagnostics.emu_left_up_available)
+assert(#diagnostics.stm_input_contract == 1)
+assert(diagnostics.stm_input_contract[1].fields[1].name == "_KeyboardConfig")
+assert(diagnostics.stm_input_contract[1].fields[1].primitive_value == 4)
+assert(diagnostics.stm_input_contract[1].methods[1].name == "get_ActiveInputDevice")
 local adapter = Adapter.new()
 assert(adapter:write_axis(0, 1))
 assert(adapter:diagnostics().owned and adapter:diagnostics().request_count == 1)

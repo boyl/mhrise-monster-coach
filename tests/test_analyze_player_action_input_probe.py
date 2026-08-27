@@ -112,6 +112,33 @@ class PlayerActionInputProbeAnalysisTests(unittest.TestCase):
         self.assertEqual(step["correlated_nodes"][0]["node_name"], "atk.atk_101.partial")
         self.assertIn("iai_slash_attempt", report["gate"]["incomplete_steps"])
 
+    def test_declared_loadout_plan_is_the_gate_contract(self):
+        expected = list(EXPECTED_STEPS[:4])
+        rows = [
+            result(step_id, index + 200, f"atk.{step_id}", tags={"attack": True})
+            for index, step_id in enumerate(expected)
+        ]
+        plan = {
+            "strategy": "active_switch_skill_aware",
+            "active_switch_skills": ["sacred_sheathe_combo"],
+            "excluded_steps": [
+                {"id": "special_sheathe", "reason": "not equipped"},
+                {"id": "iai_slash_attempt", "reason": "not equipped"},
+                {"id": "iai_spirit_attempt", "reason": "not equipped"},
+            ],
+        }
+        report = analyze({
+            "expected_step_ids": expected,
+            "active_scroll": "red",
+            "switch_skills": {"red": ["sacred_sheathe_combo"]},
+            "plan": plan,
+            "results": rows,
+        })
+        self.assertEqual(report["gate"]["status"], "complete")
+        self.assertEqual(report["gate"]["expected_steps"], expected)
+        self.assertEqual(report["gate"]["missing_steps"], [])
+        self.assertEqual(report["source"]["plan"], plan)
+
 
 if __name__ == "__main__":
     unittest.main()
