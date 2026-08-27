@@ -194,7 +194,9 @@ function M.start()
             training_acceptance_config = nil
         end
     end
-    local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id)
+    local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id, {
+        player_action_quest_id = Profile.training_quest.player_calibration_id,
+    })
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end
     function bootstrap_api:write_status(status)
@@ -226,7 +228,10 @@ function M.start()
     local startup_bootstrap = StartupBootstrapController.new(bootstrap_api)
     startup_bootstrap:accept_request(probe_api:read_request())
 
-    local order_hooked, order_error = runtime:install_quest_list_order_hook({ Profile.training_quest.id })
+    local order_hooked, order_error = runtime:install_quest_list_order_hook({
+        Profile.training_quest.id,
+        Profile.training_quest.player_calibration_id,
+    })
     if not order_hooked then
         log.warn("[MHRiseMonsterCoach] " .. tostring(order_error))
     end
@@ -253,7 +258,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.10-behavior-exit-timeline loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.11-player-calibration-quest loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

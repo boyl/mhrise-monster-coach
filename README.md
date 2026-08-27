@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：开发预览版 `0.49.8-response-timing-evidence`。轰龙核心闭环已有多项实机证据，但仓库源码可能领先于已安装副本；尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
+> 当前状态：开发预览版 `0.49.11-player-calibration-quest`。轰龙核心闭环已有多项实机证据，但仓库源码可能领先于已安装副本；尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 
@@ -133,6 +133,7 @@ py -3 -m venv .venv
 - [训练时间轴与复盘](docs/TIMELINE_REVIEW.md)
 - [实机验收矩阵](docs/REAL_GAME_ACCEPTANCE.md)
 - [证据流水线](docs/EVIDENCE_PIPELINE.md)
+- [猎人动作证据与自动校准](docs/PLAYER_ACTION_EVIDENCE.md)
 - [第三方来源与说明](THIRD_PARTY_NOTICES.md)
 
 研究与实现主要参考 [MHRice](https://github.com/wwylele/mhrice)、[REFramework](https://github.com/praydog/REFramework)、[REFramework 文档](https://reframework.praydog.com/)、[MonsterHunterRiseModding Wiki](https://github.com/mhvuze/MonsterHunterRiseModding/wiki) 和 [RE-BHVT-Editor](https://github.com/praydog/RE-BHVT-Editor)。第三方代码和数据只按其许可证与证据边界使用。
@@ -152,8 +153,8 @@ pwsh -NoProfile -File tests/test_deploy_dev.ps1
 
 ## 近期目标
 
-1. 集中部署并验收大咬、右回旋攻击、太刀只读上下文和 0.49.8 结果时间轴。
-2. 将训练结果从“动作/状态尝试”推进到有明确判定重叠证据的防御、回避、见切、居合与反击。
+1. 集中复验自动太刀校准任务的七步输入批次，不再让玩家逐招手工标注。
+2. 将自动采集的动作节点与怪物判定窗关联，把结果从“动作/状态尝试”推进到有明确证据的防御、回避、见切、居合与反击。
 3. 完成轰龙实用版 8–12 个高价值起手及主要固定、条件和随机派生。
 4. 稳定轰龙闭环后，以第二只复杂怪物验证数据包扩展能力。
 

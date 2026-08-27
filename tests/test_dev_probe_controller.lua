@@ -406,6 +406,25 @@ assert(metadata_reports[#metadata_reports].training_timeline.revision == 7
     and metadata_reports[#metadata_reports].training_timeline.last_round.outcome == "hit",
     "player action probe preserves the same training timeline consumed by the overlay")
 
+function metadata_api:area_snapshot()
+    return { combat_layer = false, player_combat_layer = true }
+end
+local player_only_context = {
+    in_quest = true, quest_no = 200032002, is_online = false,
+    build_supported = true, target_found = false, player_found = true,
+}
+function metadata_api:get_context() return player_only_context end
+local player_only_action_probe = Probe.new(metadata_api, 200032001, {
+    stable_frames = 1, player_action_quest_id = 200032002,
+})
+assert(player_only_action_probe:accept_request({
+    session_id = "player-only-action-evidence", kind = "player_action_evidence",
+    require_combat_area = true, target_quest_id = 200032002,
+}, player_only_context))
+player_only_action_probe:update()
+assert(metadata_reports[#metadata_reports].status == "completed",
+    "player action evidence accepts the verified player-only Forlorn Arena battle layer")
+
 local axis_reports, axis_writes, axis_releases = {}, 0, 0
 local axis_api = { quest_api = quest_api }
 function axis_api:get_context() return forced_context end

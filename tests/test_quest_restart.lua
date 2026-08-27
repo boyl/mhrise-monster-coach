@@ -2,15 +2,20 @@ package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. pa
 local QuestRestart = require("MHRiseMonsterCoach.quest_restart")
 
 local calls = {}
+local call_quest_ids = {}
 local api = {}
-local function called(name) calls[#calls + 1] = name return true end
+local function called(name, quest_id)
+    calls[#calls + 1] = name
+    if quest_id ~= nil then call_quest_ids[name] = quest_id end
+    return true
+end
 function api:request_reset() return called("reset") end
 function api:is_hub_ready() return true end
-function api:open_counter() return called("open") end
-function api:start_session() return called("session") end
+function api:open_counter(quest_id) return called("open", quest_id) end
+function api:start_session(quest_id) return called("session", quest_id) end
 function api:tick_posting() return true end
-function api:select_quest() return called("select") end
-function api:update_posting() return called("posted") end
+function api:select_quest(quest_id) return called("select", quest_id) end
+function api:update_posting(quest_id) return called("posted", quest_id) end
 function api:is_counter_closed() return true end
 function api:depart() return called("depart") end
 function api:finish_posting() called("finish") end
@@ -32,6 +37,9 @@ restart:update(quest)
 assert(restart.state == "complete", "completes only after the target quest is loaded")
 assert(table.concat(calls, ",") == "reset,open,session,select,posted,depart,finish",
     "uses the bounded native workflow in order")
+assert(call_quest_ids.open == 200032001 and call_quest_ids.session == 200032001
+    and call_quest_ids.select == 200032001 and call_quest_ids.posted == 200032001,
+    "quest ID remains explicit through every posting transition")
 local diagnostics = restart:diagnostics()
 assert(diagnostics.total_frames == 9 and diagnostics.state == "complete",
     "diagnostics measure only active restart frames")

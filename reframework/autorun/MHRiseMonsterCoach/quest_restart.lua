@@ -144,7 +144,7 @@ function M:update(context)
     if context.build_supported == false then return self:fail("unsupported runtime") end
 
     if self.state == M.states.SELECT_QUEST or self.state == M.states.WAIT_POSTED then
-        local ok, reason = self.api:tick_posting()
+        local ok, reason = self.api:tick_posting(self.quest_id)
         if not ok then return self:fail(reason) end
     end
 
@@ -162,15 +162,15 @@ function M:update(context)
     elseif self.state == M.states.OPEN_COUNTER then
         return advance(self, M.states.START_SESSION, self.api.open_counter)
     elseif self.state == M.states.START_SESSION then
-        local result, reason = self.api:start_session()
+        local result, reason = self.api:start_session(self.quest_id)
         if result == true then self:set_state(M.states.SELECT_QUEST)
         elseif result == false then return self:fail(reason) end
     elseif self.state == M.states.SELECT_QUEST then
-        local result, reason = self.api:select_quest()
+        local result, reason = self.api:select_quest(self.quest_id)
         if result == true then self:set_state(M.states.WAIT_POSTED)
         elseif result == false then return self:fail(reason) end
     elseif self.state == M.states.WAIT_POSTED then
-        local result, reason = self.api:update_posting()
+        local result, reason = self.api:update_posting(self.quest_id)
         if result == true then self:set_state(M.states.WAIT_COUNTER_CLOSE)
         elseif result == false then return self:fail(reason) end
     elseif self.state == M.states.WAIT_COUNTER_CLOSE then

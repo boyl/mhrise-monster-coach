@@ -1,0 +1,95 @@
+{
+  "QuestID": 200032002,
+  "QuestText": {
+    "QuestInfo": [
+      {
+        "Language": "ZHS",
+        "Name": "[开发校准] 猎人动作·塔之秘境",
+        "Client": "训练教官",
+        "Description": "仅供自动采集猎人动作语义。\r\n不会生成大型怪物，也没有任务报酬。\r\n采集结束后会自动移除此开发任务。",
+        "Target": "开发校准（不会生成目标怪物）",
+        "Fail": "时间耗尽"
+      },
+      {
+        "Language": "ENG",
+        "Name": "[Dev Calibration] Hunter Actions",
+        "Client": "Training Instructor",
+        "Description": "Temporary player-action calibration quest.\r\nNo large monster is spawned and no reward is granted.\r\nThe developer quest is removed after capture.",
+        "Target": "Developer calibration (target is not spawned)",
+        "Fail": "Time expires"
+      }
+    ],
+    "FallbackLanguage": "ZHS",
+    "DebugName": "MonsterCoach_PlayerActionCalibration",
+    "DebugClient": "MonsterCoach",
+    "DebugDescription": "Temporary developer-only player action calibration quest."
+  },
+  "QuestData": {
+    "QuestType": 1,
+    "QuestLevel": 3,
+    "EnemyLevel": 3,
+    "Map": 14,
+    "BaseTime": 21,
+    "TimeVariation": 0,
+    "TimeLimit": 50,
+    "Carts": 9,
+    "QuestConditions": [19, 0],
+    "TargetTypes": [2, 0],
+    "TargetMonsters": [32, 0],
+    "TargetItemIds": [67108864, 67108864],
+    "TargetAmounts": [1, 0],
+    "Monsters": [
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 }
+    ],
+    "ExtraMonsterCount": 0,
+    "SwapExitRide": false,
+    "SwapFrequencies": [0, 0],
+    "SwapConditions": [0, 0],
+    "SwapParams": [0, 0],
+    "SwapExitTimes": [0, 0],
+    "SwapStopType": 0,
+    "SwapStopParam": 0,
+    "SwapExecType": 0,
+    "Reward": { "Zenny": 0, "Points": 0, "HRP": 0 },
+    "SupplyTable": 310003,
+    "Icons": [9, 999, 999, 999, 999],
+    "Tutorial": false,
+    "FromNpc": false,
+    "ArenaParam": {
+      "FenceDefaultActive": false,
+      "FenceUptime": 0,
+      "FenceInitialDelay": 0,
+      "FenceCooldown": 0,
+      "Pillars": [false, false, false]
+    },
+    "AutoMatchHR": 10004,
+    "BattleBGMType": 0,
+    "ClearBGMType": 0
+  },
+  "EnemyData": {
+    "SmallMonsters": {
+      "SpawnType": 0,
+      "HealthTable": 0,
+      "AttackTable": 0,
+      "PartTable": 0,
+      "OtherTable": 0,
+      "MultiTable": 0
+    },
+    "Monsters": [
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 }
+    ]
+  },
+  "RampageData": null
+}

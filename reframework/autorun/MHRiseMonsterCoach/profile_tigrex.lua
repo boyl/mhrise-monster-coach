@@ -5,6 +5,7 @@ return {
     enemy_ids = { [32] = true, [5000] = true, ["em032_00"] = true },
     training_quest = {
         id = 200032001,
+        player_calibration_id = 200032002,
         name = "[Coach] Tigrex - Forlorn Arena",
         name_zh = "[陪练] 轰龙·塔之秘境",
         map_id = 14,

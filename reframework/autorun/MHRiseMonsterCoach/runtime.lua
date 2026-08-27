@@ -94,6 +94,7 @@ function M.new(config, profile)
         capabilities = {},
         quest_posting = {
             active = false,
+            target_quest_id = profile.training_quest.id,
             direct_session = false,
             action = nil,
             action_arg = nil,
@@ -762,8 +763,10 @@ function M.install_quest_posting_hooks(self)
             "getQuestCounterSelectedQuest()", nil, function()
                 local manager = sdk.get_managed_singleton("snow.QuestManager")
                 if manager == nil or self.methods.quest_data == nil then return nil end
+                local target_quest_id = self.quest_posting.target_quest_id
+                    or self.profile.training_quest.id
                 return safe(function()
-                    return self.methods.quest_data:call(manager, self.profile.training_quest.id)
+                    return self.methods.quest_data:call(manager, target_quest_id)
                 end)
             end },
         { "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager", "awake()", function(args)
@@ -792,14 +795,14 @@ end
 function M.quest_restart_api(self)
     local api = {}
 
-    local function is_target_quest_posted()
+    local function is_target_quest_posted(quest_id)
         local quest = sdk.get_managed_singleton("snow.QuestManager")
         if quest == nil or self.methods.quest_active == nil or self.methods.quest_no == nil then
             return false
         end
         local active = safe(function() return self.methods.quest_active:call(quest) end) == true
         local quest_no = safe(function() return self.methods.quest_no:call(quest) end)
-        return active and tonumber(quest_no) == tonumber(self.profile.training_quest.id)
+        return active and tonumber(quest_no) == tonumber(quest_id)
     end
 
     function api:request_reset()
@@ -829,21 +832,23 @@ function M.quest_restart_api(self)
         return can_invoke and not active
     end
 
-    function api:open_counter()
+    function api:open_counter(quest_id)
         local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
         local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
         if facility == nil or scene_id == nil then return false, "Quest counter API unavailable" end
+        self.runtime.quest_posting.target_quest_id = tonumber(quest_id)
+            or self.runtime.profile.training_quest.id
         self.runtime.quest_posting.active = true
         local ok = pcall(function() facility:call("activateOnly", scene_id) end)
         return ok, ok and nil or "Failed to open quest counter"
     end
 
-    function api:start_session()
+    function api:start_session(quest_id)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         if counter == nil then return nil end
         local identifier_ok, identifier_error = pcall(function()
-            counter:call("setQuestIdentifierQuestNo", self.runtime.profile.training_quest.id)
+            counter:call("setQuestIdentifierQuestNo", quest_id)
         end)
         if not identifier_ok then
             return false, "Failed to set training quest identifier: " .. tostring(identifier_error)
@@ -869,8 +874,8 @@ function M.quest_restart_api(self)
         return true
     end
 
-    function api:select_quest()
-        if is_target_quest_posted() then return true end
+    function api:select_quest(quest_id)
+        if is_target_quest_posted(quest_id) then return true end
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
         if gui == nil then return false, "GuiManager unavailable" end
         if safe(function() return gui:call("isOpenYNInfo") end) == true then return true end
@@ -908,13 +913,13 @@ function M.quest_restart_api(self)
         return ok, ok and nil or "Quest posting routine failed: " .. tostring(reason)
     end
 
-    function api:update_posting()
+    function api:update_posting(quest_id)
         local counter = sdk.get_managed_singleton(
             "snow.gui.fsm.questcounter.GuiQuestCounterFsmManager")
         local success = enum_value("snow.gui.SnowGuiCommonUtility.BaseBranchValue", "SUCCESS")
         local branch_succeeded = counter and success ~= nil
             and safe(function() return counter:call("get_BaseBranchValue") end) == success
-        if branch_succeeded or is_target_quest_posted() then
+        if branch_succeeded or is_target_quest_posted(quest_id) then
             local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
             local facility = sdk.get_managed_singleton("snow.LobbyFacilityUIManager")
             local scene_id = enum_value("snow.LobbyFacilityUIManager.SceneId", "QuestCounter")
@@ -980,6 +985,7 @@ end
 function M.clear_quest_posting(self, close_windows)
     local posting = self.quest_posting
     posting.active = false
+    posting.target_quest_id = self.profile.training_quest.id
     posting.direct_session = false
     if close_windows then
         local gui = sdk.get_managed_singleton("snow.gui.GuiManager")
@@ -2185,6 +2191,19 @@ function M.player_combat_state(self)
     return self.player_state_reader.state
 end
 
+local function player_only_forlorn_combat_layer(self, quest_no)
+    if tonumber(quest_no) ~= tonumber(self.profile.training_quest.player_calibration_id) then
+        return false
+    end
+    local position = get_position(get_transform(self.player))
+    local y = position and tonumber(position.y) or nil
+    -- The Forlorn Arena preparation layer is around y=569, while the battle
+    -- layer is around y=0.  The dedicated, temporary quest ID supplies the
+    -- ownership gate; onAccess hooks are not required because they are absent
+    -- on some otherwise-supported REFramework builds.
+    return y ~= nil and y > -100.0 and y < 100.0
+end
+
 function M.context(self)
     local quest = sdk.get_managed_singleton("snow.QuestManager")
     local lobby = sdk.get_managed_singleton("snow.LobbyManager")
@@ -2216,7 +2235,9 @@ function M.context(self)
     self.was_in_quest = in_quest
     M.refresh_player(self, false)
     local geometry = M.target_geometry_snapshot(self)
-    if geometry ~= nil and tonumber(geometry.vertical_gap) <= 50.0 then
+    if (geometry ~= nil and tonumber(geometry.vertical_gap) <= 50.0)
+        or (in_quest and build_supported and not is_online
+            and player_only_forlorn_combat_layer(self, quest_no)) then
         self.player_state_reader:capture(self.player, self.player_data)
     else
         self.player_state_reader:suspend("player combat state suspended during scene transition")
@@ -2582,6 +2603,8 @@ function M.area_snapshot(self)
         -- state has reported player 0/1 while Tigrex remains -1.  Both actors
         -- occupying the same vertical scene layer is the stable transfer signal.
         combat_layer = player_enemy_vertical_gap ~= nil and player_enemy_vertical_gap <= 50.0,
+        player_combat_layer = player_only_forlorn_combat_layer(
+            self, self.last_context and self.last_context.quest_no),
         player_enemy_vertical_gap = player_enemy_vertical_gap,
         player_position = serializable_vector(player_position, false),
         enemy_position = serializable_vector(enemy_position, false),

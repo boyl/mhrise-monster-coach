@@ -22,6 +22,7 @@ param(
     [switch]$NativeThinkBranch,
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
+    [switch]$SkipDeployment,
     [switch]$FullReport,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 45,
     [ValidateRange(5, 30)][int]$SurveyTimeoutSeconds = 12,
@@ -92,8 +93,18 @@ if ($game) {
         throw "The game is running version '$installedVersion' but the probe requires '$sourceVersion'. Close the game once for deployment."
     }
 } else {
-    & (Join-Path $PSScriptRoot 'deploy_dev.ps1') -GameRoot $resolvedGameRoot
-    if (-not $?) { throw 'Probe deployment failed.' }
+    if ($SkipDeployment) {
+        if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+            throw '-SkipDeployment requires an existing verified development receipt.'
+        }
+        $installedVersion = (Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json).version
+        if ($installedVersion -ne $sourceVersion) {
+            throw "-SkipDeployment refused source '$sourceVersion' over installed '$installedVersion'."
+        }
+    } else {
+        & (Join-Path $PSScriptRoot 'deploy_dev.ps1') -GameRoot $resolvedGameRoot
+        if (-not $?) { throw 'Probe deployment failed.' }
+    }
 }
 
 if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
@@ -130,6 +141,7 @@ if ($ResumeExisting) {
             elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
+        target_quest_id = if ($PlayerActionEvidence) { 200032002 } else { 200032001 }
         requested_at = [DateTimeOffset]::Now.ToString('o')
         source_version = $sourceVersion
         auto_load_save = -not $UiContract
@@ -191,12 +203,36 @@ using System.Runtime.InteropServices;
 public static class MonsterCoachInput {
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool attach);
+    [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr hWnd, int command);
     [DllImport("user32.dll")] static extern uint MapVirtualKey(uint code, uint mapType);
     [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
-    public static bool PressKey(IntPtr gameWindow, byte virtualKey) {
-        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
+    static bool FocusWindow(IntPtr gameWindow) {
+        if (gameWindow == IntPtr.Zero) return false;
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground != gameWindow) {
+            uint processId;
+            uint foregroundThread = GetWindowThreadProcessId(foreground, out processId);
+            uint currentThread = GetCurrentThreadId();
+            bool attached = foregroundThread != 0 && AttachThreadInput(currentThread, foregroundThread, true);
+            try {
+                ShowWindowAsync(gameWindow, 9);
+                BringWindowToTop(gameWindow);
+                SetForegroundWindow(gameWindow);
+                SetFocus(gameWindow);
+            } finally {
+                if (attached) AttachThreadInput(currentThread, foregroundThread, false);
+            }
+        }
         System.Threading.Thread.Sleep(300);
-        if (GetForegroundWindow() != gameWindow) return false;
+        return GetForegroundWindow() == gameWindow;
+    }
+    public static bool PressKey(IntPtr gameWindow, byte virtualKey) {
+        if (!FocusWindow(gameWindow)) return false;
         byte scanCode = (byte)MapVirtualKey(virtualKey, 0);
         if (scanCode == 0) return false;
         const uint KEYEVENTF_KEYUP = 0x0002;
@@ -210,9 +246,7 @@ public static class MonsterCoachInput {
         return gameWindow != IntPtr.Zero && GetForegroundWindow() == gameWindow;
     }
     public static bool HoldKey(IntPtr gameWindow, byte virtualKey, int milliseconds) {
-        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
-        System.Threading.Thread.Sleep(300);
-        if (GetForegroundWindow() != gameWindow) return false;
+        if (!FocusWindow(gameWindow)) return false;
         byte scanCode = (byte)MapVirtualKey(virtualKey, 0);
         if (scanCode == 0) return false;
         const uint KEYEVENTF_KEYUP = 0x0002;
@@ -223,9 +257,7 @@ public static class MonsterCoachInput {
         return true;
     }
     public static bool HoldKeys(IntPtr gameWindow, byte firstKey, byte secondKey, int milliseconds) {
-        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
-        System.Threading.Thread.Sleep(300);
-        if (GetForegroundWindow() != gameWindow) return false;
+        if (!FocusWindow(gameWindow)) return false;
         byte firstScan = (byte)MapVirtualKey(firstKey, 0);
         byte secondScan = (byte)MapVirtualKey(secondKey, 0);
         if (firstScan == 0 || secondScan == 0) return false;
@@ -239,9 +271,7 @@ public static class MonsterCoachInput {
         return true;
     }
     public static bool BeginHoldKeys(IntPtr gameWindow, byte firstKey, byte secondKey) {
-        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
-        System.Threading.Thread.Sleep(300);
-        if (GetForegroundWindow() != gameWindow) return false;
+        if (!FocusWindow(gameWindow)) return false;
         byte firstScan = (byte)MapVirtualKey(firstKey, 0);
         byte secondScan = (byte)MapVirtualKey(secondKey, 0);
         if (firstScan == 0 || secondScan == 0) return false;
@@ -251,9 +281,7 @@ public static class MonsterCoachInput {
         return true;
     }
     public static bool BeginHoldMovement(IntPtr gameWindow, byte primaryKey, byte secondaryKey) {
-        if (gameWindow == IntPtr.Zero || !SetForegroundWindow(gameWindow)) return false;
-        System.Threading.Thread.Sleep(300);
-        if (GetForegroundWindow() != gameWindow) return false;
+        if (!FocusWindow(gameWindow)) return false;
         byte sprintScan = (byte)MapVirtualKey(0x10, 0);
         byte primaryScan = (byte)MapVirtualKey(primaryKey, 0);
         byte secondaryScan = secondaryKey == 0 ? (byte)0 : (byte)MapVirtualKey(secondaryKey, 0);

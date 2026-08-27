@@ -12,15 +12,22 @@ end
 -- Native area numbers are inconsistent in the Forlorn Arena (the player can
 -- report 0/1 while Tigrex remains -1 after a successful transfer).  Runtime
 -- therefore derives a scene-layer signal from the live actor transforms.
-local function combat_area_ready(areas)
-    return areas ~= nil and areas.combat_layer == true
+local function player_only_probe(request)
+    return request ~= nil and request.kind == "player_action_evidence"
+end
+
+local function combat_area_ready(areas, allow_player_only)
+    return areas ~= nil and (areas.combat_layer == true
+        or (allow_player_only == true and areas.player_combat_layer == true))
 end
 
 function M.new(api, quest_id, options)
     options = options or {}
-    return setmetatable({
+    local self = setmetatable({
         api = api,
         quest_id = quest_id,
+        default_quest_id = quest_id,
+        player_action_quest_id = options.player_action_quest_id or quest_id,
         state = "idle",
         frame = 0,
         state_frames = 0,
@@ -56,6 +63,17 @@ function M.new(api, quest_id, options)
         player_action = nil,
         ui_contract = nil,
     }, { __index = M })
+    return self
+end
+
+function M:select_request_quest(request)
+    local quest_id = self.default_quest_id
+    if player_only_probe(request) then quest_id = self.player_action_quest_id end
+    self.quest_id = quest_id
+    self.quest_flow = QuestRestart.new(self.api.quest_api, quest_id, {
+        hub_stable_frames = self.quest_flow.hub_stable_required,
+        timeout_frames = self.quest_flow.timeout_frames,
+    })
 end
 
 function M:set_state(state)
@@ -167,6 +185,12 @@ function M:accept_request(request, context)
             and request.kind ~= "native_think_branch")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
+    self:select_request_quest(request)
+    if request.target_quest_id ~= nil
+        and tonumber(request.target_quest_id) ~= tonumber(self.quest_id) then
+        self.request = request
+        return self:fail("Developer probe target quest is not allowlisted")
+    end
     if request.auto_load_save == true and context.in_quest ~= true
         and context.player_found ~= true then return false end
     self.request = request
@@ -292,8 +316,9 @@ function M:update()
         if self.quest_flow.state == "complete" then self:set_state("wait_stable") end
     elseif self.state == "wait_stable" then
         local areas = self.api:area_snapshot()
+        local player_only = player_only_probe(self.request)
         local combat_ready = self.request.require_combat_area ~= true
-            or combat_area_ready(areas)
+            or combat_area_ready(areas, player_only)
         if self.request.require_combat_area == true and self.request.auto_native_arena_transfer == true
             and not combat_ready
             and self.state_frames % 30 == 1 then
@@ -301,7 +326,9 @@ function M:update()
             self.arena_transfer = { attempted = true, ok = ok, reason = reason, retry = retry }
         end
         if self.state_frames % 30 == 1 then self:report("running") end
-        if target_quest(context, self.quest_id) and context.target_found and combat_ready then
+        local actor_ready = context.target_found
+            or (player_only and context.player_found == true)
+        if target_quest(context, self.quest_id) and actor_ready and combat_ready then
             self.stable_frames = self.stable_frames + 1
             if self.stable_frames >= self.stable_required then
                 if self.request.allow_spawn_probe ~= true then

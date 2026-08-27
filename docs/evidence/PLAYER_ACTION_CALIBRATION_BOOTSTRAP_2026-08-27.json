@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-08-27",
+  "source_version": "0.49.11-player-calibration-quest",
+  "result": "bootstrap_verified_action_batch_partial",
+  "scope": "automated_long_sword_player_action_calibration",
+  "quests": {
+    "normal_training_quest_id": 200032001,
+    "normal_training_quest_sha256_before_and_after": "6953D70DB5CC89976073E971D0BDDD42B4DE90563476242DF8739FF5E86A29B3",
+    "calibration_quest_id": 200032002,
+    "calibration_quest_sha256": "87A2943C734178E40A53731F444F09EE42B75EBE66883A60496AEF03296ED334",
+    "calibration_quest_type": "HUNTING",
+    "large_monster_spawn_count": 0,
+    "reward_value": 0,
+    "included_in_normal_deployment": false,
+    "removed_after_session": true
+  },
+  "verified": {
+    "native_quest_posting": true,
+    "automatic_departure": true,
+    "automatic_preparation_area_navigation": true,
+    "native_arena_transfer": true,
+    "monsterless_player_combat_layer": true,
+    "player_type": "snow.player.LongSword",
+    "weapon_type": "long_sword",
+    "switch_skill_books_preserved": true,
+    "equipment_writes": false,
+    "save_writes": false,
+    "observed_action_tags": [
+      "attack",
+      "escape"
+    ],
+    "observed_nodes": [
+      "wait.main",
+      "wp_on",
+      "atk.atk_wait.atk_wait_main.atk_wait_main",
+      "atk.atk_104.atk_104.new state 2A60599E",
+      "atk.esc_front",
+      "atk.atk_101.atk_101.new state D3A33E65"
+    ]
+  },
+  "bounded_experiments": [
+    {
+      "attempt": 1,
+      "session_id": "0b0062644e9f47c6adaa23e1c410ea91",
+      "result": "quest_selection_timeout",
+      "finding": "TOUR is not exposed through the normal quest-counter path"
+    },
+    {
+      "attempt": 2,
+      "session_id": "f39c7d43c0714db0b793167b888d6aca",
+      "result": "quest_selection_timeout",
+      "finding": "confirmed the quest-type mismatch before changing architecture"
+    },
+    {
+      "attempt": 3,
+      "session_prefix": "55f62eb6",
+      "result": "transfer_observed_but_access_hook_unavailable",
+      "finding": "player coordinates proved native arena arrival despite access_count remaining zero"
+    },
+    {
+      "attempt": 4,
+      "session_id": "f18f8b3953904a26a5f5370d4bf5fd7b",
+      "result": "bootstrap_complete_initial_idle_rejected",
+      "finding": "the arrival FSM is a temporary pre-input state"
+    },
+    {
+      "attempt": 5,
+      "session_id": "31d62c78830b47aa8137cab7215374bc",
+      "result": "bootstrap_complete_action_batch_partial",
+      "finding": "inputs became observable after arrival settled; drawn neutral needed to be accepted between steps"
+    }
+  ],
+  "offline_fixes_pending_one_concentrated_revalidation": [
+    "wait 12 seconds after native arena arrival before the first input",
+    "accept atk.atk_wait.atk_wait_main.atk_wait_main as a stable Long Sword neutral state",
+    "reuse the verified outer deployment instead of deploying again inside the probe"
+  ],
+  "evidence_policy": "runtime observations never upgrade community candidates to successful counter or iai semantics without a dedicated success signal"
+}
