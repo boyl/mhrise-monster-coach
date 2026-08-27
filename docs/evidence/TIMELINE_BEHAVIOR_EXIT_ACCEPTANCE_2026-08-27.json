@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "scope": "sticky ActionNo behavior-tree exit and training timeline settlement",
+  "runtime": {
+    "game_name": "mhrise",
+    "game_version": "16.0.2",
+    "tdb_version": 71,
+    "platform": "Steam PC",
+    "mode": "offline training quest"
+  },
+  "source": {
+    "git_commit": "8b72a3800bae2022727704c14ac359d6e5012238",
+    "version": "0.49.10-behavior-exit-timeline"
+  },
+  "deployment": {
+    "installed_version": "0.49.10-behavior-exit-timeline",
+    "managed_files_verified": 40,
+    "runtime_load_evidence": "[2026-08-27 09:56:10.690] [MHRiseMonsterCoach] 0.49.10-behavior-exit-timeline loaded; diagnostic safe mode=true",
+    "rollback_backup": "artifacts/install-backups/20260827-095737-0.49.9-weapon-scoped-player-evidence"
+  },
+  "before_fix": {
+    "version": "0.49.9-weapon-scoped-player-evidence",
+    "session_id": "68f4af665c024baa9913d54cf8ff69b4",
+    "report": "artifacts/probe_reports/68f4af665c024baa9913d54cf8ff69b4.training_scenario_acceptance.completed.json",
+    "scenario_result": "completed 1/1",
+    "timeline_active": true,
+    "timeline_action": 26,
+    "timeline_events": ["action_start", "hitbox_open", "hitbox_close"],
+    "missing": "result event",
+    "cause": "primary behavior tree returned to Normal.Search while ActionNo remained 26"
+  },
+  "after_fix": {
+    "session_id": "42b54ec438204f4d84fa0e448a11ec14",
+    "report": "artifacts/probe_reports/42b54ec438204f4d84fa0e448a11ec14.training_scenario_acceptance.completed.json",
+    "scenario_id": "tigrex_rotate_attack_right_single",
+    "scenario_result": "completed 1/1",
+    "behavior_path": [
+      "Attack.RotateAttackR.Phase00",
+      "Normal.Search.Phase00"
+    ],
+    "timeline_active": false,
+    "timeline_action": 26,
+    "timeline_events": ["action_start", "hitbox_open", "hitbox_close", "result"],
+    "hitbox_window_frames": {
+      "open": 121.55035400390625,
+      "last_active": 171.16160583496094,
+      "close_sample": 172.16160583496094,
+      "active_count": 27,
+      "source": "monster_coach_native"
+    },
+    "completion_basis": "behavior_tree_attack_exit",
+    "classification": {
+      "outcome": "unclassified",
+      "reason": "diagnostic safe mode does not enable health outcome tracking and no player response was injected"
+    }
+  },
+  "player_action_scope": {
+    "schema_version": 2,
+    "current_player_type": "snow.player.LongSword",
+    "events": 16,
+    "events_with_player_type": 16,
+    "event_attribution": "per_event",
+    "long_sword_knowledge_applicable": true,
+    "semantic_mapped_nodes": 0,
+    "boundary": "this unattended session observed transfer, wait and damage nodes; it did not inject or claim Foresight, Iai or other Long Sword semantics"
+  },
+  "result": "verified_real_game"
+}
