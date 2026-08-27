@@ -26,6 +26,9 @@ if (@($plan | Where-Object source -ne 'capcom_official_windows_default_controls'
 if (@($plan | Where-Object source_url -ne 'https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6').Count -ne 0) {
     throw 'Official control source URL drifted.'
 }
+if (@($plan | Where-Object win32_xbutton_source_url -ne 'https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event').Count -ne 0) {
+    throw 'Win32 X-button mapping source URL drifted.'
+}
 $allowedKinds = @(
     'mouse_click', 'key_click', 'delay', 'mouse_chord', 'mouse_key_chord',
     'wait_for_action_signal'
@@ -50,6 +53,14 @@ if (@($iaiSpirit.operations | Where-Object kind -eq 'wait_for_action_signal').Co
 if (@($operations | Where-Object kind -eq 'delay').Count -ne 0) {
     throw 'Compound actions must not depend on fixed timing delays.'
 }
+$sideButtons = @($operations | ForEach-Object {
+    if ($_.button -in @('x1', 'x2')) { $_.button }
+    if ($_.first -in @('x1', 'x2')) { $_.first }
+    if ($_.second -in @('x1', 'x2')) { $_.second }
+})
+if ($sideButtons.Count -ne 5 -or @($sideButtons | Where-Object { $_ -ne 'x1' }).Count -ne 0) {
+    throw 'Capcom Mouse Button 4 must map to Win32 XBUTTON1 in every Long Sword chord.'
+}
 $inputModuleSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\PlayerActionInput.psm1') -Raw
 if ($inputModuleSource -notmatch 'Read-MonsterCoachActionSignal' `
@@ -60,6 +71,10 @@ if ($inputModuleSource -notmatch 'AcquireFocus' `
     -or $inputModuleSource -notmatch 'OwnsForeground' `
     -or $inputModuleSource -match 'if \(!Focus\(window\)\)') {
     throw 'The input bridge must acquire focus once and abort instead of repeatedly stealing it.'
+}
+if ($inputModuleSource -notmatch 'System\.TimeoutException' `
+    -or $inputModuleSource -notmatch 'System\.OperationCanceledException') {
+    throw 'Action-signal timeout and player focus takeover must remain distinct errors.'
 }
 $signalFixture = Join-Path $env:TEMP "monster-coach-action-signal-$([Guid]::NewGuid().ToString('N')).json"
 try {
@@ -110,6 +125,11 @@ if ($inputProbeSource -notmatch 'runtime_player_action_signal\.json' `
 if ($inputProbeSource -notmatch 'acquire_once_abort_on_player_takeover' `
     -or $inputProbeSource -notmatch 'Clear-TerminalProbeRequest') {
     throw 'Calibration must expose its focus policy and clear terminal probe requests.'
+}
+if ($inputProbeSource -notmatch "status = 'input_failed'" `
+    -or $inputProbeSource -notmatch "'action_signal_timeout'" `
+    -or $inputProbeSource -notmatch 'player_takeover = \$takeoverDetected') {
+    throw 'The batch must preserve partial evidence and classify expected input failures.'
 }
 $runtimeSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\reframework\autorun\MHRiseMonsterCoach\runtime.lua') -Raw

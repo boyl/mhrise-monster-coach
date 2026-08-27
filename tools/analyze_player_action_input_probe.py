@@ -105,6 +105,7 @@ def summarize_step(row: dict[str, Any]) -> dict[str, Any]:
         "terminal_correlated_node": correlated[-1] if correlated else None,
         "semantic_matches": semantic_matches,
         "semantic_status": semantic_status,
+        "input_error_kind": row.get("input_error_kind"),
         "reason": row.get("reason"),
     }
 

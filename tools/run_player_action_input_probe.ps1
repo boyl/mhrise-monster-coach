@@ -245,6 +245,7 @@ if ([string]$initialIdle.current.node_name -ne 'atk.atk_wait.atk_wait_main.atk_w
 
 $sessionId = [Guid]::NewGuid().ToString('N')
 $results = [Collections.Generic.List[object]]::new()
+$takeoverDetected = $false
 try {
     foreach ($definition in $plan) {
         $idle = Wait-ForIdleEvidence
@@ -261,8 +262,48 @@ try {
         $baselineSample = Get-MaxEvidenceSample $idle
         $baselineRevision = [int]($idle.revision ?? 0)
         $game.Refresh()
-        Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step $definition.id `
-            -ActionSignalPath $actionSignalPath
+        $inputFailure = $null
+        try {
+            Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step $definition.id `
+                -ActionSignalPath $actionSignalPath
+        } catch {
+            $inputFailure = $_
+        }
+        if ($inputFailure) {
+            $observation = Get-StepObservation -Definition $definition `
+                -BaselineSample $baselineSample
+            $after = $observation.evidence
+            $exception = $inputFailure.Exception
+            $inputErrorKind = if ($exception -is [System.OperationCanceledException]) {
+                'player_takeover'
+            } elseif ($exception -is [System.TimeoutException]) {
+                'action_signal_timeout'
+            } else {
+                'input_send_failure'
+            }
+            $results.Add([pscustomobject]@{
+                id = $definition.id
+                label = $definition.label
+                status = 'input_failed'
+                reason = $exception.Message
+                input_error_kind = $inputErrorKind
+                baseline_sample = $baselineSample
+                baseline_revision = $baselineRevision
+                observed_revision = [int]($after.revision ?? 0)
+                observation_complete = $false
+                expected_tags = @($definition.expected_tags)
+                expected_node_prefixes = @($definition.expected_node_prefixes)
+                observed_tags = @($observation.observed_tags)
+                semantic_status = if ($observation.semantic_satisfied) { 'observed' } else { 'not_observed' }
+                semantic_matches = @($observation.semantic_matches)
+                events = @($observation.events)
+            })
+            if ($inputErrorKind -eq 'player_takeover') {
+                $takeoverDetected = $true
+                break
+            }
+            continue
+        }
         $observation = Wait-ForStepObservation -Definition $definition `
             -BaselineSample $baselineSample
         $after = $observation.evidence
@@ -311,6 +352,8 @@ $report = [ordered]@{
         observed = @($results | Where-Object status -eq 'observed').Count
         not_observed = @($results | Where-Object status -eq 'not_observed').Count
         precondition_failed = @($results | Where-Object status -eq 'precondition_failed').Count
+        input_failed = @($results | Where-Object status -eq 'input_failed').Count
+        player_takeover = $takeoverDetected
         semantic_observed = @($results | Where-Object semantic_status -eq 'observed').Count
         semantic_not_observed = @($results | Where-Object semantic_status -eq 'not_observed').Count
     }
@@ -324,7 +367,9 @@ $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $resolvedOutput -E
 $report | ConvertTo-Json -Depth 12
 Write-Host "Player action input report: $resolvedOutput"
 
+if ($report.summary.player_takeover) { exit 4 }
 if ($report.summary.precondition_failed -gt 0) { exit 3 }
+if ($report.summary.input_failed -gt 0) { exit 2 }
 if ($report.summary.observed -ne $report.summary.requested `
     -or $report.summary.not_observed -gt 0 `
     -or $report.summary.semantic_observed -ne $report.summary.requested) { exit 2 }

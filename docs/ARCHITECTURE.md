@@ -66,6 +66,8 @@ app (composition root)
 
 外部输入适配器只允许在会话开始时取得一次游戏焦点。后续每个输入操作都要求游戏仍是前台窗口；玩家切走窗口即视为接管，采集器释放白名单按键并失败关闭，不得再次抢回焦点。临时请求只在匹配终态报告后删除，避免误删其他开发会话；正式 Mod 不依赖此外部输入路径。
 
+键位名称与 Win32 raw 值在输入边界集中转换。Capcom Windows 默认配置的 `Mouse Button 4` 映射到 Win32 `XBUTTON1 / dwData 0x0001`，不得按字符串中的数字误用 `XBUTTON2 / 0x0002`；映射依据同时保留[官方武器操作页](https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6)和[微软 `mouse_event` 定义](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event)。动作信号超时、玩家接管焦点和输入发送失败是三个不同的外部结果，批处理器保存当前步骤证据后，只对玩家接管立即停止。
+
 ### 离线怪物数据管线
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。

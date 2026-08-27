@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-27",
+  "source_version": "0.49.15-automation-takeover-guard",
+  "preflight_session_id": "e131fa87b7ac476ea5f2e7a20820dee4",
+  "scope": "long_sword_default_spirit_button_diagnosis",
+  "runtime": {
+    "player_type": "snow.player.LongSword",
+    "event_count": 18,
+    "evidence_revision": 18,
+    "final_node": "atk.atk_wait.atk_wait_main.atk_wait_main"
+  },
+  "confirmed_nodes": {
+    "basic_overhead": "atk.atk_101.atk_101.new state D3A33E65",
+    "thrust": "atk.atk_104.atk_104.new state 2A60599E",
+    "dodge": "atk.esc_front"
+  },
+  "failed_pattern": "Every step requiring the Spirit Blade input produced only atk.atk_101 and returned to drawn idle.",
+  "root_cause": {
+    "capcom_binding_name": "Mouse Button 4",
+    "incorrect_raw_value": "XBUTTON2 / 0x0002",
+    "correct_raw_value": "XBUTTON1 / 0x0001",
+    "win32_source": "https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event"
+  },
+  "cleanup": {
+    "external_automation_process_count": 0,
+    "terminal_request_present": false,
+    "temporary_quest_200032002_present": false,
+    "game_process_count": 1
+  },
+  "acceptance_level": "root_cause_diagnosed_not_yet_retested"
+}

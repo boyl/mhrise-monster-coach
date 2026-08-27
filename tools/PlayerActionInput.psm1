@@ -38,7 +38,8 @@ $script:SupportedSteps = [ordered]@{
                 node_prefixes = @('atk.atk_101.')
                 timeout_milliseconds = 1500
             }
-            [ordered]@{ kind = 'mouse_chord'; first = 'x2'; second = 'right' }
+            # Capcom's default "Mouse Button 4" is Win32 XBUTTON1 (dwData 0x0001).
+            [ordered]@{ kind = 'mouse_chord'; first = 'x1'; second = 'right' }
         )
     }
     special_sheathe = [ordered]@{
@@ -52,7 +53,7 @@ $script:SupportedSteps = [ordered]@{
                 node_prefixes = @('atk.atk_101.')
                 timeout_milliseconds = 1500
             }
-            [ordered]@{ kind = 'mouse_key_chord'; button = 'x2'; virtual_key = 0x20 }
+            [ordered]@{ kind = 'mouse_key_chord'; button = 'x1'; virtual_key = 0x20 }
         )
     }
     iai_slash_attempt = [ordered]@{
@@ -68,7 +69,7 @@ $script:SupportedSteps = [ordered]@{
                 node_prefixes = @('atk.atk_101.')
                 timeout_milliseconds = 1500
             }
-            [ordered]@{ kind = 'mouse_key_chord'; button = 'x2'; virtual_key = 0x20 }
+            [ordered]@{ kind = 'mouse_key_chord'; button = 'x1'; virtual_key = 0x20 }
             [ordered]@{
                 kind = 'wait_for_action_signal'
                 node_prefixes = @('atk.atk151.atk_152')
@@ -88,13 +89,13 @@ $script:SupportedSteps = [ordered]@{
                 node_prefixes = @('atk.atk_101.')
                 timeout_milliseconds = 1500
             }
-            [ordered]@{ kind = 'mouse_key_chord'; button = 'x2'; virtual_key = 0x20 }
+            [ordered]@{ kind = 'mouse_key_chord'; button = 'x1'; virtual_key = 0x20 }
             [ordered]@{
                 kind = 'wait_for_action_signal'
                 node_prefixes = @('atk.atk151.atk_152')
                 timeout_milliseconds = 2500
             }
-            [ordered]@{ kind = 'mouse_click'; button = 'x2' }
+            [ordered]@{ kind = 'mouse_click'; button = 'x1' }
         )
     }
 }
@@ -117,6 +118,7 @@ function Get-LongSwordDefaultInputPlan {
             operations = @($definition.operations | ForEach-Object { [pscustomobject]$_ })
             source = 'capcom_official_windows_default_controls'
             source_url = 'https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6'
+            win32_xbutton_source_url = 'https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event'
         }
     }
     return @($result)
@@ -295,6 +297,10 @@ function Invoke-LongSwordInputStep {
     $signalRevision = if ($initialSignal) { [int]($initialSignal.revision ?? 0) } else { 0 }
     try {
         foreach ($operation in $plan[0].operations) {
+            if (-not [MonsterCoachPlayerInputBridge]::OwnsForeground($GameWindow)) {
+                throw [System.OperationCanceledException]::new(
+                    "Player took over game focus before '$($operation.kind)' for '$Step'.")
+            }
             $ok = $true
             switch ($operation.kind) {
                 'delay' { Start-Sleep -Milliseconds ([int]$operation.milliseconds) }
@@ -324,7 +330,16 @@ function Invoke-LongSwordInputStep {
                 default { throw "Unknown allowlisted input operation '$($operation.kind)'" }
             }
             if (-not $ok) {
-                throw "Game focus was taken over by the player; calibration stopped before '$($operation.kind)' for '$Step'."
+                if (-not [MonsterCoachPlayerInputBridge]::OwnsForeground($GameWindow)) {
+                    throw [System.OperationCanceledException]::new(
+                        "Player took over game focus during '$($operation.kind)' for '$Step'.")
+                }
+                if ($operation.kind -eq 'wait_for_action_signal') {
+                    throw [System.TimeoutException]::new(
+                        "Timed out waiting for the expected action transition during '$Step'.")
+                }
+                throw [System.InvalidOperationException]::new(
+                    "Could not send '$($operation.kind)' for '$Step'.")
             }
         }
     } finally {

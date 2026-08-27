@@ -95,6 +95,23 @@ class PlayerActionInputProbeAnalysisTests(unittest.TestCase):
         self.assertTrue(all(not node["exclusive_to_step"] for node in nodes))
         self.assertEqual(nodes[0]["observed_in_steps"], ["basic_overhead", "foresight_attempt"])
 
+    def test_input_failure_keeps_partial_nodes_and_error_kind(self):
+        row = result(
+            "iai_slash_attempt",
+            101,
+            "atk.atk_101.partial",
+            status="input_failed",
+            expected_prefixes=["atk.atk151.atk_153"],
+        )
+        row["input_error_kind"] = "action_signal_timeout"
+        row["reason"] = "Timed out waiting for Special Sheathe."
+        report = analyze({"results": [row]})
+        step = report["steps"][0]
+        self.assertEqual(step["capture_status"], "input_failed")
+        self.assertEqual(step["input_error_kind"], "action_signal_timeout")
+        self.assertEqual(step["correlated_nodes"][0]["node_name"], "atk.atk_101.partial")
+        self.assertIn("iai_slash_attempt", report["gate"]["incomplete_steps"])
+
 
 if __name__ == "__main__":
     unittest.main()
