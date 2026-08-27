@@ -58,6 +58,23 @@ function Assert-SameHash {
     return $actualHash
 }
 
+function Resolve-VerifiedPython {
+    $candidates = @(
+        (Join-Path $repositoryRoot '.venv\Scripts\python.exe'),
+        (Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe')
+    )
+    $command = Get-Command python -ErrorAction SilentlyContinue
+    if ($command -and $command.Source -notmatch '[\\/]WindowsApps[\\/]') {
+        $candidates += $command.Source
+    }
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        & $candidate --version *> $null
+        if ($LASTEXITCODE -eq 0) { return [IO.Path]::GetFullPath($candidate) }
+    }
+    throw 'No real Python interpreter was found. Create .venv from requirements-dev.txt; the WindowsApps alias is not accepted.'
+}
+
 Stop-MonsterHunterRiseGracefully -TimeoutSeconds $GracefulExitTimeoutSeconds
 & (Join-Path $PSScriptRoot 'deploy_dev.ps1') -GameRoot $resolvedGameRoot
 if (-not $?) { throw 'Normal development deployment failed.' }
@@ -107,7 +124,7 @@ try {
     $probeExitCode = $LASTEXITCODE
     if (Test-Path -LiteralPath $resolvedOutput -PathType Leaf) {
         $analysisOutput = [IO.Path]::ChangeExtension($resolvedOutput, '.analysis.json')
-        $python = (Get-Command python -ErrorAction Stop).Source
+        $python = Resolve-VerifiedPython
         & $python (Join-Path $PSScriptRoot 'analyze_player_action_input_probe.py') `
             $resolvedOutput --output $analysisOutput | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Player action report analysis failed.' }

@@ -194,6 +194,14 @@ function M.suspend(self, reason)
     self.action_reader:suspend(reason)
 end
 
+function M.set_action_evidence_dump_interval(self, interval)
+    return self.action_reader:set_dump_interval(interval)
+end
+
+function M.set_action_live_signal_enabled(self, enabled)
+    return self.action_reader:set_live_signal_enabled(enabled)
+end
+
 function M.capture(self, player, player_data)
     if player == nil then
         self.status = "player unavailable"

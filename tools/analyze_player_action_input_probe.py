@@ -78,11 +78,24 @@ def summarize_step(row: dict[str, Any]) -> dict[str, Any]:
         entry["active_tags"] = sorted(entry["active_tags"])
         nodes.append(entry)
     correlated = [entry for entry in nodes if not entry["neutral"]]
+    expected_prefixes = [
+        str(value) for value in row.get("expected_node_prefixes") or [] if value
+    ]
+    semantic_matches = [
+        entry for entry in correlated
+        if any(entry["node_name"].startswith(prefix) for prefix in expected_prefixes)
+    ]
+    semantic_status = (
+        "unavailable" if not expected_prefixes
+        else "observed" if semantic_matches
+        else "not_observed"
+    )
     return {
         "id": row.get("id"),
         "label": row.get("label"),
         "capture_status": row.get("status"),
         "expected_tags": list(row.get("expected_tags") or []),
+        "expected_node_prefixes": expected_prefixes,
         "observed_tags": list(row.get("observed_tags") or []),
         "baseline_sample": row.get("baseline_sample"),
         "baseline_revision": row.get("baseline_revision"),
@@ -90,6 +103,8 @@ def summarize_step(row: dict[str, Any]) -> dict[str, Any]:
         "correlated_nodes": correlated,
         "neutral_nodes": [entry for entry in nodes if entry["neutral"]],
         "terminal_correlated_node": correlated[-1] if correlated else None,
+        "semantic_matches": semantic_matches,
+        "semantic_status": semantic_status,
         "reason": row.get("reason"),
     }
 
@@ -126,7 +141,18 @@ def analyze(document: dict[str, Any]) -> dict[str, Any]:
         and by_id[step_id]["capture_status"] == "observed"
         and not by_id[step_id]["correlated_nodes"]
     ]
-    complete = not missing and not incomplete and not empty_observed
+    semantic_mismatches = [
+        step_id for step_id in EXPECTED_STEPS
+        if step_id in by_id and by_id[step_id]["semantic_status"] == "not_observed"
+    ]
+    semantic_unavailable = [
+        step_id for step_id in EXPECTED_STEPS
+        if step_id in by_id and by_id[step_id]["semantic_status"] == "unavailable"
+    ]
+    complete = (
+        not missing and not incomplete and not empty_observed
+        and not semantic_mismatches and not semantic_unavailable
+    )
 
     node_index = [{
         "node_id": key[0],
@@ -156,6 +182,11 @@ def analyze(document: dict[str, Any]) -> dict[str, Any]:
             "missing_steps": missing,
             "incomplete_steps": incomplete,
             "observed_steps_without_correlated_nodes": empty_observed,
+            "semantic_mismatch_steps": semantic_mismatches,
+            "semantic_unavailable_steps": semantic_unavailable,
+            "transport_status": (
+                "complete" if not missing and not incomplete and not empty_observed else "partial"
+            ),
             "may_update_verified_semantics": False,
         },
         "steps": steps,

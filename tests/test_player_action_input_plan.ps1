@@ -1,7 +1,12 @@
 #Requires -Version 7.0
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot '..\tools\PlayerActionInput.psm1') -Force
+$inputModule = Import-Module `
+    (Join-Path $PSScriptRoot '..\tools\PlayerActionInput.psm1') -Force -PassThru
+Initialize-MonsterCoachInputBridge
+if (-not ('MonsterCoachPlayerInputBridge' -as [type])) {
+    throw 'The allowlisted Windows input bridge did not compile.'
+}
 
 $plan = @(Get-LongSwordDefaultInputPlan)
 $expectedIds = @(
@@ -17,13 +22,54 @@ if (@($plan | Where-Object source -ne 'capcom_official_windows_default_controls'
 if (@($plan | Where-Object source_url -ne 'https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6').Count -ne 0) {
     throw 'Official control source URL drifted.'
 }
-$allowedKinds = @('mouse_click', 'key_click', 'delay', 'mouse_chord', 'mouse_key_chord')
+$allowedKinds = @(
+    'mouse_click', 'key_click', 'delay', 'mouse_chord', 'mouse_key_chord',
+    'wait_for_action_signal'
+)
 $operations = @($plan.operations)
 if (@($operations | Where-Object kind -notin $allowedKinds).Count -ne 0) {
     throw 'The plan contains a non-allowlisted raw input operation.'
 }
 if ((Get-LongSwordDefaultInputPlan -Step 'foresight_attempt').operations[-1].kind -ne 'mouse_chord') {
     throw 'Foresight must remain a simultaneous input chord.'
+}
+$foresight = Get-LongSwordDefaultInputPlan -Step 'foresight_attempt'
+if ($foresight.operations[1].kind -ne 'wait_for_action_signal' `
+    -or $foresight.expected_node_prefixes -notcontains 'atk.atk_147.atk_147') {
+    throw 'Foresight must wait for the attack window and require its semantic node.'
+}
+$iaiSpirit = Get-LongSwordDefaultInputPlan -Step 'iai_spirit_attempt'
+if (@($iaiSpirit.operations | Where-Object kind -eq 'wait_for_action_signal').Count -ne 2 `
+    -or $iaiSpirit.expected_node_prefixes -notcontains 'atk.atk151.atk_155') {
+    throw 'Iai Spirit Slash must wait for both attack and sheathe states.'
+}
+if (@($operations | Where-Object kind -eq 'delay').Count -ne 0) {
+    throw 'Compound actions must not depend on fixed timing delays.'
+}
+$inputModuleSource = Get-Content -LiteralPath `
+    (Join-Path $PSScriptRoot '..\tools\PlayerActionInput.psm1') -Raw
+if ($inputModuleSource -notmatch 'Read-MonsterCoachActionSignal' `
+    -or $inputModuleSource -notmatch 'RevisionCursor') {
+    throw 'The input adapter must own its live-signal cursor and retry boundary.'
+}
+$signalFixture = Join-Path $env:TEMP "monster-coach-action-signal-$([Guid]::NewGuid().ToString('N')).json"
+try {
+    [ordered]@{
+        revision = 2
+        current = [ordered]@{ node_name = 'atk.atk_101.test' }
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $signalFixture -Encoding utf8
+    $cursor = 1
+    $operation = [pscustomobject]@{
+        node_prefixes = @('atk.atk_101.')
+        timeout_milliseconds = 50
+    }
+    $matched = Wait-MonsterCoachActionSignal -Path $signalFixture `
+        -Operation $operation -RevisionCursor ([ref]$cursor)
+    if (-not $matched -or $cursor -ne 2) {
+        throw 'The live-signal adapter did not match and advance the revision cursor.'
+    }
+} finally {
+    Remove-Item -LiteralPath $signalFixture -Force -ErrorAction SilentlyContinue
 }
 $failed = $false
 try { Get-LongSwordDefaultInputPlan -Step 'unknown' | Out-Null } catch { $failed = $true }
@@ -43,6 +89,20 @@ if ($inputProbeSource -notmatch '-SkipDeployment:\$SkipDeployment') {
 if ($inputProbeSource -notmatch 'observed -ne \$report\.summary\.requested') {
     throw 'A partial action batch must not pass the complete calibration gate.'
 }
+if ($inputProbeSource -notmatch 'Wait-ForStepObservation' `
+    -or $inputProbeSource -notmatch 'Test-IdleEvidence \$after\.current') {
+    throw 'Each input step must wait for persisted evidence and a stable action tail.'
+}
+if ($inputProbeSource -notmatch 'runtime_player_action_signal\.json' `
+    -or $inputProbeSource -notmatch 'semantic_observed' `
+    -or $inputProbeSource -notmatch 'draw preparation') {
+    throw 'Calibration must use live transitions, semantic gates, and a separate draw setup.'
+}
+$runtimeSource = Get-Content -LiteralPath `
+    (Join-Path $PSScriptRoot '..\reframework\autorun\MHRiseMonsterCoach\runtime.lua') -Raw
+if ($runtimeSource -notmatch 'set_action_live_signal_enabled\(player_calibration\)') {
+    throw 'Live action signals must remain scoped to the temporary calibration quest.'
+}
 
 $calibrationSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\run_player_action_calibration.ps1') -Raw
@@ -51,6 +111,10 @@ if ($calibrationSource -notmatch '-SkipDeployment') {
 }
 if ($calibrationSource -notmatch 'analyze_player_action_input_probe\.py') {
     throw 'The calibration wrapper must automatically generate an auditable candidate analysis.'
+}
+if ($calibrationSource -notmatch 'Resolve-VerifiedPython' `
+    -or $calibrationSource -notmatch 'WindowsApps') {
+    throw 'Calibration must reject the WindowsApps Python alias and resolve a real interpreter.'
 }
 
 Write-Host 'test_player_action_input_plan.ps1: PASS'

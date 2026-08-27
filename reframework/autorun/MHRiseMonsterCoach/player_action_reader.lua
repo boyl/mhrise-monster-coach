@@ -2,6 +2,7 @@ local Observer = require("MHRiseMonsterCoach.player_action_observer")
 
 local M = {}
 local EVIDENCE_PATH = "MHRiseMonsterCoach/runtime_player_action_evidence.json"
+local LIVE_SIGNAL_PATH = "MHRiseMonsterCoach/runtime_player_action_signal.json"
 local TAG_NAMES = { "Attack", "Escape", "Damage", "Jump", "WireJump", "Ride", "Guard" }
 
 local function safe(fn)
@@ -66,7 +67,28 @@ function M.new(game_name, tdb_version, event_limit, dump_interval)
         dump_interval = math.max(1, math.floor(tonumber(dump_interval) or 60)),
         last_dump_sample = nil,
         evidence_dirty = false,
+        live_signal_enabled = false,
     }, { __index = M })
+end
+
+function M.set_live_signal_enabled(self, enabled)
+    self.live_signal_enabled = enabled == true
+    return self.live_signal_enabled
+end
+
+function M.flush_live_signal(self)
+    if self.live_signal_enabled ~= true or self.state == nil then return false end
+    return safe(function()
+        json.dump_file(LIVE_SIGNAL_PATH, {
+            schema_version = 1,
+            policy = "read_only_action_transition_signal",
+            sample = self.sample_index,
+            revision = self.observer.revision,
+            current = self.state,
+            runtime = { game_name = self.game_name, tdb_version = self.tdb_version },
+        })
+        return true
+    end) == true
 end
 
 function M.refresh_node_catalog(self, motion_fsm)
@@ -134,6 +156,11 @@ function M.flush_evidence(self, force)
         self.evidence_dirty = false
     end
     return written
+end
+
+function M.set_dump_interval(self, interval)
+    self.dump_interval = math.max(1, math.floor(tonumber(interval) or 60))
+    return self.dump_interval
 end
 
 function M.configure(self, player_type)
@@ -224,6 +251,7 @@ function M.capture(self, player)
         tostring(node_id or "unknown"), tag_count, tostring(state.source or "unavailable"))
     local changed = self.observer:sample(self.sample_index, state)
     self.evidence_dirty = self.evidence_dirty or changed or catalog_reset or resolved_new
+    if changed then self:flush_live_signal() end
     -- A new FSM instance is rare and should be persisted immediately. Individual
     -- newly seen nodes remain under the normal interval to avoid combo-time I/O.
     self:flush_evidence(catalog_reset)
@@ -260,6 +288,8 @@ function M.description(self)
         revision = self.observer.revision,
         event_count = #self.observer.events,
         dropped_events = self.observer.dropped_events,
+        live_signal_enabled = self.live_signal_enabled,
+        live_signal_path = LIVE_SIGNAL_PATH,
     }
 end
 

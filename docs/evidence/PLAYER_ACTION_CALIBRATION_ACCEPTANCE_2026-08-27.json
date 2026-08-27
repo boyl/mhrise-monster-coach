@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-08-27",
+  "source_version": "0.49.13-dynamic-action-capture",
+  "result": "input_steps_observed_7_of_7_semantic_gate_partial",
+  "scope": "automated_long_sword_player_action_calibration",
+  "runtime": {
+    "game": "Monster Hunter Rise: Sunbreak",
+    "game_version": "16.0.2.0",
+    "reframework_runtime": "mhrise / TDB 71",
+    "player_type": "snow.player.LongSword",
+    "weapon_type": "long_sword",
+    "active_scroll": "red"
+  },
+  "artifacts": {
+    "input_report": "artifacts/player_action_calibration/56cf2bd07ddf46449a513900af082c7f.json",
+    "input_report_sha256": "6965388D175A68165D8E9FE674A9F46A165B8EB6FCD915E1286B4B52D6C2E3F3",
+    "analysis_report": "artifacts/player_action_calibration/56cf2bd07ddf46449a513900af082c7f.analysis.json",
+    "analysis_report_sha256": "143997C3865A8FB0F94C88022C8B4EBA42D0EAE4546BF054395C6229B54F7538",
+    "runtime_session_id": "7974522e81934290ac43dcdf53af9884"
+  },
+  "gates": {
+    "requested_steps": 7,
+    "transport_observed": 7,
+    "transport_not_observed": 0,
+    "analysis_transport_status": "partial_first_step_was_draw_only",
+    "precondition_failed": 0,
+    "semantic_status": "partial",
+    "verified_semantics_updated": false
+  },
+  "observed": {
+    "basic_overhead": ["wp_on"],
+    "thrust": ["atk.atk_104.atk_104.new state 2A60599E", "atk.atk_104.atk_104.非SA"],
+    "dodge": ["atk.esc_front"],
+    "foresight_attempt": ["atk.atk_101.atk_101.new state D3A33E65"],
+    "special_sheathe": ["atk.atk_101.atk_101.new state D3A33E65", "atk.atk_101.atk_101.非SA"],
+    "iai_slash_attempt": ["atk.atk_101.atk_101.new state D3A33E65", "atk.atk_102.atk_102.new state 2CA6AC07", "atk.atk_102.atk_102.非SA"],
+    "iai_spirit_attempt": ["atk.atk_101.atk_101.new state D3A33E65", "atk.atk_106.atk_106.x"]
+  },
+  "expected_but_not_observed": {
+    "foresight_attempt": ["atk.atk_147.atk_147"],
+    "special_sheathe": ["atk.atk151.atk_152"],
+    "iai_spirit_attempt": ["atk.atk151.atk_155"]
+  },
+  "interpretation": [
+    "自动任务、输入传输、证据刷新和七步边界已在一次会话中完整贯通。",
+    "首次左键只完成拔刀，不能作为直斩语义样本。",
+    "固定延迟后的组合键错过了动作派生窗口，普通攻击节点不能升级为见切、特殊纳刀或居合语义。",
+    "该证据只证明输入可达，不证明反击成功。"
+  ],
+  "cleanup": {
+    "game_closed": true,
+    "temporary_calibration_quest_removed": true,
+    "normal_training_quest_sha256_before_and_after": "6953D70DB5CC89976073E971D0BDDD42B4DE90563476242DF8739FF5E86A29B3",
+    "equipment_writes": false,
+    "save_writes": false
+  },
+  "next_candidate": {
+    "source_version": "0.49.14-semantic-action-gate",
+    "deployment_status": "not_deployed",
+    "changes": [
+      "将拔刀准备移出正式七步样本",
+      "只在临时校准任务的动作节点变化时写入小型实时信号",
+      "根据实际动作节点衔接组合键，不再依赖固定延迟",
+      "分别报告输入传输门禁和招式节点语义门禁"
+    ]
+  }
+}

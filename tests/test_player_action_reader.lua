@@ -110,6 +110,7 @@ active_tags[2] = false
 local throttled = Reader.new("mhrise", 71, 8, 3)
 assert(throttled:capture(player) == true)
 local evidence_path = "MHRiseMonsterCoach/runtime_player_action_evidence.json"
+local signal_path = "MHRiseMonsterCoach/runtime_player_action_signal.json"
 local initial_dumps = dump_counts[evidence_path]
 current_node = 201
 assert(throttled:capture(player) == true)
@@ -118,6 +119,36 @@ assert(throttled:capture(player) == false)
 assert(throttled:capture(player) == false)
 assert(dump_counts[evidence_path] == initial_dumps + 1,
     "stable frames flush the final dirty transition at the bounded interval")
+
+current_node = 200
+local dynamic = Reader.new("mhrise", 71, 8, 60)
+assert(dynamic:capture(player) == true)
+local dynamic_dumps = dump_counts[evidence_path]
+assert(dynamic:set_dump_interval(1) == 1)
+current_node = 201
+assert(dynamic:capture(player) == true)
+assert(dump_counts[evidence_path] == dynamic_dumps + 1,
+    "temporary calibration can lower the evidence interval without rebuilding the reader")
+
+local signaled = Reader.new("mhrise", 71, 8, 60)
+assert(signaled:set_live_signal_enabled(true) == true)
+current_node = 200
+assert(signaled:capture(player) == true)
+assert(dumped[signal_path].policy == "read_only_action_transition_signal")
+assert(dumped[signal_path].current.node_id == 200 and dumped[signal_path].revision == 1)
+local signal_dumps = dump_counts[signal_path]
+assert(signaled:capture(player) == false)
+assert(dump_counts[signal_path] == signal_dumps,
+    "stable frames must not rewrite the live transition signal")
+current_node = 201
+assert(signaled:capture(player) == true)
+assert(dump_counts[signal_path] == signal_dumps + 1)
+assert(dumped[signal_path].current.node_name == "LongSword/Escape")
+assert(signaled:set_live_signal_enabled(false) == false)
+current_node = 200
+assert(signaled:capture(player) == true)
+assert(dump_counts[signal_path] == signal_dumps + 1,
+    "normal play must not emit calibration transition signals")
 
 reader:suspend("transition")
 assert(reader.state == nil and reader.status == "transition")

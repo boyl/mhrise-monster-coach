@@ -2235,6 +2235,15 @@ function M.context(self)
     self.was_in_quest = in_quest
     M.refresh_player(self, false)
     local geometry = M.target_geometry_snapshot(self)
+    local player_calibration = in_quest and build_supported and not is_online
+        and tonumber(quest_no) == tonumber(self.profile.training_quest.player_calibration_id)
+    -- Normal play keeps the conservative 60-sample disk cadence. The temporary
+    -- monsterless calibration task additionally emits a small file only when the
+    -- action node changes, allowing external input to follow real cancel windows
+    -- without rewriting the full evidence catalog every frame.
+    self.player_state_reader:set_action_evidence_dump_interval(
+        player_calibration and 5 or 60)
+    self.player_state_reader:set_action_live_signal_enabled(player_calibration)
     if (geometry ~= nil and tonumber(geometry.vertical_gap) <= 50.0)
         or (in_quest and build_supported and not is_online
             and player_only_forlorn_combat_layer(self, quest_no)) then

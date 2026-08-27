@@ -62,6 +62,8 @@ app (composition root)
 
 猎人实时动作采用 `player_action_reader → player_action_observer → PlayerCombatState.action_state.evidence → player_action_semantics → Model` 的单向依赖。Reader 只接触 REFramework 对象，Observer 负责去重和有界历史，语义解析器只消费武器数据包，Model 记录稳定契约。动作节点到“见切/居合”等名称的映射禁止写入 Reader、Controller 或 View。社区来源的节点只标记为候选；本机观察表示“节点确实出现”，不等于映射已经实机验证，更不等于反击成功。
 
+开发期自动校准额外使用 `runtime_player_action_signal.json` 作为只读适配边界。它只在离线、支持版本且 Quest ID 为 `200032002` 时启用，只在节点转换时写当前节点与修订号；外部白名单输入适配器依据该信号连接复合按键。招式预期节点仍属于输入计划/数据契约，不下沉到通用按键桥或游戏 Runtime。正常陪练任务不产生该信号。
+
 ### 离线怪物数据管线
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。

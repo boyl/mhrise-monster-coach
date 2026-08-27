@@ -5,7 +5,8 @@ param(
     [string]$GameRoot = 'C:\Program Files (x86)\Steam\steamapps\common\MonsterHunterRise',
     [string[]]$Step = @(),
     [ValidateRange(1000, 5000)][int]$SampleWindowMilliseconds = 2200,
-    [ValidateRange(2, 15)][int]$IdleTimeoutSeconds = 6,
+    [ValidateRange(4, 20)][int]$IdleTimeoutSeconds = 12,
+    [ValidateRange(4, 20)][int]$ActionObservationTimeoutSeconds = 12,
     [ValidateRange(5, 20)][int]$InitialSettleSeconds = 12,
     [switch]$SkipPreflight,
     [switch]$SkipDeployment,
@@ -26,6 +27,7 @@ if ($DryRun) {
 $resolvedGameRoot = [IO.Path]::GetFullPath($GameRoot)
 $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
 $evidencePath = Join-Path $dataRoot 'runtime_player_action_evidence.json'
+$actionSignalPath = Join-Path $dataRoot 'runtime_player_action_signal.json'
 $combatStatePath = Join-Path $dataRoot 'runtime_player_combat_state.json'
 $probeReportPath = Join-Path $dataRoot 'dev_probe_report.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
@@ -113,6 +115,83 @@ function Wait-ForIdleEvidence {
     return $null
 }
 
+function Get-StepObservation {
+    param(
+        [Parameter(Mandatory)]$Definition,
+        [Parameter(Mandatory)][int]$BaselineSample
+    )
+    $after = Read-JsonFile -Path $evidencePath
+    $events = if ($after) { @($after.events | Where-Object {
+        [int]($_.sample ?? 0) -gt $BaselineSample `
+            -and $_.player_type -eq 'snow.player.LongSword'
+    } | ForEach-Object {
+        [pscustomobject]@{
+            sample = $_.sample
+            node_id = $_.node_id
+            node_name = $_.node_name
+            tags = $_.tags
+        }
+    }) } else { @() }
+    $meaningful = @($events | Where-Object {
+        $_.node_name -notin @(
+            'wait.main',
+            'wait.wait_pre_mot_end',
+            'atk.atk_wait.atk_wait_main.atk_wait_main'
+        ) -and
+        -not ([string]$_.node_name).StartsWith('damage.') -and
+        -not ([string]$_.node_name).StartsWith('fast_travel.')
+    })
+    $observedTags = @($events | ForEach-Object {
+        foreach ($name in @('attack', 'escape', 'guard', 'damage')) {
+            if ($_.tags.$name -eq $true) { $name }
+        }
+    } | Sort-Object -Unique)
+    $expectedSatisfied = $Definition.expected_tags.Count -eq 0 -or
+        @($Definition.expected_tags | Where-Object { $_ -in $observedTags }).Count -gt 0
+    $expectedNodePrefixes = @($Definition.expected_node_prefixes)
+    $semanticMatches = @($meaningful | Where-Object {
+        $name = [string]$_.node_name
+        @($expectedNodePrefixes | Where-Object { $name.StartsWith([string]$_) }).Count -gt 0
+    })
+    $semanticSatisfied = $expectedNodePrefixes.Count -eq 0 -or $semanticMatches.Count -gt 0
+    return [pscustomobject]@{
+        evidence = $after
+        events = $events
+        meaningful = $meaningful
+        observed_tags = $observedTags
+        semantic_matches = $semanticMatches
+        semantic_satisfied = $semanticSatisfied
+        expected_satisfied = $expectedSatisfied
+        complete = $meaningful.Count -gt 0 -and $expectedSatisfied `
+            -and $after -and (Test-IdleEvidence $after.current)
+    }
+}
+
+function Wait-ForStepObservation {
+    param(
+        [Parameter(Mandatory)]$Definition,
+        [Parameter(Mandatory)][int]$BaselineSample
+    )
+    $minimumDeadline = (Get-Date).AddMilliseconds($SampleWindowMilliseconds)
+    $deadline = (Get-Date).AddSeconds($ActionObservationTimeoutSeconds)
+    $observation = $null
+    do {
+        $observation = Get-StepObservation -Definition $Definition `
+            -BaselineSample $BaselineSample
+        if ($observation.complete -and (Get-Date) -ge $minimumDeadline) {
+            # Require one stable reread so the observer's bounded disk flush cannot
+            # move the action tail into the next semantic step.
+            Start-Sleep -Milliseconds 1100
+            $stable = Get-StepObservation -Definition $Definition `
+                -BaselineSample $BaselineSample
+            if ($stable.complete) { return $stable }
+            $observation = $stable
+        }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $deadline)
+    return $observation
+}
+
 $combat = Read-JsonFile -Path $combatStatePath
 if ($combat.weapon_type -ne 'long_sword' -or $combat.weapon_controller_type -ne 'snow.player.PlayerWeaponCtrlLS_Sword') {
     throw 'Current player is not using Long Sword; the probe will not change equipment.'
@@ -122,6 +201,22 @@ if ($combat.weapon_type -ne 'long_sword' -or $combat.weapon_controller_type -ne 
 # This one-time bounded settle replaces several ignored inputs and is still far
 # cheaper than asking a user to repeat manual calibration runs.
 Start-Sleep -Seconds $InitialSettleSeconds
+
+# The first left click in the arena can only draw the weapon. Keep that setup
+# outside the formal calibration rows so basic_overhead always means an attack.
+$initialIdle = Wait-ForIdleEvidence
+if ($null -eq $initialIdle) {
+    throw 'Long Sword did not reach a stable initial state before draw preparation.'
+}
+if ([string]$initialIdle.current.node_name -ne 'atk.atk_wait.atk_wait_main.atk_wait_main') {
+    $game.Refresh()
+    Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step 'basic_overhead'
+    $initialIdle = Wait-ForIdleEvidence
+    if ($null -eq $initialIdle `
+        -or [string]$initialIdle.current.node_name -ne 'atk.atk_wait.atk_wait_main.atk_wait_main') {
+        throw 'Long Sword draw preparation did not reach the drawn idle node.'
+    }
+}
 
 $sessionId = [Guid]::NewGuid().ToString('N')
 $results = [Collections.Generic.List[object]]::new()
@@ -141,32 +236,14 @@ try {
         $baselineSample = Get-MaxEvidenceSample $idle
         $baselineRevision = [int]($idle.revision ?? 0)
         $game.Refresh()
-        Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step $definition.id
-        Start-Sleep -Milliseconds $SampleWindowMilliseconds
-        $after = Read-JsonFile -Path $evidencePath
-        $events = @($after.events | Where-Object {
-            [int]($_.sample ?? 0) -gt $baselineSample -and $_.player_type -eq 'snow.player.LongSword'
-        } | ForEach-Object {
-            [pscustomobject]@{
-                sample = $_.sample
-                node_id = $_.node_id
-                node_name = $_.node_name
-                tags = $_.tags
-            }
-        })
-        $meaningful = @($events | Where-Object {
-            $_.node_name -notin @('wait.main', 'wait.wait_pre_mot_end') -and
-            -not ([string]$_.node_name).StartsWith('damage.') -and
-            -not ([string]$_.node_name).StartsWith('fast_travel.')
-        })
-        $observedTags = @($events | ForEach-Object {
-            foreach ($name in @('attack', 'escape', 'guard', 'damage')) {
-                if ($_.tags.$name -eq $true) { $name }
-            }
-        } | Sort-Object -Unique)
-        $expectedSatisfied = $definition.expected_tags.Count -eq 0 -or
-            @($definition.expected_tags | Where-Object { $_ -in $observedTags }).Count -gt 0
-        $status = if ($meaningful.Count -gt 0 -and $expectedSatisfied) { 'observed' } else { 'not_observed' }
+        Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step $definition.id `
+            -ActionSignalPath $actionSignalPath
+        $observation = Wait-ForStepObservation -Definition $definition `
+            -BaselineSample $baselineSample
+        $after = $observation.evidence
+        $events = @($observation.events)
+        $observedTags = @($observation.observed_tags)
+        $status = if ($observation.complete) { 'observed' } else { 'not_observed' }
         $results.Add([pscustomobject]@{
             id = $definition.id
             label = $definition.label
@@ -174,8 +251,12 @@ try {
             baseline_sample = $baselineSample
             baseline_revision = $baselineRevision
             observed_revision = [int]($after.revision ?? 0)
+            observation_complete = [bool]$observation.complete
             expected_tags = @($definition.expected_tags)
+            expected_node_prefixes = @($definition.expected_node_prefixes)
             observed_tags = $observedTags
+            semantic_status = if ($observation.semantic_satisfied) { 'observed' } else { 'not_observed' }
+            semantic_matches = @($observation.semantic_matches)
             events = $events
         })
     }
@@ -204,6 +285,8 @@ $report = [ordered]@{
         observed = @($results | Where-Object status -eq 'observed').Count
         not_observed = @($results | Where-Object status -eq 'not_observed').Count
         precondition_failed = @($results | Where-Object status -eq 'precondition_failed').Count
+        semantic_observed = @($results | Where-Object semantic_status -eq 'observed').Count
+        semantic_not_observed = @($results | Where-Object semantic_status -eq 'not_observed').Count
     }
 }
 
@@ -217,4 +300,5 @@ Write-Host "Player action input report: $resolvedOutput"
 
 if ($report.summary.precondition_failed -gt 0) { exit 3 }
 if ($report.summary.observed -ne $report.summary.requested `
-    -or $report.summary.not_observed -gt 0) { exit 2 }
+    -or $report.summary.not_observed -gt 0 `
+    -or $report.summary.semantic_observed -ne $report.summary.requested) { exit 2 }
