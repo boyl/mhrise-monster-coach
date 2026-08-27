@@ -40,11 +40,17 @@ if ($inputProbeSource -notmatch [regex]::Escape('atk.atk_wait.atk_wait_main.atk_
 if ($inputProbeSource -notmatch '-SkipDeployment:\$SkipDeployment') {
     throw 'The nested player-action preflight must be able to reuse a verified deployment.'
 }
+if ($inputProbeSource -notmatch 'observed -ne \$report\.summary\.requested') {
+    throw 'A partial action batch must not pass the complete calibration gate.'
+}
 
 $calibrationSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\run_player_action_calibration.ps1') -Raw
 if ($calibrationSource -notmatch '-SkipDeployment') {
     throw 'The calibration wrapper must not redeploy after staging its temporary quest.'
+}
+if ($calibrationSource -notmatch 'analyze_player_action_input_probe\.py') {
+    throw 'The calibration wrapper must automatically generate an auditable candidate analysis.'
 }
 
 Write-Host 'test_player_action_input_plan.ps1: PASS'

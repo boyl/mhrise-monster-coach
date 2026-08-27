@@ -105,6 +105,14 @@ try {
         -GameRoot $resolvedGameRoot -Step $Step -InitialSettleSeconds $InitialSettleSeconds `
         -OutputPath $resolvedOutput -SkipDeployment
     $probeExitCode = $LASTEXITCODE
+    if (Test-Path -LiteralPath $resolvedOutput -PathType Leaf) {
+        $analysisOutput = [IO.Path]::ChangeExtension($resolvedOutput, '.analysis.json')
+        $python = (Get-Command python -ErrorAction Stop).Source
+        & $python (Join-Path $PSScriptRoot 'analyze_player_action_input_probe.py') `
+            $resolvedOutput --output $analysisOutput | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Player action report analysis failed.' }
+        Write-Host "Candidate analysis: $analysisOutput"
+    }
 } finally {
     try {
         Stop-MonsterHunterRiseGracefully -TimeoutSeconds $GracefulExitTimeoutSeconds

@@ -216,4 +216,5 @@ $report | ConvertTo-Json -Depth 12
 Write-Host "Player action input report: $resolvedOutput"
 
 if ($report.summary.precondition_failed -gt 0) { exit 3 }
-if ($report.summary.observed -eq 0) { exit 2 }
+if ($report.summary.observed -ne $report.summary.requested `
+    -or $report.summary.not_observed -gt 0) { exit 2 }
