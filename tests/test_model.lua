@@ -128,6 +128,31 @@ status_model:observe_action("11", 4)
 local evade_round = status_model:training_timeline_snapshot().last_round
 equal(evade_round.outcome, "evade_attempt", "Escape is explicit but remains unscored")
 equal(evade_round.classification.score, "unclassified")
+
+local sticky_timeline_model = Model.new(profile, { moves = {}, scenarios = {} }, config)
+sticky_timeline_model:set_context({
+    in_quest = true, is_online = false, target_found = true, reader_ready = true,
+    safe_mode = true, outcome_tracking = false,
+})
+sticky_timeline_model:observe_action("26", 5, {
+    action_category = 4, motion_name = "em032_00_08050", current_frame = 2,
+})
+truthy(sticky_timeline_model:complete_current_action_from_behavior_exit(10, 26),
+    "behavior-tree exit closes a sticky ActionNo round")
+local sticky_round = sticky_timeline_model:training_timeline_snapshot().last_round
+equal(sticky_round.events[#sticky_round.events].data.completion_basis,
+    "behavior_tree_attack_exit", "timeline records its semantic completion basis")
+equal(sticky_timeline_model:training_timeline_snapshot().active, false,
+    "sticky ActionNo round is no longer left active")
+equal(sticky_timeline_model:observe_action("26", 10.1, {
+    action_category = 4, motion_name = "em032_00_08050", current_frame = 330,
+}), false, "stale ActionNo polling does not reopen a completed round")
+equal(sticky_timeline_model:training_timeline_snapshot().active, false,
+    "stale polling keeps the semantic exit closed")
+truthy(sticky_timeline_model:rearm_current_action_round(11, 26),
+    "a verified repeated request can rearm the same ActionNo")
+equal(sticky_timeline_model:training_timeline_snapshot().active, true,
+    "rearmed repeat starts one fresh timeline round")
 model.current_action = nil
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.state, Model.states.WAITING, "outside quest")

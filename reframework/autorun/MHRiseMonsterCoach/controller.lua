@@ -232,6 +232,9 @@ function M.update_natural_condition_training(self, current)
     end
     if self.training_state == "positioning" then
         if category == 4 and action == root then
+            if self.model.rearm_current_action_round then
+                self.model:rearm_current_action_round(now(), root)
+            end
             self.training_root_frame = self.frame_counter
             self.training_matched_frame = self.frame_counter
             M.set_training_state(self, "running", "起手已出现：等待后续派生", scenario)
@@ -301,6 +304,9 @@ function M.update_training_scenario(self)
         and tonumber(self.training_scenario.actions[1]) or nil
     if self.training_state == "requested" then
         if tonumber(current.category) == 4 and tonumber(current.action) == action then
+            if self.model.rearm_current_action_round then
+                self.model:rearm_current_action_round(now(), action)
+            end
             self.training_matched_frame = self.frame_counter
             M.set_training_state(self, "running", "怪物正在执行“"
                 .. tostring(self.training_scenario.name_zh or self.training_scenario.name) .. "”")
@@ -314,6 +320,10 @@ function M.update_training_scenario(self)
         and self.training_behavior_tracker:attack_cycle_completed_since(self.training_matched_frame)
     if self.frame_counter - (self.training_matched_frame or self.frame_counter) >= 10
         and (left_requested or left_attack_tree) then
+        if left_attack_tree and not left_requested
+            and self.model.complete_current_action_from_behavior_exit then
+            self.model:complete_current_action_from_behavior_exit(now(), action)
+        end
         self.training_last_behavior_path = self.training_behavior_tracker
             and self.training_behavior_tracker:result() or nil
         self.training_behavior_tracker = nil

@@ -146,6 +146,7 @@ controller:update_health()
 assert(writes == 1, "safe mode passively persists hit timing evidence")
 
 local training_requests = 0
+local semantic_rearms, semantic_exits = 0, 0
 local training_snapshot = { category = 0, action = 0 }
 local scenario = {
     id = "tigrex_roar_single", name_zh = "咆哮", actions = { 19 },
@@ -159,6 +160,16 @@ model.context = { in_quest = true, quest_no = 200032001, is_online = false,
     build_supported = true, target_found = true }
 model.current_metadata = { action_category = 0 }
 model.coaching_state = function() return { phase = "unknown" } end
+model.rearm_current_action_round = function(_, _, expected)
+    semantic_rearms = semantic_rearms + 1
+    assert(expected ~= nil)
+    return true
+end
+model.complete_current_action_from_behavior_exit = function(_, _, expected)
+    semantic_exits = semantic_exits + 1
+    assert(expected ~= nil)
+    return true
+end
 model.training_branch_tree = function(_, requested)
     assert(requested == scenario)
     return { action = "19", name = "咆哮", kind = "unverified", candidates = {} }
@@ -246,6 +257,8 @@ controller.frame_counter = 211
 controller:update_training_scenario()
 assert(controller.training_state == "completed" and controller.training_completed_rounds == 1,
     "behavior-tree attack exit completes a round even when category and ActionNo remain stale")
+assert(semantic_exits == 1,
+    "sticky ActionNo completion closes the shared model timeline from behavior-tree evidence")
 training_requests = 3
 requested_scenario = scenario
 model.training_branch_tree = function(_, requested)

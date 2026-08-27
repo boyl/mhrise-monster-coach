@@ -762,6 +762,62 @@ function M.finish_round(self, now)
     self.round_damage = 0
 end
 
+-- Enemy ActionNo and Motion can remain stale after the primary behavior tree
+-- has returned from Attack.* to Normal/Wait/Move.  The training controller
+-- owns that higher-level evidence and uses this method to close the same round
+-- consumed by the timeline and result classifier.
+function M.complete_current_action_from_behavior_exit(self, now, expected_action)
+    if self.current_action == nil or self.training_timeline.active ~= true then return false end
+    if expected_action ~= nil and tostring(expected_action) ~= tostring(self.current_action) then
+        return false
+    end
+    M.finalize_hitbox_observation(self)
+    if self.context.outcome_tracking == true then
+        M.finish_round(self, now)
+    else
+        local classification = OutcomeClassifier.classify(self.training_timeline.events, {
+            outcome_tracking = false,
+        })
+        self.training_timeline:finish(now, classification.outcome, {
+            action = tostring(self.current_action),
+            state_key = self.current_state_key,
+            outcome_tracking = false,
+            completion_basis = "behavior_tree_attack_exit",
+            classification = classification,
+        })
+        self.state_changes = self.state_changes + 1
+        self.last_result = classification.label
+    end
+    self.semantic_exit_state_key = self.current_state_key
+    return true
+end
+
+-- A repeated forced scenario may re-enter the same sticky ActionNo.  Re-open
+-- the round only after the controller has observed a fresh requested entry.
+function M.rearm_current_action_round(self, now, expected_action)
+    if self.current_action == nil or self.training_timeline.active == true then return false end
+    if expected_action ~= nil and tostring(expected_action) ~= tostring(self.current_action) then
+        return false
+    end
+    self.semantic_exit_state_key = nil
+    self.current_hitbox_observation = nil
+    self.live_hitbox_seen = false
+    self.live_hitbox_state_key = self.current_state_key
+    self.action_started_at = tonumber(now) or 0
+    self.training_timeline:start(self.action_started_at, {
+        action = tostring(self.current_action),
+        state_key = self.current_state_key,
+        move_name = self.current_move and (self.current_move.short_name or self.current_move.name) or nil,
+        motion_name = self.current_metadata and self.current_metadata.motion_name or nil,
+        motion_frame = self.current_metadata and tonumber(self.current_metadata.current_frame) or nil,
+        entry_basis = "verified_training_request",
+    })
+    self.last_player_action_semantic_key = nil
+    self.last_player_status_key = nil
+    self.last_player_status_active = false
+    return true
+end
+
 function M.observe_action(self, action, now, metadata)
     if action == nil then return false end
     action = tostring(action)
@@ -780,19 +836,21 @@ function M.observe_action(self, action, now, metadata)
     local previous_metadata = self.current_metadata
     if previous ~= nil then
         M.finalize_hitbox_observation(self)
-        if self.context.outcome_tracking == true then
-            M.finish_round(self, now)
-        else
-            local classification = OutcomeClassifier.classify(self.training_timeline.events, {
-                outcome_tracking = false,
-            })
-            self.training_timeline:finish(now, classification.outcome, {
-                action = tostring(previous),
-                state_key = previous_state_key,
-                outcome_tracking = false,
-                classification = classification,
-            })
-            self.state_changes = self.state_changes + 1
+        if self.training_timeline.active == true then
+            if self.context.outcome_tracking == true then
+                M.finish_round(self, now)
+            else
+                local classification = OutcomeClassifier.classify(self.training_timeline.events, {
+                    outcome_tracking = false,
+                })
+                self.training_timeline:finish(now, classification.outcome, {
+                    action = tostring(previous),
+                    state_key = previous_state_key,
+                    outcome_tracking = false,
+                    classification = classification,
+                })
+                self.state_changes = self.state_changes + 1
+            end
         end
         if is_coaching_action(self, previous_metadata) and is_coaching_action(self, metadata) then
             record_transition(self, previous_state_key, next_state_key)
@@ -802,6 +860,7 @@ function M.observe_action(self, action, now, metadata)
     local event_time = now or 0
     local duration = previous and math.max(0, event_time - self.action_started_at) or nil
     self.current_action = action
+    self.semantic_exit_state_key = nil
     self.current_state_key = next_state_key
     self.current_move = is_coaching_action(self, metadata) and named_move(self, action, metadata) or nil
     self.current_metadata = metadata
