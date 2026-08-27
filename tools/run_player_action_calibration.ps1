@@ -6,6 +6,7 @@ param(
     [string[]]$Step = @(),
     [ValidateRange(5, 20)][int]$InitialSettleSeconds = 12,
     [ValidateRange(10, 45)][int]$GracefulExitTimeoutSeconds = 25,
+    [switch]$CloseGameAfterCalibration,
     [string]$OutputPath = ''
 )
 
@@ -18,6 +19,8 @@ $normalInstalled = Join-Path $resolvedGameRoot 'reframework\quests\q200032001.js
 $calibrationSource = Join-Path $repositoryRoot 'tools\fixtures\q200032002.player-calibration.json'
 $calibrationInstalled = Join-Path $resolvedGameRoot 'reframework\quests\q200032002.json'
 $artifactsRoot = Join-Path $repositoryRoot 'artifacts\player_action_calibration'
+$probeRequestPath = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach\dev_probe_request.json'
+$probeReportPath = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach\dev_probe_report.json'
 
 foreach ($required in @($gameExecutable, $normalSource, $calibrationSource)) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
@@ -58,6 +61,20 @@ function Assert-SameHash {
     return $actualHash
 }
 
+function Clear-TerminalProbeRequest {
+    if (-not (Test-Path -LiteralPath $probeRequestPath -PathType Leaf)) { return }
+    try {
+        $request = Get-Content -LiteralPath $probeRequestPath -Raw | ConvertFrom-Json
+        $report = Get-Content -LiteralPath $probeReportPath -Raw | ConvertFrom-Json
+        $terminal = [string]$report.status -in @('completed', 'failed', 'timeout', 'aborted')
+        if ($terminal -and [string]$request.session_id -eq [string]$report.session_id) {
+            Remove-Item -LiteralPath $probeRequestPath
+        }
+    } catch {
+        Write-Warning "Could not clear the terminal development request: $($_.Exception.Message)"
+    }
+}
+
 function Resolve-VerifiedPython {
     $candidates = @(
         (Join-Path $repositoryRoot '.venv\Scripts\python.exe'),
@@ -75,7 +92,9 @@ function Resolve-VerifiedPython {
     throw 'No real Python interpreter was found. Create .venv from requirements-dev.txt; the WindowsApps alias is not accepted.'
 }
 
-Stop-MonsterHunterRiseGracefully -TimeoutSeconds $GracefulExitTimeoutSeconds
+if (@(Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue).Count -gt 0) {
+    throw 'Calibration refused because Monster Hunter Rise is already running. Close the game before starting developer automation.'
+}
 & (Join-Path $PSScriptRoot 'deploy_dev.ps1') -GameRoot $resolvedGameRoot
 if (-not $?) { throw 'Normal development deployment failed.' }
 $normalHashBefore = Assert-SameHash -Expected $normalSource -Actual $normalInstalled `
@@ -114,6 +133,8 @@ try {
         calibration_quest_sha256 = $calibrationHash
         equipment_writes = $false
         save_writes = $false
+        focus_policy = 'acquire_once_abort_on_player_takeover'
+        game_close_policy = if ($CloseGameAfterCalibration) { 'explicit_opt_in' } else { 'leave_running' }
     }
     $receipt | ConvertTo-Json -Depth 4 | Set-Content `
         -LiteralPath (Join-Path $artifactsRoot "$sessionId.staging.json") -Encoding utf8
@@ -132,7 +153,10 @@ try {
     }
 } finally {
     try {
-        Stop-MonsterHunterRiseGracefully -TimeoutSeconds $GracefulExitTimeoutSeconds
+        if ($CloseGameAfterCalibration) {
+            Stop-MonsterHunterRiseGracefully -TimeoutSeconds $GracefulExitTimeoutSeconds
+        }
+        Clear-TerminalProbeRequest
         if ($staged -and (Test-Path -LiteralPath $calibrationInstalled)) {
             $installedCalibrationHash = (Get-FileHash -LiteralPath $calibrationInstalled -Algorithm SHA256).Hash
             if ($installedCalibrationHash -ne $calibrationHash) {
@@ -155,4 +179,7 @@ if ($probeExitCode -ne 0) {
     throw "Player action calibration did not satisfy its evidence gate (exit code $probeExitCode). Report: $resolvedOutput"
 }
 Write-Host "Player action calibration completed; temporary Quest ID 200032002 was removed." -ForegroundColor Green
+if (-not $CloseGameAfterCalibration) {
+    Write-Host 'Monster Hunter Rise was left running; return to a normal quest through the game UI.' -ForegroundColor Green
+}
 Write-Host "Evidence: $resolvedOutput"

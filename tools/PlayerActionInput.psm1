@@ -151,7 +151,7 @@ public static class MonsterCoachPlayerInputBridge {
     const uint RIGHTDOWN = 0x0008, RIGHTUP = 0x0010;
     const uint XDOWN = 0x0080, XUP = 0x0100;
 
-    static bool Focus(IntPtr window) {
+    public static bool AcquireFocus(IntPtr window) {
         if (window == IntPtr.Zero) return false;
         IntPtr foreground = GetForegroundWindow();
         if (foreground != window) {
@@ -171,6 +171,9 @@ public static class MonsterCoachPlayerInputBridge {
         Thread.Sleep(foreground == window ? 10 : 250);
         return GetForegroundWindow() == window;
     }
+    public static bool OwnsForeground(IntPtr window) {
+        return window != IntPtr.Zero && GetForegroundWindow() == window;
+    }
     static void MouseFlags(string button, out uint down, out uint up, out uint data) {
         data = 0;
         switch (button) {
@@ -182,7 +185,7 @@ public static class MonsterCoachPlayerInputBridge {
         }
     }
     public static bool KeyClick(IntPtr window, byte key) {
-        if (!Focus(window)) return false;
+        if (!OwnsForeground(window)) return false;
         byte scan = (byte)MapVirtualKey(key, 0);
         if (scan == 0) return false;
         keybd_event(0, scan, KEYEVENTF_SCANCODE, UIntPtr.Zero);
@@ -191,7 +194,7 @@ public static class MonsterCoachPlayerInputBridge {
         return true;
     }
     public static bool MouseClick(IntPtr window, string button) {
-        if (!Focus(window)) return false;
+        if (!OwnsForeground(window)) return false;
         uint down, up, data;
         MouseFlags(button, out down, out up, out data);
         mouse_event(down, 0, 0, data, UIntPtr.Zero);
@@ -200,7 +203,7 @@ public static class MonsterCoachPlayerInputBridge {
         return true;
     }
     public static bool MouseChord(IntPtr window, string first, string second) {
-        if (!Focus(window)) return false;
+        if (!OwnsForeground(window)) return false;
         uint firstDown, firstUp, firstData, secondDown, secondUp, secondData;
         MouseFlags(first, out firstDown, out firstUp, out firstData);
         MouseFlags(second, out secondDown, out secondUp, out secondData);
@@ -212,7 +215,7 @@ public static class MonsterCoachPlayerInputBridge {
         return true;
     }
     public static bool MouseKeyChord(IntPtr window, string button, byte key) {
-        if (!Focus(window)) return false;
+        if (!OwnsForeground(window)) return false;
         byte scan = (byte)MapVirtualKey(key, 0);
         if (scan == 0) return false;
         uint down, up, data;
@@ -320,7 +323,9 @@ function Invoke-LongSwordInputStep {
                 }
                 default { throw "Unknown allowlisted input operation '$($operation.kind)'" }
             }
-            if (-not $ok) { throw "Could not focus the game or send '$($operation.kind)' for '$Step'" }
+            if (-not $ok) {
+                throw "Game focus was taken over by the player; calibration stopped before '$($operation.kind)' for '$Step'."
+            }
         }
     } finally {
         [MonsterCoachPlayerInputBridge]::ReleaseAllowlistedInputs()

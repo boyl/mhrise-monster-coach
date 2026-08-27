@@ -30,8 +30,23 @@ $evidencePath = Join-Path $dataRoot 'runtime_player_action_evidence.json'
 $actionSignalPath = Join-Path $dataRoot 'runtime_player_action_signal.json'
 $combatStatePath = Join-Path $dataRoot 'runtime_player_combat_state.json'
 $probeReportPath = Join-Path $dataRoot 'dev_probe_report.json'
+$probeRequestPath = Join-Path $dataRoot 'dev_probe_request.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
 $sourceVersion = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
+
+function Clear-TerminalProbeRequest {
+    if (-not (Test-Path -LiteralPath $probeRequestPath -PathType Leaf)) { return }
+    try {
+        $request = Get-Content -LiteralPath $probeRequestPath -Raw | ConvertFrom-Json
+        $report = Get-Content -LiteralPath $probeReportPath -Raw | ConvertFrom-Json
+        $terminal = [string]$report.status -in @('completed', 'failed', 'timeout', 'aborted')
+        if ($terminal -and [string]$request.session_id -eq [string]$report.session_id) {
+            Remove-Item -LiteralPath $probeRequestPath
+        }
+    } catch {
+        Write-Warning "Could not clear the terminal development request: $($_.Exception.Message)"
+    }
+}
 
 if (-not (Test-Path -LiteralPath $receiptPath)) {
     throw 'Installed development receipt is missing; deploy the current source first.'
@@ -47,7 +62,9 @@ if (-not $game) {
     if ($SkipPreflight) { throw '-SkipPreflight requires a running game.' }
     & (Join-Path $PSScriptRoot 'run_probe_session.ps1') -PlayerActionEvidence `
         -TimeoutSeconds 300 -SkipDeployment:$SkipDeployment
-    if (-not $?) { throw 'Automatic game launch/player-action preflight failed.' }
+    $preflightSucceeded = $?
+    Clear-TerminalProbeRequest
+    if (-not $preflightSucceeded) { throw 'Automatic game launch/player-action preflight failed.' }
     $game = Get-Process -Name MonsterHunterRise -ErrorAction Stop | Select-Object -First 1
     $preflightCompleted = $true
 }
@@ -58,7 +75,9 @@ if (-not $SkipPreflight -and -not $preflightCompleted) {
     & (Join-Path $PSScriptRoot 'run_probe_session.ps1') -PlayerActionEvidence `
         -RequireCombatArea -TimeoutSeconds 240 -NavigationTimeoutSeconds 45 `
         -SkipDeployment:$SkipDeployment
-    if (-not $?) { throw 'Player-action preflight failed.' }
+    $preflightSucceeded = $?
+    Clear-TerminalProbeRequest
+    if (-not $preflightSucceeded) { throw 'Player-action preflight failed.' }
 }
 
 function Read-JsonFile {
@@ -197,6 +216,12 @@ if ($combat.weapon_type -ne 'long_sword' -or $combat.weapon_controller_type -ne 
     throw 'Current player is not using Long Sword; the probe will not change equipment.'
 }
 
+Initialize-MonsterCoachInputBridge
+$game.Refresh()
+if (-not [MonsterCoachPlayerInputBridge]::AcquireFocus($game.MainWindowHandle)) {
+    throw 'Could not acquire game focus for the bounded calibration session.'
+}
+
 # The Forlorn Arena arrival FSM remains visible before combat input is accepted.
 # This one-time bounded settle replaces several ignored inputs and is still far
 # cheaper than asking a user to repeat manual calibration runs.
@@ -272,6 +297,7 @@ $report = [ordered]@{
     captured_at = [DateTimeOffset]::Now.ToString('o')
     source_version = $sourceVersion
     policy = 'external_allowlisted_player_input_with_read_only_runtime_evidence'
+    focus_policy = 'acquire_once_abort_on_player_takeover'
     official_default_control_source = 'https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6'
     equipment_writes = $false
     save_writes = $false

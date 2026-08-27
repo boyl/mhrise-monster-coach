@@ -7,6 +7,10 @@ Initialize-MonsterCoachInputBridge
 if (-not ('MonsterCoachPlayerInputBridge' -as [type])) {
     throw 'The allowlisted Windows input bridge did not compile.'
 }
+if ([MonsterCoachPlayerInputBridge]::OwnsForeground([IntPtr]::Zero) `
+    -or [MonsterCoachPlayerInputBridge]::MouseClick([IntPtr]::Zero, 'left')) {
+    throw 'The input bridge must fail closed when it does not own a valid foreground window.'
+}
 
 $plan = @(Get-LongSwordDefaultInputPlan)
 $expectedIds = @(
@@ -51,6 +55,11 @@ $inputModuleSource = Get-Content -LiteralPath `
 if ($inputModuleSource -notmatch 'Read-MonsterCoachActionSignal' `
     -or $inputModuleSource -notmatch 'RevisionCursor') {
     throw 'The input adapter must own its live-signal cursor and retry boundary.'
+}
+if ($inputModuleSource -notmatch 'AcquireFocus' `
+    -or $inputModuleSource -notmatch 'OwnsForeground' `
+    -or $inputModuleSource -match 'if \(!Focus\(window\)\)') {
+    throw 'The input bridge must acquire focus once and abort instead of repeatedly stealing it.'
 }
 $signalFixture = Join-Path $env:TEMP "monster-coach-action-signal-$([Guid]::NewGuid().ToString('N')).json"
 try {
@@ -98,6 +107,10 @@ if ($inputProbeSource -notmatch 'runtime_player_action_signal\.json' `
     -or $inputProbeSource -notmatch 'draw preparation') {
     throw 'Calibration must use live transitions, semantic gates, and a separate draw setup.'
 }
+if ($inputProbeSource -notmatch 'acquire_once_abort_on_player_takeover' `
+    -or $inputProbeSource -notmatch 'Clear-TerminalProbeRequest') {
+    throw 'Calibration must expose its focus policy and clear terminal probe requests.'
+}
 $runtimeSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\reframework\autorun\MHRiseMonsterCoach\runtime.lua') -Raw
 if ($runtimeSource -notmatch 'set_action_live_signal_enabled\(player_calibration\)') {
@@ -115,6 +128,11 @@ if ($calibrationSource -notmatch 'analyze_player_action_input_probe\.py') {
 if ($calibrationSource -notmatch 'Resolve-VerifiedPython' `
     -or $calibrationSource -notmatch 'WindowsApps') {
     throw 'Calibration must reject the WindowsApps Python alias and resolve a real interpreter.'
+}
+if ($calibrationSource -notmatch 'Calibration refused because Monster Hunter Rise is already running' `
+    -or $calibrationSource -notmatch '\[switch\]\$CloseGameAfterCalibration' `
+    -or $calibrationSource -notmatch 'Clear-TerminalProbeRequest') {
+    throw 'The wrapper must refuse a live game, leave the launched game open by default, and clean terminal requests.'
 }
 
 Write-Host 'test_player_action_input_plan.ps1: PASS'

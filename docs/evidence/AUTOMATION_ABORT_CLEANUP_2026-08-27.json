@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-27",
+  "source_version": "0.49.14-semantic-action-gate",
+  "scope": "developer_automation_abort_cleanup",
+  "trigger": "user_aborted_automated_player_action_calibration",
+  "observed_after_abort": {
+    "external_calibration_process_count": 0,
+    "game_process_count": 1,
+    "temporary_quest_200032002_present": false,
+    "terminal_probe_request_present_before_manual_cleanup": true,
+    "terminal_probe_request_present_after_manual_cleanup": false
+  },
+  "interpretation": "Deployment completed before interruption, but the semantic action batch did not complete and provides no acceptance result.",
+  "follow_up": "0.49.15 adds acquire-once focus ownership, abort-on-player-takeover, live-game refusal, terminal request cleanup, and leaves the launched game running by default."
+}
