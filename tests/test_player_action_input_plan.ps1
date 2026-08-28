@@ -77,6 +77,105 @@ $sideButtons = @($operations | ForEach-Object {
 if ($sideButtons.Count -ne 5 -or @($sideButtons | Where-Object { $_ -ne 'x1' }).Count -ne 0) {
     throw 'Capcom Mouse Button 4 must map to Win32 XBUTTON1 in every Long Sword chord.'
 }
+if (@($operations | Where-Object {
+    $_.kind -in @('mouse_click', 'key_click') -and $null -eq $_.PSObject.Properties['role']
+}).Count -ne 0 -or @($operations | Where-Object {
+    $_.kind -in @('mouse_chord', 'mouse_key_chord') -and $null -eq $_.PSObject.Properties['roles']
+}).Count -ne 0) {
+    throw 'Every physical default operation must declare its stable semantic input role.'
+}
+
+function New-TestBindingContract {
+    param([string]$WeaponSpecialMain = 'MOUSE_EX1')
+    [pscustomobject]@{
+        policy = 'read_only_exact_dictionary_lookup'
+        call_failures = 0
+        value_failures = 0
+        truncated = $false
+        targets = @(
+            [pscustomobject]@{
+                role = 'evade'
+                main = [pscustomobject]@{ status = 'resolved'; name = 'Space' }
+                sub = [pscustomobject]@{ status = 'resolved'; name = 'None' }
+                pad = [pscustomobject]@{ status = 'resolved'; name = 'RD' }
+            }
+            [pscustomobject]@{
+                role = 'primary_attack'
+                main = [pscustomobject]@{ status = 'resolved'; name = 'MOUSE_L' }
+                sub = [pscustomobject]@{ status = 'resolved'; name = 'None' }
+                pad = [pscustomobject]@{ status = 'resolved'; name = 'RU' }
+            }
+            [pscustomobject]@{
+                role = 'secondary_attack'
+                main = [pscustomobject]@{ status = 'resolved'; name = 'MOUSE_R' }
+                sub = [pscustomobject]@{ status = 'resolved'; name = 'None' }
+                pad = [pscustomobject]@{ status = 'resolved'; name = 'RR' }
+            }
+            [pscustomobject]@{
+                role = 'weapon_special'
+                main = [pscustomobject]@{ status = 'resolved'; name = $WeaponSpecialMain }
+                sub = [pscustomobject]@{ status = 'resolved'; name = 'None' }
+                pad = [pscustomobject]@{ status = 'key_unavailable'; name = $null }
+            }
+        )
+    }
+}
+
+$runtimeBindings = New-TestBindingContract
+$runtimePlan = @(Get-LongSwordCurrentInputPlan -BindingContract $runtimeBindings `
+    -ActiveSwitchSkill @('special_sheathe_combo', 'soaring_kick'))
+if (@($runtimePlan | Where-Object source -ne 'runtime_stm_input_config').Count -ne 0 `
+    -or @($runtimePlan | Where-Object source_policy -ne 'read_only_exact_dictionary_lookup').Count -ne 0) {
+    throw 'Resolved plans must expose their runtime binding provenance and policy.'
+}
+$runtimeForesight = @($runtimePlan | Where-Object id -eq 'foresight_attempt')[0]
+if ($runtimeForesight.operations[-1].kind -ne 'mouse_chord' `
+    -or ($runtimeForesight.operations[-1].binding_names -join ',') -ne 'MOUSE_EX1,MOUSE_R') {
+    throw 'Foresight must resolve its current special/secondary bindings at the adapter boundary.'
+}
+$runtimeSheathe = @($runtimePlan | Where-Object id -eq 'special_sheathe')[0]
+if ($runtimeSheathe.operations[-1].kind -ne 'mouse_key_chord' `
+    -or ($runtimeSheathe.operations[-1].binding_names -join ',') -ne 'MOUSE_EX1,Space') {
+    throw 'Special Sheathe must resolve its current special/evade bindings at the adapter boundary.'
+}
+
+$fallbackBindings = New-TestBindingContract
+$fallbackBindings.targets[-1].main.name = 'None'
+$fallbackBindings.targets[-1].sub.name = 'MOUSE_EX2'
+$fallbackPlan = Get-LongSwordCurrentInputPlan -Step 'foresight_attempt' `
+    -BindingContract $fallbackBindings
+if (($fallbackPlan.operations[-1].binding_names -join ',') -ne 'MOUSE_EX2,MOUSE_R') {
+    throw 'A missing main binding must fall back to the verified keyboard/mouse sub binding.'
+}
+
+foreach ($badContract in @(
+    (New-TestBindingContract -WeaponSpecialMain 'KeyQ'),
+    [pscustomobject]@{
+        policy = 'read_only_exact_dictionary_lookup'; call_failures = 1
+        value_failures = 0; truncated = $false; targets = $runtimeBindings.targets
+    },
+    [pscustomobject]@{
+        policy = 'read_only_exact_dictionary_lookup'; call_failures = 0
+        value_failures = 0; truncated = $true; targets = $runtimeBindings.targets
+    },
+    [pscustomobject]@{
+        policy = 'read_only_exact_dictionary_lookup'; call_failures = 0
+        value_failures = 0; truncated = $false; targets = @($runtimeBindings.targets | Select-Object -First 3)
+    }
+)) {
+    $failed = $false
+    try { Get-LongSwordCurrentInputPlan -BindingContract $badContract | Out-Null } catch { $failed = $true }
+    if (-not $failed) { throw 'Incomplete, failed, or unsupported current bindings must fail closed.' }
+}
+$padOnlyBindings = New-TestBindingContract
+$padOnlyBindings.targets[-1].main.name = 'None'
+$padOnlyBindings.targets[-1].sub.name = 'None'
+$padOnlyBindings.targets[-1].pad = [pscustomobject]@{ status = 'resolved'; name = 'RT' }
+$failed = $false
+try { Get-LongSwordCurrentInputPlan -BindingContract $padOnlyBindings | Out-Null } catch { $failed = $true }
+if (-not $failed) {
+    throw 'The Windows input bridge must not guess a snow.Pad.Button to Win32 input mapping.'
+}
 $inputModuleSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\PlayerActionInput.psm1') -Raw
 if ($inputModuleSource -notmatch 'Read-MonsterCoachActionSignal' `
@@ -91,6 +190,12 @@ if ($inputModuleSource -notmatch 'AcquireFocus' `
 if ($inputModuleSource -notmatch 'System\.TimeoutException' `
     -or $inputModuleSource -notmatch 'System\.OperationCanceledException') {
     throw 'Action-signal timeout and player focus takeover must remain distinct errors.'
+}
+if ($inputModuleSource -notmatch 'SendInput' `
+    -or $inputModuleSource -match 'static extern void mouse_event' `
+    -or $inputModuleSource -match 'static extern void keybd_event' `
+    -or $inputModuleSource -notmatch 'Send\(MouseInput\(firstDown, firstData\), MouseInput\(secondDown, secondData\)\)') {
+    throw 'The bridge must use batched SendInput events instead of superseded mouse/key event APIs.'
 }
 $signalFixture = Join-Path $env:TEMP "monster-coach-action-signal-$([Guid]::NewGuid().ToString('N')).json"
 try {
@@ -117,6 +222,12 @@ if (-not $failed) { throw 'Unknown steps must fail closed.' }
 
 $inputProbeSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\run_player_action_input_probe.ps1') -Raw
+$probeSessionSource = Get-Content -LiteralPath `
+    (Join-Path $PSScriptRoot '..\tools\run_probe_session.ps1') -Raw
+if ($probeSessionSource -match '(?m)^\s*Move-Item -LiteralPath \$temporaryPath' `
+    -or $probeSessionSource -notmatch '\[IO\.File\]::Move\(\$temporaryPath, \$Path, \$true\)') {
+    throw 'Probe request replacement must use the overwrite-capable atomic file move.'
+}
 if ($inputProbeSource -notmatch '\[int\]\$InitialSettleSeconds = 12') {
     throw 'The automated calibration must retain the bounded arena-arrival settle.'
 }
@@ -147,10 +258,14 @@ if ($inputProbeSource -notmatch "status = 'input_failed'" `
     -or $inputProbeSource -notmatch 'player_takeover = \$takeoverDetected') {
     throw 'The batch must preserve partial evidence and classify expected input failures.'
 }
-if ($inputProbeSource -notmatch 'active_switch_skill_aware' `
+if ($inputProbeSource -notmatch 'active_switch_skill_and_runtime_binding_aware' `
     -or $inputProbeSource -notmatch 'expected_step_ids' `
-    -or $inputProbeSource -notmatch 'inapplicable_reason') {
-    throw 'The runtime plan must be loadout-aware and explain excluded steps.'
+    -or $inputProbeSource -notmatch 'inapplicable_reason' `
+    -or $inputProbeSource -notmatch 'Get-LongSwordCurrentInputPlan' `
+    -or $inputProbeSource -notmatch 'runtime_stm_input_config' `
+    -or $inputProbeSource -notmatch 'binding_policy' `
+    -or $inputProbeSource -notmatch '-Definition \$definition') {
+    throw 'The runtime plan must be loadout/binding-aware and explain excluded steps.'
 }
 $runtimeSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\reframework\autorun\MHRiseMonsterCoach\runtime.lua') -Raw

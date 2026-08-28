@@ -214,12 +214,22 @@ $combat = Read-JsonFile -Path $combatStatePath
 if ($combat.weapon_type -ne 'long_sword' -or $combat.weapon_controller_type -ne 'snow.player.PlayerWeaponCtrlLS_Sword') {
     throw 'Current player is not using Long Sword; the probe will not change equipment.'
 }
+$preflightReport = Read-JsonFile -Path $probeReportPath
+if ($null -eq $preflightReport `
+    -or [string]$preflightReport.kind -ne 'player_action_evidence' `
+    -or [string]$preflightReport.status -ne 'completed') {
+    throw 'Completed player-action preflight report is unavailable.'
+}
+$bindingContract = $preflightReport.input_motion.current_bindings
+if ($null -eq $bindingContract) {
+    throw 'Player-action preflight did not provide the current input binding contract.'
+}
 $activeScroll = [string]$combat.active_scroll
 $activeSwitchSkills = if ($activeScroll -in @('red', 'blue') -and $combat.switch_skills) {
     @($combat.switch_skills.$activeScroll | Where-Object { $_ })
 } else { @() }
-$catalog = @(Get-LongSwordDefaultInputPlan -Step $Step `
-    -ActiveSwitchSkill $activeSwitchSkills)
+$catalog = @(Get-LongSwordCurrentInputPlan -Step $Step `
+    -ActiveSwitchSkill $activeSwitchSkills -BindingContract $bindingContract)
 $inapplicable = @($catalog | Where-Object { -not $_.applicable })
 if ($Step.Count -gt 0 -and $inapplicable.Count -gt 0) {
     $details = @($inapplicable | ForEach-Object {
@@ -251,7 +261,9 @@ if ($null -eq $initialIdle) {
 }
 if ([string]$initialIdle.current.node_name -ne 'atk.atk_wait.atk_wait_main.atk_wait_main') {
     $game.Refresh()
-    Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step 'basic_overhead'
+    $drawDefinition = @(Get-LongSwordCurrentInputPlan -Step 'basic_overhead' `
+        -ActiveSwitchSkill $activeSwitchSkills -BindingContract $bindingContract)[0]
+    Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Definition $drawDefinition
     $initialIdle = Wait-ForIdleEvidence
     if ($null -eq $initialIdle `
         -or [string]$initialIdle.current.node_name -ne 'atk.atk_wait.atk_wait_main.atk_wait_main') {
@@ -280,7 +292,7 @@ try {
         $game.Refresh()
         $inputFailure = $null
         try {
-            Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Step $definition.id `
+            Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle -Definition $definition `
                 -ActionSignalPath $actionSignalPath
         } catch {
             $inputFailure = $_
@@ -364,8 +376,11 @@ $report = [ordered]@{
     switch_skills = $combat.switch_skills
     expected_step_ids = @($plan.id)
     plan = [ordered]@{
-        strategy = 'active_switch_skill_aware'
+        strategy = 'active_switch_skill_and_runtime_binding_aware'
         active_switch_skills = @($activeSwitchSkills)
+        binding_source = 'runtime_stm_input_config'
+        binding_policy = [string]$bindingContract.policy
+        resolved_bindings = $plan[0].resolved_bindings
         excluded_steps = @($inapplicable | ForEach-Object {
             [ordered]@{
                 id = $_.id

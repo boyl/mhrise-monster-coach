@@ -70,7 +70,11 @@ function Write-AtomicJson {
     $temporaryPath = "$Path.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
     try {
         $Value | ConvertTo-Json -Depth $Depth | Set-Content -LiteralPath $temporaryPath -Encoding utf8
-        Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
+        # Move-Item -Force still refuses to replace an existing destination on
+        # some Windows/PowerShell combinations. .NET 6+ maps this overload to
+        # an overwrite-capable same-volume move while keeping the temp-file
+        # boundary used by the game-side JSON reader.
+        [IO.File]::Move($temporaryPath, $Path, $true)
     } finally {
         Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
     }

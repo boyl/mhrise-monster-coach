@@ -372,6 +372,16 @@ function M:update()
                         return self:complete()
                     end
                     if self.request.kind == "player_action_evidence" then
+                        self.input_motion = self.api.input_motion_diagnostics
+                            and self.api:input_motion_diagnostics() or nil
+                        local bindings = self.input_motion and self.input_motion.current_bindings or nil
+                        if bindings == nil
+                            or bindings.policy ~= "read_only_exact_dictionary_lookup"
+                            or tonumber(bindings.call_failures or 0) ~= 0
+                            or tonumber(bindings.value_failures or 0) ~= 0
+                            or bindings.truncated == true then
+                            return self:fail("Current input binding contract is unavailable")
+                        end
                         self.player_action = self.api.player_action_diagnostics
                             and self.api:player_action_diagnostics() or nil
                         local action = self.player_action and self.player_action.player_action or nil

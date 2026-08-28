@@ -370,7 +370,17 @@ function metadata_api:area_snapshot() return { combat_layer = true } end
 function metadata_api:behavior_tree_snapshot() return { layers = {} } end
 function metadata_api:think_context_snapshot() return {} end
 function metadata_api:input_motion_diagnostics()
-    return { policy = "read_only_known_hid_contract_probe", device_available = true }
+    return {
+        policy = "read_only_known_hid_contract_probe",
+        device_available = true,
+        current_bindings = {
+            policy = "read_only_exact_dictionary_lookup",
+            call_failures = 0,
+            value_failures = 0,
+            truncated = false,
+            targets = {},
+        },
+    }
 end
 local metadata_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
 assert(metadata_probe:accept_request({
@@ -400,11 +410,30 @@ assert(player_action_probe:accept_request({
 player_action_probe:update()
 assert(metadata_reports[#metadata_reports].status == "completed"
     and metadata_reports[#metadata_reports].player_action.weapon_type == "long_sword"
-    and metadata_reports[#metadata_reports].player_action.player_action.node_name == "atk.atk_147.atk_147",
+    and metadata_reports[#metadata_reports].player_action.player_action.node_name == "atk.atk_147.atk_147"
+    and metadata_reports[#metadata_reports].input_motion.current_bindings.policy
+        == "read_only_exact_dictionary_lookup",
     "player action probe requires a resolved current node name")
 assert(metadata_reports[#metadata_reports].training_timeline.revision == 7
     and metadata_reports[#metadata_reports].training_timeline.last_round.outcome == "hit",
     "player action probe preserves the same training timeline consumed by the overlay")
+
+local valid_input_motion_diagnostics = metadata_api.input_motion_diagnostics
+function metadata_api:input_motion_diagnostics()
+    local result = valid_input_motion_diagnostics(self)
+    result.current_bindings.call_failures = 1
+    return result
+end
+local invalid_binding_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
+assert(invalid_binding_probe:accept_request({
+    session_id = "player-action-invalid-bindings", kind = "player_action_evidence",
+}, forced_context))
+invalid_binding_probe:update()
+assert(metadata_reports[#metadata_reports].status == "failed"
+    and metadata_reports[#metadata_reports].reason
+        == "Current input binding contract is unavailable",
+    "player action probe fails closed when current bindings contain lookup failures")
+metadata_api.input_motion_diagnostics = valid_input_motion_diagnostics
 
 function metadata_api:area_snapshot()
     return { combat_layer = false, player_combat_layer = true }

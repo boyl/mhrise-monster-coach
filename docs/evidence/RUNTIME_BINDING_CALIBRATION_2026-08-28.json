@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.25-runtime-binding-calibration",
+  "captured_at": "2026-08-28",
+  "scope": "Long Sword red-scroll player-action calibration with current StmInputConfig bindings",
+  "runtime_binding_contract": {
+    "policy": "read_only_exact_dictionary_lookup",
+    "call_count": 23,
+    "call_failures": 0,
+    "value_failures": 0,
+    "truncated": false,
+    "bindings": {
+      "evade": "Space",
+      "primary_attack": "MOUSE_L",
+      "secondary_attack": "MOUSE_R",
+      "weapon_special": "MOUSE_EX1"
+    }
+  },
+  "runs": [
+    {
+      "transport": "mouse_event",
+      "session_id": "9c3a813e9770483ea39d4b99b31f9aee",
+      "artifact": "artifacts/player_action_calibration/f611ad58258e43acbbb20358ab2e0c18.json",
+      "sha256": "A584909A6A1C9A86723010FBDCA727379A04FEE61FD6CBF8C73658DFB5614DF8",
+      "requested": 4,
+      "transport_observed": 4,
+      "semantic_observed": 3,
+      "semantic_mismatch": ["foresight_attempt"]
+    },
+    {
+      "transport": "SendInput",
+      "session_id": "58d9a01376704710bb9f9f72c658c532",
+      "artifact": "artifacts/player_action_calibration/2f105bc5d27045c8a6cdcc52020227aa.json",
+      "sha256": "AC3E4155236A99004406D8B0A57E8D3A1D710BE40E9ABB5784F9294D35880FB4",
+      "requested": 4,
+      "transport_observed": 4,
+      "semantic_observed": 3,
+      "semantic_mismatch": ["foresight_attempt"]
+    }
+  ],
+  "stable_semantics": {
+    "basic_overhead": "atk.atk_101.",
+    "thrust": "atk.atk_104.",
+    "dodge": "atk.esc_front"
+  },
+  "foresight_result": {
+    "expected": "atk.atk_147.atk_147",
+    "observed_in_both_runs": "atk.atk_101.",
+    "classification": "semantic_not_observed",
+    "interpretation": "Current binding resolution is verified, but neither legacy mouse_event nor batched SendInput produced the weapon-special chord inside MHR. Do not promote Foresight semantics and do not continue guessing XBUTTON values."
+  },
+  "safety": {
+    "game_crash": false,
+    "player_takeover": false,
+    "equipment_writes": false,
+    "save_writes": false,
+    "temporary_calibration_quest_removed": true,
+    "terminal_probe_request_removed": true
+  },
+  "next_boundary": "Investigate a bounded MHR-specific StmPlayerInput/CommandButton2 semantic input hook. The generic Windows physical-input route is retired for weapon-special calibration."
+}

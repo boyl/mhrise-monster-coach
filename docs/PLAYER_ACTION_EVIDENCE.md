@@ -105,3 +105,9 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.23` 实机验证四个绑定字段与实际字典对象全部存在；main/sub 为静态键鼠字典，pad/player-static 为实例手柄字典。所有对象均暴露精确的 `ContainsKey(Int32)` 与 `get_Item(Int32)`，且返回类型与字段值类型一致。`0.49.24` 在这一门禁后才加入四个逻辑动作的 main/sub/pad 有界读取，最多 24 次并缓存一次；完整契约证据见 `docs/evidence/BINDING_DICTIONARY_CONTRACT_2026-08-28.json`。
 
 `0.49.24` 的真实读取以 23 次调用解析了全部键鼠主键、副键和三项独立手柄键，零调用失败、零值解析失败。结果确认当前配装的武器特殊键是 `MOUSE_EX1`，不再依赖 Win32 侧键顺序猜测；手柄字典没有该逻辑 ID，读取器保留 `key_unavailable`，不把组合语义伪装成单按钮。完整结果见 `docs/evidence/CURRENT_BINDING_READ_2026-08-28.json`。
+
+`0.49.25` 将动作模板中的物理键降为带来源的默认参考，正式自动校准只消费 `primary_attack`、`secondary_attack`、`weapon_special` 与 `evade` 四个语义角色。`player_action_evidence` 预检必须同时产出完整、零失败、未截断的当前绑定契约；PowerShell 边界仅把已解析的 main/sub 键鼠值转换为白名单 Windows 输入。未知键名、缺失角色、字典调用失败或只有手柄绑定时均停止，不回退到默认侧键，也不跨用 `snow.Pad.Button`。报告保存活动替换技、绑定策略、绑定来源与每个角色的实际解析结果，使“输入发送成功”和“动作语义出现”可以分别复核。
+
+证据升级采用按风险分级的最小重复数，不再统一要求五次：同一构建和配装下，按键—动作节点关联连续一致 2 次可标记为已验证；动作节点出现不等于反击成功，见切/居合结果仍需至少 2 次与怪物判定窗及玩家结果事件一致。固定派生需自然连续出现 3 次；条件派生的每个关键条件分支各需 2 次；同一 Action/Motion 的判定窗需稳定 3 次。任一重复结果冲突时自动追加第 3 次或保持候选，不用多数票掩盖不稳定数据。
+
+`0.49.25` 的两次完整自动实机对照分别使用旧 `mouse_event` 和微软推荐的批量 `SendInput`。两轮均读取同一当前绑定、完成 4/4 传输观察，并稳定命中直斩、突刺和翻滚；见切两轮都只出现 `atk_101`，没有 `atk_147`。因此当前绑定读取已验证，但 Windows 物理侧键注入不能作为 MHR 气刃语义入口；该路线停止，不再试 `x1/x2` 或延长人工轮次。后续仅调查有边界的 `snow.StmPlayerInput` / `CommandButton2` 游戏语义链。摘要见 `docs/evidence/RUNTIME_BINDING_CALIBRATION_2026-08-28.json`。
