@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.31-actionable-trigger-gate",
+  "captured_at": "2026-08-29",
+  "session_id": "dceb2ea2c44b49e5a53b35c68fe18084",
+  "scope": "已验证中立动作节点后的 Escape 单帧触发复测",
+  "report": {
+    "artifact": "artifacts/probe_reports/dceb2ea2c44b49e5a53b35c68fe18084.semantic_input_trigger.completed.json",
+    "sha256": "687476DCD4D003BC99782CFDF182C1967C6E2345898DFC620FD49D05F6F7A2AE",
+    "status": "completed"
+  },
+  "analysis": {
+    "artifact": "artifacts/probe_reports/dceb2ea2c44b49e5a53b35c68fe18084.semantic_input_trigger.completed.analysis.json",
+    "sha256": "E76880FC1293BF5801113D6FB3F698CEE62D561DFBCE3B2C2905C53EEDB4AD5E",
+    "status": "verified_single_frame_trigger",
+    "experiment_succeeded": true,
+    "violations": [],
+    "expected_escape_observed": false,
+    "next_gate": "adjust_trigger_timing_without_expanding_write_scope"
+  },
+  "neutral_gate": {
+    "policy": "verified_neutral_node_stability",
+    "node_id": 4143981713,
+    "node_name": "wait.main",
+    "required_frames": 15,
+    "stable_frames": 15,
+    "status": "ready"
+  },
+  "trigger": {
+    "command": "Escape",
+    "command_value": 3,
+    "setter_declaring_type": "snow.BitSetFlagBase",
+    "write_count": 1,
+    "release_read_count": 1,
+    "released_after_hid_cycles": 2,
+    "status": "released"
+  },
+  "player_action": {
+    "before": "wait.main",
+    "observed": [],
+    "expected_escape_observed": false,
+    "interpretation": "已排除古塔到达动画，但 Manager getTrg 位集写入仍未被玩家动作层消费；该入口停止重复尝试。"
+  },
+  "safety": {
+    "other_semantic_commands_written": 0,
+    "clear_calls": 0,
+    "bulk_set_calls": 0,
+    "game_responding_after_probe": true,
+    "game_crash": false
+  }
+}

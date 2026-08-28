@@ -123,3 +123,5 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.30` 将第一次写入隔离为专用自动探针，不提供给普通陪练流程。它只尝试 `Escape=3`，在 `UpdateHID` 后向 `getTrg()` 位集调用一次 `snow.BitSetFlagBase.set(UInt32)`；后续帧只读 `isTrg(Escape)`，要求游戏在最多 3 个 HID 周期内自然释放。报告同时采集触发前后的玩家动作节点，但“观察到节点变化”只决定下一门禁，不自动证明翻滚成功；没有节点变化时只允许调整同一命令的时序，不扩大写入范围。
 
 `0.49.30` 实机报告确认写入恰好 1 次、释放查询 1 次并在第 2 个 HID 周期自然清除，游戏保持响应且日志没有本 Mod 错误；但注入前后节点均为 `fast_travel.ファストトラベル：到着 (塔/ラスボス)`，因此不能证明回避命令有效。`0.49.31` 不增加命令或写入次数，只把既有自动输入流程中的“猎人中立态”概念移入游戏内探针：必须在已验证的收刀/拔刀待机节点连续稳定 15 帧才允许注入，报告只把 `atk.esc_*` 识别为预期 Escape 结果，伤害和其他动作变化均不算成功。完整生命周期证据见 `docs/evidence/SEMANTIC_TRIGGER_LIFECYCLE_ACCEPTANCE_2026-08-29.json`。
+
+`0.49.31` 实机确认中立门禁命中 `wait.main` 且连续稳定 15 帧，随后仍只写入 1 次并自然释放，但等待 60 帧也没有任何动作节点变化。由此排除古塔到达动画，并停止 Manager 位集路线；完整证据见 `docs/evidence/ACTIONABLE_TRIGGER_ACCEPTANCE_2026-08-29.json`。公开 REFramework 文档确认 pre/post application entry 的前后时序，MHRice 源码则不包含运行时输入消费逻辑。`0.49.32` 因此回到只读层，按当前猎人 GameObject 定位非单例 `snow.StmPlayerInput` 组件，验证其 `Refinput`、精确 set/clear/query 签名和一次 Boolean 查询，未通过前不再进行第三次写入。

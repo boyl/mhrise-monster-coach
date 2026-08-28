@@ -129,6 +129,7 @@ local semantic_read_calls = 0
 local bitset_mutator_calls = 0
 local unrelated_player_field_reads = 0
 local player_instance_query_calls = 0
+local stm_component_query_calls = 0
 local fake_semantic_trigger_active = false
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
@@ -265,16 +266,36 @@ stm_type.get_methods = function()
         table.unpack(semantic_manager_methods),
     }
 end
+local player_input_instance = nil
 local stm_player_input_instance = {}
+local stm_refinput_field = {
+    get_name = function() return "Refinput" end,
+    get_type = function() return named_type("snow.player.PlayerInput") end,
+    is_static = function() return false end,
+    get_data = function(_, owner)
+        assert(owner == stm_player_input_instance)
+        return player_input_instance
+    end,
+}
+local stm_is_delay = semantic_metadata_method("isDelay", "System.Boolean", semantic_parameter)
+stm_is_delay.call = function(_, owner, command)
+    assert(owner == stm_player_input_instance and command == 3)
+    stm_component_query_calls = stm_component_query_calls + 1
+    return false
+end
 local stm_player_input_type = {
     get_full_name = function() return "snow.StmPlayerInput" end,
-    get_fields = function() return {} end,
+    get_fields = function() return { stm_refinput_field } end,
     get_methods = function()
-        return { semantic_metadata_method("updateCommand", "System.Void", {}) }
+        return {
+            semantic_metadata_method("updateCommand", "System.Void", {}),
+            semantic_metadata_method("setButton", "System.Void", semantic_parameter),
+            semantic_metadata_method("clearButton", "System.Void", semantic_parameter),
+            stm_is_delay,
+        }
     end,
 }
 function stm_player_input_instance:get_type_definition() return stm_player_input_type end
-local player_input_instance = nil
 local player_is_delay = semantic_metadata_method("isDelay", "System.Boolean", semantic_parameter)
 player_is_delay.call = function(_, owner, command)
     assert(owner == player_input_instance, "player query must use resolved current-player input")
@@ -295,6 +316,12 @@ local player_input_type = {
 player_input_instance = {}
 function player_input_instance:get_type_definition() return player_input_type end
 local current_player = {}
+local player_game_object = {}
+function player_game_object:call(name, component_type)
+    assert(name == "getComponent(System.Type)" or name == "getComponent")
+    assert(component_type == stm_player_input_type)
+    return stm_player_input_instance
+end
 local current_player_base_type = {
     get_full_name = function() return "snow.player.PlayerBase" end,
     get_parent_type = function() return nil end,
@@ -328,6 +355,10 @@ local current_player_type = {
     get_methods = function() return {} end,
 }
 function current_player:get_type_definition() return current_player_type end
+function current_player:call(name)
+    assert(name == "get_GameObject")
+    return player_game_object
+end
 local input_ui_type = {
     get_full_name = function() return "snow.StmInputManager.InputUI" end,
     get_fields = function() return {} end,
@@ -442,6 +473,9 @@ function stm:get_field(name)
     return original_stm_get_field(self, name)
 end
 sdk = {
+    typeof = function(name)
+        if name == "snow.StmPlayerInput" then return stm_player_input_type end
+    end,
     find_type_definition = function(name)
         if name == "via.hid.GamePad" then return {} end
         if name == "via.hid.GamePadButton" then return button_type end
@@ -476,7 +510,7 @@ Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics(current_player)
-assert(diagnostics.schema_version == 11)
+assert(diagnostics.schema_version == 12)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -567,6 +601,19 @@ assert(player_instance.queries[1].command == "Atk_X")
 assert(player_instance.queries[3].command == "Atk_R_A")
 assert(player_instance.queries[4].command == "Escape")
 assert(player_instance_query_calls == 4)
+local stm_component = diagnostics.stm_player_input_component_contract
+assert(stm_component.policy == "bounded_read_only_stm_player_input_component")
+assert(stm_component.max_calls == 1 and stm_component.call_count == 1)
+assert(stm_component.call_failures == 0 and stm_component.gameplay_writes == 0)
+assert(stm_component.game_object_available and stm_component.component_type_available)
+assert(stm_component.component_available and stm_component.component_type == "snow.StmPlayerInput")
+assert(stm_component.refinput_available and stm_component.refinput_matches_current)
+assert(stm_component.refinput_type == "snow.player.PlayerInput")
+assert(stm_component.methods.set_button.available
+    and stm_component.methods.clear_button.available
+    and stm_component.methods.is_delay.available)
+assert(stm_component.query.command == "Escape" and stm_component.query.status == "resolved")
+assert(stm_component_query_calls == 1)
 assert(#diagnostics.input_enum_contracts == 9)
 assert(diagnostics.input_enum_contracts[1].values[2].name == "GamePad")
 assert(diagnostics.input_enum_contracts[2].available == false)

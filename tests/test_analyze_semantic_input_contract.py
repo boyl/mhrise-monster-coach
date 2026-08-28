@@ -79,6 +79,63 @@ def complete_payload():
 
 
 class SemanticInputContractAnalysisTests(unittest.TestCase):
+    def test_schema_twelve_requires_verified_stm_player_input_component(self):
+        payload = complete_payload()
+        payload["input_motion"]["schema_version"] = 12
+        payload["input_motion"]["stm_player_input_component_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_component",
+            "max_calls": 1,
+            "call_count": 1,
+            "call_failures": 0,
+            "gameplay_writes": 0,
+            "component_available": True,
+            "component_type": "snow.StmPlayerInput",
+            "refinput_available": True,
+            "refinput_type": "snow.player.PlayerInput",
+            "refinput_matches_current": True,
+            "methods": {
+                "set_button": {"available": True},
+                "clear_button": {"available": True},
+                "is_delay": {"available": True},
+            },
+            "query": {"command": "Escape", "status": "resolved", "result": False},
+        }
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"],
+                         "stm_player_input_component_read_contract_verified")
+        self.assertEqual(result["violations"], [])
+        self.assertEqual(result["next_gate"],
+                         "design_component_scoped_press_release_experiment")
+
+    def test_schema_twelve_rejects_component_not_linked_to_current_player(self):
+        payload = complete_payload()
+        payload["input_motion"]["schema_version"] = 12
+        payload["input_motion"]["stm_player_input_component_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_component",
+            "max_calls": 1,
+            "call_count": 1,
+            "call_failures": 0,
+            "gameplay_writes": 0,
+            "component_available": True,
+            "component_type": "snow.StmPlayerInput",
+            "refinput_available": True,
+            "refinput_type": "snow.player.PlayerInput",
+            "refinput_matches_current": False,
+            "methods": {
+                "set_button": {"available": True},
+                "clear_button": {"available": True},
+                "is_delay": {"available": True},
+            },
+            "query": {"command": "Escape", "status": "resolved", "result": False},
+        }
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"], "invalid_read_only_contract")
+        self.assertIn("stm_player_input_component_not_verified", result["violations"])
+
     def test_finds_instance_owned_update_candidate_without_allowing_experiment(self):
         result = analyze(complete_payload())
 

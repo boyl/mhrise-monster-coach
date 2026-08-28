@@ -194,9 +194,37 @@ def analyze(payload: dict) -> dict:
         and instance_contract.get("call_failures") == 0
         and len(resolved_queries) == instance_call_count
     )
+    component_contract = input_motion.get("stm_player_input_component_contract") or {}
+    component_read_verified = False
+    if isinstance(input_schema, int) and input_schema >= 12:
+        if component_contract.get("policy") \
+                != "bounded_read_only_stm_player_input_component":
+            violations.append("stm_player_input_component_contract_missing_or_changed")
+        if component_contract.get("gameplay_writes") != 0:
+            violations.append("stm_player_input_component_writes_not_zero")
+        if component_contract.get("call_failures") != 0:
+            violations.append("stm_player_input_component_query_failed")
+        methods = component_contract.get("methods") or {}
+        component_read_verified = bool(
+            component_contract.get("component_available") is True
+            and component_contract.get("component_type") == "snow.StmPlayerInput"
+            and component_contract.get("refinput_available") is True
+            and component_contract.get("refinput_type") == "snow.player.PlayerInput"
+            and component_contract.get("refinput_matches_current") is True
+            and component_contract.get("call_count") == 1
+            and component_contract.get("max_calls") == 1
+            and component_contract.get("call_failures") == 0
+            and (component_contract.get("query") or {}).get("status") == "resolved"
+            and all((methods.get(name) or {}).get("available") is True
+                    for name in ("set_button", "clear_button", "is_delay"))
+        )
+        if not component_read_verified:
+            violations.append("stm_player_input_component_not_verified")
 
     if violations:
         status = "invalid_read_only_contract"
+    elif component_read_verified:
+        status = "stm_player_input_component_read_contract_verified"
     elif instance_read_verified:
         status = "player_input_read_contract_verified"
     elif resolved_player_owners:
@@ -209,7 +237,7 @@ def analyze(payload: dict) -> dict:
         status = "no_callable_owner_candidate"
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": status,
         "experiment_allowed": False,
         "violations": violations,
@@ -234,8 +262,11 @@ def analyze(payload: dict) -> dict:
         "player_input_query_call_count": instance_call_count,
         "player_input_query_max_calls": instance_max_calls,
         "player_input_queries": instance_contract.get("queries") or [],
+        "stm_player_input_component": component_contract,
         "next_gate": (
-            "design_separate_guarded_semantic_press_release_experiment"
+            "design_component_scoped_press_release_experiment"
+            if status == "stm_player_input_component_read_contract_verified"
+            else "design_separate_guarded_semantic_press_release_experiment"
             if status == "player_input_read_contract_verified"
             else
             "verify_player_input_instance_read_contract"

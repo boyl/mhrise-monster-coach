@@ -23,6 +23,7 @@
 | 2026-08-29 | 0.49.28-player-input-owner-contract | 位集继承与当前猎人输入所有者只读验收 | 自动启动并完成报告；真实玩家输入对象已定位，游戏继续正常响应 | `BitSetFlagBase` 的 set/clear 元数据；`PlayerBase.<RefPlayerInput>k__BackingField -> snow.player.PlayerInput`；零请求、零写入 | 尚未验证实例查询调用；所有修改方法继续锁定 |
 | 2026-08-29 | 0.49.29-player-input-read-contract | 当前猎人语义输入有界读取 | 自动报告完成；四项精确查询 4/4、失败 0，游戏继续正常响应 | `isDelay(CommandButton2)` 在真实 `snow.player.PlayerInput` 实例上对 `Atk_X/Atk_A/Atk_R_A/Escape` 返回 Boolean；玩法写入 0 | 尚未写入命令位，也未证明任何动作语义 |
 | 2026-08-29 | 0.49.30-semantic-trigger-experiment | `Escape` 单帧触发生命周期 | 自动进入普通陪练任务和战斗区；`getTrg().set(3)` 恰好 1 次，第 2 个 HID 周期自然释放；游戏持续响应且无本 Mod 错误 | 精确 setter、单写入、自然释放、错误任务/联机/非白名单失败关闭 | 注入时仍在古塔到达节点，未出现 `atk.esc_*`，只验收生命周期，不验收回避语义 |
+| 2026-08-29 | 0.49.31-actionable-trigger-gate | 可操作中立态后的 `Escape` 复测 | `wait.main` 连续稳定 15 帧后注入；单写入和第 2 HID 周期自然释放再次通过，游戏保持响应 | 排除到达动画吞输入；分析器只认 `atk.esc_*`，不把其他节点冒充回避 | 60 帧内无动作变化；停止 Manager 位集入口，转为只读定位当前猎人的 `StmPlayerInput` 组件 |
 
 `0.49.14-semantic-action-gate` 已完成部署，但自动语义校准由用户主动中止，故没有新的动作语义验收结论。中止后的只读检查确认无外部采集进程、临时 Quest ID `200032002` 不存在，随后删除了匹配失败报告的终态请求。`0.49.15` 完成玩家接管与清理门禁。`0.49.16` 证明 XBUTTON1 修正不足，并暴露固定七步忽略活动书替换技的问题。`0.49.25` 已取得本机真实绑定，并以两种 Windows 注入 API 得到同一失败结果；因此见切 `atk.atk_147.atk_147` 不再通过物理侧键猜测复测。下一阶段只允许有界调查 MHR 自身 `StmPlayerInput/CommandButton2` 语义入口；所有候选在实机确认前不升级为已验证映射。
 
