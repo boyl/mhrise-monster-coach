@@ -121,3 +121,5 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.28` 实机确认修改成员位于 `snow.BitSetFlagBase` 父类，同时解析出 `PlayerBase.<RefPlayerInput>k__BackingField -> snow.player.PlayerInput` 的真实对象路径；声明类型与实际类型一致。四个位集 getter、所有者字段和 Adapter 写入均为零异常/零写入，游戏保持响应。`0.49.29` 随后在该真实实例上完成四个明确 `CommandButton2` 的精确 `isDelay` 查询，4/4 返回 Boolean、失败 0、写入 0；结果只验证读调用契约，不升级按键—动作关联。完整证据见 `docs/evidence/PLAYER_INPUT_OWNER_ACCEPTANCE_2026-08-29.json` 与 `docs/evidence/PLAYER_INPUT_READ_ACCEPTANCE_2026-08-29.json`。
 
 `0.49.30` 将第一次写入隔离为专用自动探针，不提供给普通陪练流程。它只尝试 `Escape=3`，在 `UpdateHID` 后向 `getTrg()` 位集调用一次 `snow.BitSetFlagBase.set(UInt32)`；后续帧只读 `isTrg(Escape)`，要求游戏在最多 3 个 HID 周期内自然释放。报告同时采集触发前后的玩家动作节点，但“观察到节点变化”只决定下一门禁，不自动证明翻滚成功；没有节点变化时只允许调整同一命令的时序，不扩大写入范围。
+
+`0.49.30` 实机报告确认写入恰好 1 次、释放查询 1 次并在第 2 个 HID 周期自然清除，游戏保持响应且日志没有本 Mod 错误；但注入前后节点均为 `fast_travel.ファストトラベル：到着 (塔/ラスボス)`，因此不能证明回避命令有效。`0.49.31` 不增加命令或写入次数，只把既有自动输入流程中的“猎人中立态”概念移入游戏内探针：必须在已验证的收刀/拔刀待机节点连续稳定 15 帧才允许注入，报告只把 `atk.esc_*` 识别为预期 Escape 结果，伤害和其他动作变化均不算成功。完整生命周期证据见 `docs/evidence/SEMANTIC_TRIGGER_LIFECYCLE_ACCEPTANCE_2026-08-29.json`。

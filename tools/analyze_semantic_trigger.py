@@ -34,6 +34,18 @@ def analyze(payload: dict) -> dict:
         violations.append("player_input_preflight_invalid")
     if preflight.get("write_count") != 0:
         violations.append("preflight_adapter_writes_not_zero")
+    neutral_gate = motion.get("neutral_gate")
+    if neutral_gate is not None:
+        if neutral_gate.get("policy") != "verified_neutral_node_stability" \
+                or neutral_gate.get("status") != "ready" \
+                or neutral_gate.get("node_name") not in {
+                    "wait.main",
+                    "wait.wait_pre_mot_end",
+                    "atk.atk_wait.atk_wait_main.atk_wait_main",
+                } \
+                or not isinstance(neutral_gate.get("stable_frames"), int) \
+                or neutral_gate["stable_frames"] < 15:
+            violations.append("neutral_player_action_gate_invalid")
     action = payload.get("player_action") or {}
     before = action.get("before") or {}
     observed = action.get("observed") or []
@@ -42,8 +54,13 @@ def analyze(payload: dict) -> dict:
         or item.get("node_name") != before.get("node_name")
         for item in observed
     )
+    expected_escape_observed = any(
+        isinstance(item.get("node_name"), str)
+        and item["node_name"].startswith("atk.esc_")
+        for item in observed
+    )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "status": "verified_single_frame_trigger" if not violations else "invalid_trigger_experiment",
         "violations": violations,
         "experiment_succeeded": not violations,
@@ -52,10 +69,12 @@ def analyze(payload: dict) -> dict:
         "release_read_count": trigger.get("read_count"),
         "released_after_hid_cycles": trigger.get("released_after_hid_cycles"),
         "semantic_action_observed": semantic_action_observed,
+        "expected_escape_observed": expected_escape_observed,
+        "neutral_gate": neutral_gate,
         "observed_nodes": observed,
         "next_gate": (
             "correlate_allowlisted_weapon_command_in_player_calibration"
-            if not violations and semantic_action_observed
+            if not violations and expected_escape_observed
             else "adjust_trigger_timing_without_expanding_write_scope"
             if not violations
             else "stop_and_review_trigger_failure"

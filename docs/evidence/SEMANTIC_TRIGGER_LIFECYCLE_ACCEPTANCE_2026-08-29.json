@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.30-semantic-trigger-experiment",
+  "captured_at": "2026-08-29",
+  "session_id": "50ceb09b33594f3fb161e98f27360045",
+  "scope": "Escape 单帧语义触发写入与自然释放生命周期验收",
+  "report": {
+    "artifact": "artifacts/probe_reports/50ceb09b33594f3fb161e98f27360045.semantic_input_trigger.completed.json",
+    "sha256": "4E15CA7A445138F8FF0C4285DE58C79272BA0F5BBE35F3620CE4A4C829BF7F4B",
+    "status": "completed"
+  },
+  "analysis": {
+    "artifact": "artifacts/probe_reports/50ceb09b33594f3fb161e98f27360045.semantic_input_trigger.completed.analysis.json",
+    "sha256": "A1D23369D339C7C57B6ABE9AF031C72CCA38472AE89BD1A36C9D5F9DDF81B291",
+    "status": "verified_single_frame_trigger",
+    "experiment_succeeded": true,
+    "violations": [],
+    "semantic_action_observed": false,
+    "next_gate": "adjust_trigger_timing_without_expanding_write_scope"
+  },
+  "trigger": {
+    "command": "Escape",
+    "command_value": 3,
+    "setter_declaring_type": "snow.BitSetFlagBase",
+    "write_count": 1,
+    "release_read_count": 1,
+    "released_after_hid_cycles": 2,
+    "status": "released"
+  },
+  "player_action": {
+    "before": "fast_travel.ファストトラベル：到着 (塔/ラスボス)",
+    "observed": ["fast_travel.ファストトラベル：到着 (塔/ラスボス)"],
+    "expected_escape_observed": false,
+    "interpretation": "任务和战斗层已就绪，但猎人仍处于不可操作的到达动画；本轮不能证明回避动作。"
+  },
+  "safety": {
+    "other_semantic_commands_written": 0,
+    "clear_calls": 0,
+    "bulk_set_calls": 0,
+    "game_responding_after_probe": true,
+    "game_crash": false,
+    "mod_errors_in_log": 0
+  }
+}

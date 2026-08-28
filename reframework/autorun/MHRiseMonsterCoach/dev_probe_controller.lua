@@ -21,6 +21,17 @@ local function combat_area_ready(areas, allow_player_only)
         or (allow_player_only == true and areas.player_combat_layer == true))
 end
 
+local SEMANTIC_TRIGGER_NEUTRAL_NODES = {
+    ["wait.main"] = true,
+    ["wait.wait_pre_mot_end"] = true,
+    ["atk.atk_wait.atk_wait_main.atk_wait_main"] = true,
+}
+
+local function semantic_trigger_neutral(action)
+    return action ~= nil and action.availability == "available"
+        and SEMANTIC_TRIGGER_NEUTRAL_NODES[tostring(action.node_name)] == true
+end
+
 function M.new(api, quest_id, options)
     options = options or {}
     local self = setmetatable({
@@ -281,6 +292,12 @@ function M:accept_request(request, context)
             status = "pending",
             semantic_command = "Escape",
             observed_nodes = {},
+            neutral_gate = {
+                policy = "verified_neutral_node_stability",
+                required_frames = 15,
+                stable_frames = 0,
+                status = "waiting",
+            },
         }
     end
     if context.is_online or context.build_supported == false then
@@ -396,17 +413,12 @@ function M:update()
                             return self:fail("Player input read contract is unavailable")
                         end
                         self.input_motion.preflight = diagnostics
-                        local before = self.api.player_action_diagnostics
-                            and self.api:player_action_diagnostics() or nil
                         self.player_action = {
-                            before = before and before.player_action or nil,
+                            before = nil,
                             observed = {},
                         }
-                        local ok, reason = self.api:request_semantic_input_trigger(
-                            self.input_motion.semantic_command)
-                        if not ok then return self:fail(reason) end
-                        self.input_motion.status = "armed"
-                        self:set_state("semantic_input_trigger_wait")
+                        self.input_motion.status = "waiting_for_neutral"
+                        self:set_state("semantic_input_trigger_prepare")
                         return true
                     end
                     if self.request.kind == "player_action_evidence" then
@@ -580,6 +592,39 @@ function M:update()
             self.input_motion.status = "completed"
             return self:complete()
         end
+    elseif self.state == "semantic_input_trigger_prepare" then
+        local snapshot = self.api.player_action_diagnostics
+            and self.api:player_action_diagnostics() or nil
+        local action = snapshot and snapshot.player_action or nil
+        local gate = self.input_motion.neutral_gate
+        if semantic_trigger_neutral(action) then
+            if gate.node_id == action.node_id and gate.node_name == action.node_name then
+                gate.stable_frames = gate.stable_frames + 1
+            else
+                gate.node_id = action.node_id
+                gate.node_name = action.node_name
+                gate.stable_frames = 1
+            end
+            if gate.stable_frames >= gate.required_frames then
+                gate.status = "ready"
+                self.player_action.before = action
+                local ok, reason = self.api:request_semantic_input_trigger(
+                    self.input_motion.semantic_command)
+                if not ok then return self:fail(reason) end
+                self.input_motion.status = "armed"
+                self:set_state("semantic_input_trigger_wait")
+                return true
+            end
+        else
+            gate.status = "waiting"
+            gate.stable_frames = 0
+            gate.node_id = action and action.node_id or nil
+            gate.node_name = action and action.node_name or nil
+        end
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if self.state_frames > 600 then
+            return self:fail("Semantic input trigger found no stable neutral player action")
+        end
     elseif self.state == "semantic_input_trigger_wait" then
         local trigger = self.api:semantic_input_trigger_diagnostics()
         self.input_motion.semantic_trigger = trigger
@@ -587,7 +632,10 @@ function M:update()
             and self.api:player_action_diagnostics() or nil
         local action = snapshot and snapshot.player_action or nil
         local last = self.player_action.observed[#self.player_action.observed]
-        if action ~= nil and action.availability == "available"
+        local before = self.player_action.before
+        local changed_from_before = before == nil or action == nil
+            or before.node_id ~= action.node_id or before.node_name ~= action.node_name
+        if action ~= nil and action.availability == "available" and changed_from_before
             and (last == nil or last.node_id ~= action.node_id
                 or last.node_name ~= action.node_name) then
             self.player_action.observed[#self.player_action.observed + 1] = {

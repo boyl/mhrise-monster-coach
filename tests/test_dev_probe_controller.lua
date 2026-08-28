@@ -404,8 +404,8 @@ function metadata_api:player_action_diagnostics()
     return {
         weapon_type = "long_sword",
         player_action = {
-            availability = "available", node_id = 123,
-            node_name = "atk.atk_147.atk_147",
+            availability = "available", node_id = 1,
+            node_name = "wait.main",
         },
     }
 end
@@ -419,7 +419,7 @@ assert(player_action_probe:accept_request({
 player_action_probe:update()
 assert(metadata_reports[#metadata_reports].status == "completed"
     and metadata_reports[#metadata_reports].player_action.weapon_type == "long_sword"
-    and metadata_reports[#metadata_reports].player_action.player_action.node_name == "atk.atk_147.atk_147"
+    and metadata_reports[#metadata_reports].player_action.player_action.node_name == "wait.main"
     and metadata_reports[#metadata_reports].input_motion.current_bindings.policy
         == "read_only_exact_dictionary_lookup",
     "player action probe requires a resolved current node name")
@@ -429,6 +429,7 @@ assert(metadata_reports[#metadata_reports].training_timeline.revision == 7
 
 function metadata_api:request_semantic_input_trigger(command)
     assert(command == "Escape", "only the allowlisted semantic command is requested")
+    metadata_api.semantic_trigger_requested = true
     return true
 end
 function metadata_api:semantic_input_trigger_diagnostics()
@@ -447,9 +448,26 @@ assert(semantic_trigger_probe:accept_request({
     semantic_command = "Escape",
 }, forced_context))
 semantic_trigger_probe:update()
+assert(semantic_trigger_probe.state == "semantic_input_trigger_prepare"
+    and not metadata_api.semantic_trigger_requested,
+    "semantic trigger waits for the player action gate before arming")
+for _ = 1, 15 do semantic_trigger_probe:update() end
+assert(semantic_trigger_probe.state == "semantic_input_trigger_wait"
+    and metadata_api.semantic_trigger_requested,
+    "semantic trigger arms after fifteen stable neutral frames")
+function metadata_api:player_action_diagnostics()
+    return {
+        weapon_type = "long_sword",
+        player_action = {
+            availability = "available", node_id = 2,
+            node_name = "atk.esc_front",
+        },
+    }
+end
 semantic_trigger_probe:update()
 assert(metadata_reports[#metadata_reports].status == "completed"
     and metadata_reports[#metadata_reports].input_motion.status == "released"
+    and metadata_reports[#metadata_reports].input_motion.neutral_gate.status == "ready"
     and metadata_reports[#metadata_reports].input_motion.semantic_trigger.write_count == 1,
     "semantic trigger completes only after the single frame naturally releases")
 

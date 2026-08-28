@@ -8,6 +8,14 @@ def payload():
         "kind": "semantic_input_trigger",
         "status": "completed",
         "input_motion": {
+            "neutral_gate": {
+                "policy": "verified_neutral_node_stability",
+                "status": "ready",
+                "node_id": 1,
+                "node_name": "wait.main",
+                "required_frames": 15,
+                "stable_frames": 15,
+            },
             "preflight": {
                 "write_count": 0,
                 "player_input_instance_contract": {
@@ -25,8 +33,8 @@ def payload():
             },
         },
         "player_action": {
-            "before": {"node_id": 1, "node_name": "idle"},
-            "observed": [{"node_id": 2, "node_name": "esc_front"}],
+            "before": {"node_id": 1, "node_name": "wait.main"},
+            "observed": [{"node_id": 2, "node_name": "atk.esc_front"}],
         },
     }
 
@@ -37,6 +45,7 @@ class SemanticTriggerAnalysisTests(unittest.TestCase):
         self.assertEqual(result["status"], "verified_single_frame_trigger")
         self.assertTrue(result["experiment_succeeded"])
         self.assertTrue(result["semantic_action_observed"])
+        self.assertTrue(result["expected_escape_observed"])
         self.assertEqual(result["violations"], [])
 
     def test_rejects_missing_release_or_extra_write(self):
@@ -51,12 +60,19 @@ class SemanticTriggerAnalysisTests(unittest.TestCase):
 
     def test_no_action_change_keeps_write_scope_closed(self):
         data = payload()
-        data["player_action"]["observed"] = [{"node_id": 1, "node_name": "idle"}]
+        data["player_action"]["observed"] = [{"node_id": 1, "node_name": "wait.main"}]
         result = analyze(data)
         self.assertTrue(result["experiment_succeeded"])
         self.assertFalse(result["semantic_action_observed"])
         self.assertEqual(result["next_gate"],
                          "adjust_trigger_timing_without_expanding_write_scope")
+
+    def test_rejects_trigger_without_verified_neutral_gate(self):
+        data = payload()
+        data["input_motion"]["neutral_gate"]["node_name"] = "fast_travel.arrive"
+        result = analyze(data)
+        self.assertFalse(result["experiment_succeeded"])
+        self.assertIn("neutral_player_action_gate_invalid", result["violations"])
 
 
 if __name__ == "__main__":
