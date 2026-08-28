@@ -120,6 +120,7 @@ local player_input_data_type = {
     end,
 }
 local dictionary_method_calls = 0
+local semantic_method_calls = 0
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
     return {
@@ -144,6 +145,53 @@ local function metadata_method(name, return_type, param_types, is_static, call_h
         end,
     }
 end
+local function semantic_metadata_method(name, return_type, param_types)
+    local method = metadata_method(name, return_type, param_types, false)
+    method.call = function()
+        semantic_method_calls = semantic_method_calls + 1
+        error("semantic metadata method must never be invoked")
+    end
+    return method
+end
+local semantic_parameter = { { name = "snow.player.PlayerInput.CommandButton2" } }
+local semantic_manager_methods = {
+    semantic_metadata_method("isOn", "System.Boolean", semantic_parameter),
+    semantic_metadata_method("isTrg", "System.Boolean", semantic_parameter),
+    semantic_metadata_method("getOn", "snow.BitSetFlag`1", {}),
+    semantic_metadata_method("updateInput", "System.Void", {}),
+}
+stm_type.get_methods = function()
+    return {
+        {
+            get_name = function() return "get_ActiveInputDevice" end,
+            get_return_type = function() return named_type("snow.InputDevice") end,
+            get_param_types = function() return {} end,
+        },
+        table.unpack(semantic_manager_methods),
+    }
+end
+local stm_player_input_instance = {}
+local stm_player_input_type = {
+    get_full_name = function() return "snow.StmPlayerInput" end,
+    get_fields = function() return {} end,
+    get_methods = function()
+        return { semantic_metadata_method("updateCommand", "System.Void", {}) }
+    end,
+}
+local player_input_type = {
+    get_full_name = function() return "snow.player.PlayerInput" end,
+    get_fields = function() return {} end,
+    get_methods = function()
+        return { semantic_metadata_method("checkCommand", "System.Boolean", semantic_parameter) }
+    end,
+}
+local input_ui_type = {
+    get_full_name = function() return "snow.StmInputManager.InputUI" end,
+    get_fields = function() return {} end,
+    get_methods = function()
+        return { semantic_metadata_method("setInput", "System.Void", semantic_parameter) }
+    end,
+}
 local main_method = metadata_method("TryGet_main_pl_Conf", "System.Boolean", {
     { name = "snow.StmInputManager.PL_INPUT" },
     { name = "snow.StmInputManager.InGameMouseKeyBoardKey" },
@@ -262,6 +310,10 @@ sdk = {
         if name == "snow.Pad.Button" then return pad_enum end
         if name == "snow.StmPlInputData" then return player_input_data_type end
         if name == "snow.StmInputConfig" then return input_config_type end
+        if name == "snow.StmInputManager" then return stm_type end
+        if name == "snow.StmPlayerInput" then return stm_player_input_type end
+        if name == "snow.player.PlayerInput" then return player_input_type end
+        if name == "snow.StmInputManager.InputUI" then return input_ui_type end
     end,
     get_native_singleton = function() return {} end,
     call_native_func = function(_, _, name)
@@ -270,13 +322,14 @@ sdk = {
     get_managed_singleton = function(name)
         if name == "snow.StmInputManager" then return stm end
         if name == "snow.StmInputConfig" then return input_config_instance end
+        if name == "snow.StmPlayerInput" then return stm_player_input_instance end
     end,
 }
 Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics()
-assert(diagnostics.schema_version == 6)
+assert(diagnostics.schema_version == 7)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -295,6 +348,24 @@ assert(#diagnostics.semantic_command_enum.values == 2)
 assert(diagnostics.semantic_command_enum.values[1].name == "Attack")
 assert(diagnostics.semantic_command_enum.values[1].value == 4)
 assert(diagnostics.semantic_command_enum.values[2].name == "Evade")
+local semantic = diagnostics.semantic_input_contract
+assert(semantic.schema_version == 1)
+assert(semantic.policy == "read_only_exact_semantic_input_metadata")
+assert(semantic.gameplay_method_calls == 0 and semantic.gameplay_writes == 0)
+assert(semantic.command_enum.available and #semantic.command_enum.values == 2)
+assert(#semantic.types == 4)
+assert(semantic.types[1].type == "snow.StmInputManager")
+assert(semantic.types[1].singleton_lookup and semantic.types[1].instance_available)
+assert(#semantic.types[1].semantic_query_methods == 3)
+assert(semantic.types[1].semantic_query_methods[1].name == "getOn")
+assert(semantic.types[1].semantic_query_methods[2].name == "isOn")
+assert(semantic.types[1].semantic_query_methods[3].name == "isTrg")
+assert(semantic.types[2].type == "snow.StmPlayerInput")
+assert(semantic.types[2].singleton_lookup and semantic.types[2].instance_available)
+assert(semantic.types[3].type == "snow.player.PlayerInput")
+assert(not semantic.types[3].singleton_lookup and not semantic.types[3].instance_available)
+assert(semantic.types[4].type == "snow.StmInputManager.InputUI")
+assert(semantic_method_calls == 0, "semantic metadata contract is strictly read-only")
 assert(#diagnostics.input_enum_contracts == 9)
 assert(diagnostics.input_enum_contracts[1].values[2].name == "GamePad")
 assert(diagnostics.input_enum_contracts[2].available == false)

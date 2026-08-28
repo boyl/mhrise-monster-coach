@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：开发预览版 `0.49.25-runtime-binding-calibration`。轰龙核心闭环已有多项实机证据，但仓库源码可能领先于已安装副本；尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
+> 当前状态：源码开发版 `0.49.26-semantic-input-contract`，本版按计划暂不部署。轰龙核心闭环已有多项实机证据，但仓库源码领先于已安装副本；尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 
@@ -153,12 +153,14 @@ pwsh -NoProfile -File tests/test_deploy_dev.ps1
 
 ## 近期目标
 
-1. 为 MHR `snow.StmPlayerInput` / `CommandButton2` 建立有界语义输入契约；Windows 物理侧键的两种注入 API 已得到相同否定结果，不再继续猜测。
-2. 将自动采集的动作节点与怪物判定窗关联，把结果从“动作/状态尝试”推进到有明确证据的防御、回避、见切、居合与反击。
+1. 在已完成的只读 `snow.StmPlayerInput` / `CommandButton2` 元数据契约上，确定 MHR 输入更新所有者、写入时序和释放语义；本源码版没有调用、Hook 或改写游戏输入。
+2. 通过一次集中部署验证后，再以单个受控语义命令实验替代 Windows 物理侧键猜测，并将动作节点与怪物判定窗关联。
 3. 完成轰龙实用版 8–12 个高价值起手及主要固定、条件和随机派生。
 4. 稳定轰龙闭环后，以第二只复杂怪物验证数据包扩展能力。
 
 详细排期、每项安全门禁以及明确不开发的功能见[路线图](docs/ROADMAP.md)。
+
+开发期执行 `tools/run_probe_session.ps1 -InputMotionMetadata` 时，终态报告会自动交给 `tools/analyze_semantic_input_contract.py`，在同一归档目录生成 `.analysis.json`。分析器只分类实例所有者、查询签名与更新候选，且固定输出 `experiment_allowed=false`；它不会因为发现方法名就启动输入写入实验。
 
 ## 许可证
 

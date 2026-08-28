@@ -80,6 +80,23 @@ function Write-AtomicJson {
     }
 }
 
+function Resolve-VerifiedPython {
+    $candidates = @(
+        (Join-Path $repositoryRoot '.venv\Scripts\python.exe'),
+        (Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe')
+    )
+    $command = Get-Command python -ErrorAction SilentlyContinue
+    if ($command -and $command.Source -notmatch '[\\/]WindowsApps[\\/]') {
+        $candidates += $command.Source
+    }
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+        & $candidate --version *> $null
+        if ($LASTEXITCODE -eq 0) { return [IO.Path]::GetFullPath($candidate) }
+    }
+    throw 'No real Python interpreter was found. Create .venv from requirements-dev.txt; the WindowsApps alias is not accepted.'
+}
+
 function Test-ProbeTerminal {
     try {
         $latest = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
@@ -704,6 +721,16 @@ do {
             Copy-Item -LiteralPath $reportPath -Destination $archivePath -Force
             Write-Host "Probe report archived: $archivePath"
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
+            if ($InputMotionMetadata) {
+                $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
+                $python = Resolve-VerifiedPython
+                & $python (Join-Path $PSScriptRoot 'analyze_semantic_input_contract.py') `
+                    $archivePath --output $analysisPath
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Semantic input metadata analysis failed with exit code $LASTEXITCODE."
+                }
+                Write-Host "Semantic input analysis: $analysisPath"
+            }
             if ($FullReport) {
                 $report | ConvertTo-Json -Depth 12
             } else {

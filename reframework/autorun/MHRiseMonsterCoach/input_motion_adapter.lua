@@ -22,7 +22,25 @@ local INPUT_CONTRACT_TERMS = {
 
 local PLAYER_INPUT_TERMS = {
     "input", "command", "key", "keyboard", "mouse", "button", "bind", "device",
-    "config", "attack", "action", "on", "trg", "rel", "delay",
+    "config", "attack", "action", "on", "trg", "rel", "delay", "update", "check", "set",
+}
+
+local SEMANTIC_INPUT_TYPES = {
+    { name = "snow.StmInputManager", singleton = true },
+    { name = "snow.StmPlayerInput", singleton = true },
+    { name = "snow.player.PlayerInput", singleton = false },
+    { name = "snow.StmInputManager.InputUI", singleton = false },
+}
+
+local SEMANTIC_QUERY_METHODS = {
+    getOn = true,
+    getTrg = true,
+    getRel = true,
+    getDelay = true,
+    isOn = true,
+    isTrg = true,
+    isRel = true,
+    isDelay = true,
 }
 
 local MAX_CONTRACT_MEMBERS = 256
@@ -199,6 +217,48 @@ local function filtered_type_hierarchy_contract(type_name_value, instance, terms
         depth = depth + 1
     end
     if type_def ~= nil then result.truncated = true end
+    return result
+end
+
+local function allowlisted_method_contracts(type_def, allowlist)
+    local result = {}
+    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+        if #result >= MAX_CONTRACT_MEMBERS then break end
+        local name = safe(function() return method:get_name() end)
+        if allowlist[name] then result[#result + 1] = method_metadata(method) end
+    end
+    table.sort(result, function(a, b)
+        local a_key = tostring(a.name) .. "(" .. table.concat(a.param_types, ",") .. ")"
+        local b_key = tostring(b.name) .. "(" .. table.concat(b.param_types, ",") .. ")"
+        return a_key < b_key
+    end)
+    return result
+end
+
+-- Bounded metadata for the MHR semantic command layer. Singleton resolution and
+-- type inspection are read-only; no discovered gameplay method is called or hooked.
+local function semantic_input_metadata_contract()
+    local result = {
+        schema_version = 1,
+        policy = "read_only_exact_semantic_input_metadata",
+        gameplay_method_calls = 0,
+        gameplay_writes = 0,
+        command_enum = enum_contract("snow.player.PlayerInput.CommandButton2"),
+        types = {},
+    }
+    for _, spec in ipairs(SEMANTIC_INPUT_TYPES) do
+        local type_def = safe(function() return sdk.find_type_definition(spec.name) end)
+        local instance = nil
+        if spec.singleton then
+            instance = safe(function() return sdk.get_managed_singleton(spec.name) end)
+        end
+        local contract = filtered_type_contract(spec.name, instance, PLAYER_INPUT_TERMS)
+        contract.singleton_lookup = spec.singleton
+        contract.instance_available = instance ~= nil
+        contract.semantic_query_methods = allowlisted_method_contracts(
+            type_def, SEMANTIC_QUERY_METHODS)
+        result.types[#result.types + 1] = contract
+    end
     return result
 end
 
@@ -393,6 +453,7 @@ function M.new()
         writes = 0,
         binding_dictionary_snapshot = nil,
         current_binding_snapshot = nil,
+        semantic_input_snapshot = nil,
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
     }, { __index = M })
 end
@@ -473,8 +534,11 @@ function M:diagnostics()
     if self.current_binding_snapshot == nil then
         self.current_binding_snapshot = current_binding_values()
     end
+    if self.semantic_input_snapshot == nil then
+        self.semantic_input_snapshot = semantic_input_metadata_contract()
+    end
     return {
-        schema_version = 6,
+        schema_version = 7,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -493,6 +557,7 @@ function M:diagnostics()
         stm_input_manager_type = type_name(stm_type),
         stm_input_contract = input_contract_hierarchy(stm_type, stm),
         semantic_command_enum = enum_contract("snow.player.PlayerInput.CommandButton2"),
+        semantic_input_contract = self.semantic_input_snapshot,
         input_enum_contracts = {
             enum_contract("snow.StmInputManager.ActiveGameDevice"),
             enum_contract("snow.StmInputManager.ActiveDevice"),

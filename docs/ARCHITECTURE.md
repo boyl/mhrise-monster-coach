@@ -68,6 +68,8 @@ app (composition root)
 
 键位名称与 Win32 raw 值在输入边界集中转换。Capcom Windows 默认配置的 `Mouse Button 4` 映射到 Win32 `XBUTTON1 / dwData 0x0001`，不得按字符串中的数字误用 `XBUTTON2 / 0x0002`；映射依据同时保留[官方武器操作页](https://game.capcom.com/manual/Multi-Platform/zh-hans/windows/page/3/6)和[微软 `mouse_event` 定义](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-mouse_event)。默认模板仅用于离线结构测试；真实校准必须消费完整、零失败、未截断的当前绑定契约，main 不可用时只回退到同设备 sub。Windows 桥只允许转换 `MOUSE_L/R/EX1/EX2` 与 `Space`，并采用微软推荐的批量 `SendInput`；这只证明操作被系统接受，不代表 MHR 已识别相应武器语义。`MOUSE_EX1` 的旧/新 API 两轮均未形成见切节点，因此复合气刃动作不再走 Windows 物理输入。手柄绑定属于 `snow.Pad.Button`，产品快捷键属于 `via.hid.GamePadButton`，两者在取得跨枚举证据前不得按名称或 raw 值互换。动作信号超时、玩家接管焦点和输入发送失败是三个不同的外部结果，批处理器保存当前步骤证据后，只对玩家接管立即停止。
 
+`input_motion_adapter` 的语义输入调查边界是独立的只读契约：只检查 `snow.StmInputManager`、`snow.StmPlayerInput`、`snow.player.PlayerInput` 与 `snow.StmInputManager.InputUI` 四个明确类型，并保存 `CommandButton2` 枚举、过滤后的字段/方法签名、已知 `getOn/getTrg/getRel/getDelay/isOn/isTrg/isRel/isDelay` 查询方法及受管单例可用性。契约不调用发现的方法、不安装 Hook、不写位集，并以 `gameplay_method_calls=0`、`gameplay_writes=0` 暴露安全不变量。它只负责回答“语义命令由谁持有、在哪个更新点可观察”，后续受控写入实验必须作为单独版本实现和验收，不能在元数据发现阶段顺手注入。
+
 ### 离线怪物数据管线
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。

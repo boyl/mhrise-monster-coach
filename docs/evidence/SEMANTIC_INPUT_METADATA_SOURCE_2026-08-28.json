@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.26-semantic-input-contract",
+  "captured_at": "2026-08-28",
+  "scope": "MHR 语义输入层只读源码契约与离线测试",
+  "deployment_status": "not_deployed_by_user_request",
+  "contract": {
+    "policy": "read_only_exact_semantic_input_metadata",
+    "exact_types": [
+      "snow.StmInputManager",
+      "snow.StmPlayerInput",
+      "snow.player.PlayerInput",
+      "snow.StmInputManager.InputUI"
+    ],
+    "command_enum": "snow.player.PlayerInput.CommandButton2",
+    "allowlisted_queries": [
+      "getOn",
+      "getTrg",
+      "getRel",
+      "getDelay",
+      "isOn",
+      "isTrg",
+      "isRel",
+      "isDelay"
+    ],
+    "max_members_per_type": 256,
+    "gameplay_method_calls": 0,
+    "gameplay_writes": 0,
+    "hooks_installed": 0
+  },
+  "offline_verification": {
+    "lua_behavior_tests": "34/34 PASS",
+    "python_tests": "45/45 PASS",
+    "semantic_methods_fail_if_called": true,
+    "observed_semantic_method_calls": 0,
+    "automatic_analysis": "tools/analyze_semantic_input_contract.py",
+    "analysis_experiment_allowed": false
+  },
+  "interpretation": "该版本只缩小下一次运行时取证范围，不证明任何命令可写，也不把枚举名称升级为太刀招式语义。",
+  "next_gate": "一次集中只读部署采集类型、单例、查询签名与更新候选；通过后另开版本设计成对的按下和释放实验。"
+}
