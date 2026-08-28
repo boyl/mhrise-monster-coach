@@ -318,6 +318,20 @@ local function exact_one_arg_method(type_def, name, param_type_name)
     return nil
 end
 
+local function exact_one_arg_method_in_hierarchy(type_def, name, param_type_name)
+    local seen, depth = {}, 0
+    while type_def ~= nil and depth < MAX_CONTRACT_LEVELS do
+        local current_name = type_name(type_def) or tostring(type_def)
+        if seen[current_name] then break end
+        seen[current_name] = true
+        local method = exact_one_arg_method(type_def, name, param_type_name)
+        if method ~= nil then return method, current_name end
+        type_def = safe(function() return type_def:get_parent_type() end)
+        depth = depth + 1
+    end
+    return nil, nil
+end
+
 -- The previous metadata-only gate established these four exact no-argument
 -- getters on snow.StmInputManager. This next layer invokes only those read
 -- methods once per adapter, then inspects the returned bit-set object metadata.
@@ -657,8 +671,120 @@ function M.new()
         semantic_bitset_snapshot = nil,
         player_input_owner_snapshot = nil,
         player_input_instance_snapshot = nil,
+        semantic_trigger = {
+            status = "idle",
+            command = nil,
+            command_value = nil,
+            hid_cycles = 0,
+            write_count = 0,
+            read_count = 0,
+            error = nil,
+        },
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
     }, { __index = M })
+end
+
+function M:arm_semantic_trigger(command)
+    if command ~= "Escape" then return false, "Only Escape is allowlisted" end
+    if self.semantic_trigger.status ~= "idle"
+        and self.semantic_trigger.status ~= "released"
+        and self.semantic_trigger.status ~= "failed" then
+        return false, "A semantic trigger is already active"
+    end
+    local contract = self.player_input_instance_snapshot
+    if contract == nil or contract.instance_available ~= true
+        or tonumber(contract.call_failures or 0) ~= 0
+        or tonumber(contract.call_count or 0) ~= tonumber(contract.max_calls or -1) then
+        return false, "Player input read contract is not verified"
+    end
+    local value = enum_value_by_name(
+        enum_contract("snow.player.PlayerInput.CommandButton2"), command)
+    if value == nil then return false, "Semantic command is unavailable" end
+    self.semantic_trigger = {
+        schema_version = 1,
+        policy = "single_frame_trigger_only",
+        status = "pending",
+        command = command,
+        command_value = value,
+        hid_cycles = 0,
+        write_count = 0,
+        read_count = 0,
+        error = nil,
+    }
+    return true
+end
+
+function M:flush_semantic_trigger()
+    local trigger = self.semantic_trigger
+    if trigger.status ~= "pending" and trigger.status ~= "injected" then return true end
+    trigger.hid_cycles = trigger.hid_cycles + 1
+    local manager_type = safe(function() return sdk.find_type_definition("snow.StmInputManager") end)
+    local manager = safe(function() return sdk.get_managed_singleton("snow.StmInputManager") end)
+    if manager_type == nil or manager == nil then
+        trigger.status = "failed"
+        trigger.error = "StmInputManager unavailable"
+        return false, trigger.error
+    end
+    if trigger.status == "pending" then
+        local getter = exact_zero_arg_method(manager_type, "getTrg")
+        local bitset = getter and safe(function() return getter:call(manager) end) or nil
+        local bitset_type = bitset and safe(function() return bitset:get_type_definition() end) or nil
+        local setter, declaring_type = exact_one_arg_method_in_hierarchy(
+            bitset_type, "set", "System.UInt32")
+        if setter == nil or bitset == nil then
+            trigger.status = "failed"
+            trigger.error = "Semantic trigger setter unavailable"
+            return false, trigger.error
+        end
+        local ok = pcall(function() setter:call(bitset, trigger.command_value) end)
+        if not ok then
+            trigger.status = "failed"
+            trigger.error = "Semantic trigger write failed"
+            return false, trigger.error
+        end
+        trigger.status = "injected"
+        trigger.setter_declaring_type = declaring_type
+        trigger.write_count = trigger.write_count + 1
+        return true
+    end
+    local query = exact_one_arg_method(
+        manager_type, "isTrg", "snow.player.PlayerInput.CommandButton2")
+    if query == nil then
+        trigger.status = "failed"
+        trigger.error = "Semantic trigger release query unavailable"
+        return false, trigger.error
+    end
+    local ok, active = pcall(function() return query:call(manager, trigger.command_value) end)
+    trigger.read_count = trigger.read_count + 1
+    if not ok or type(active) ~= "boolean" then
+        trigger.status = "failed"
+        trigger.error = "Semantic trigger release query failed"
+        return false, trigger.error
+    end
+    if active ~= true then
+        trigger.status = "released"
+        trigger.released_after_hid_cycles = trigger.hid_cycles
+        return true
+    end
+    if trigger.hid_cycles >= 3 then
+        trigger.status = "failed"
+        trigger.error = "Semantic trigger did not release naturally"
+        return false, trigger.error
+    end
+    return true
+end
+
+function M:cancel_semantic_trigger()
+    local trigger = self.semantic_trigger
+    if trigger.status == "pending" then
+        trigger.status = "cancelled"
+        trigger.error = "Cancelled before injection"
+    end
+    return trigger.status ~= "pending"
+end
+
+function M:semantic_trigger_diagnostics()
+    return self.semantic_trigger
 end
 
 function M:write_axis(x, y)
@@ -753,7 +879,7 @@ function M:diagnostics(player)
     local player_input_owner = self.player_input_owner_snapshot
         or player_input_owner_contract(nil)
     return {
-        schema_version = 10,
+        schema_version = 11,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -806,6 +932,7 @@ function M:diagnostics(player)
         owned = self.owned,
         request_count = self.requests,
         write_count = self.writes,
+        semantic_trigger = self.semantic_trigger,
     }
 end
 

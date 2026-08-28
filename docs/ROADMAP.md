@@ -44,9 +44,11 @@
 
 ## 当前推进批次
 
-当前源码候选版本为 `0.49.29-player-input-read-contract`。`0.49.28` 的集中实机报告已确认位集父类 `snow.BitSetFlagBase` 暴露 `clear()`、`set(UInt32)`、`setDatas(UInt32[])`，同时从 `snow.player.PlayerBase.<RefPlayerInput>k__BackingField` 取得声明与实际类型一致的 `snow.player.PlayerInput` 对象。探针保持零写入且游戏正常响应；完整证据见 `docs/evidence/PLAYER_INPUT_OWNER_ACCEPTANCE_2026-08-29.json`。
+当前源码候选版本为 `0.49.30-semantic-trigger-experiment`。`0.49.28` 的集中实机报告已确认位集父类 `snow.BitSetFlagBase` 暴露 `clear()`、`set(UInt32)`、`setDatas(UInt32[])`，同时从 `snow.player.PlayerBase.<RefPlayerInput>k__BackingField` 取得声明与实际类型一致的 `snow.player.PlayerInput` 对象。探针保持零写入且游戏正常响应；完整证据见 `docs/evidence/PLAYER_INPUT_OWNER_ACCEPTANCE_2026-08-29.json`。
 
-`0.49.29` 只在该已验证实例上调用精确签名 `isDelay(CommandButton2)`，命令限定为 `Atk_X/Atk_A/Atk_R_A/Escape` 四项，全局上限 4 次；返回值只用于证明实例与调用约定有效，不解释为动作成功。任何方法缺失、命令缺失或调用异常均失败关闭。分析器仍固定 `experiment_allowed=false`；四项查询全部解析后，才允许在独立版本中设计可恢复、单帧、成对按下/释放实验。
+`0.49.29` 已在真实游戏中完成四项精确 `isDelay(CommandButton2)` 调用：`Atk_X=0`、`Atk_A=1`、`Atk_R_A=41`、`Escape=3` 均成功返回 Boolean，调用 4/4、失败 0、玩法写入 0，游戏继续正常响应。该结果只证明当前玩家实例、命令枚举和调用约定有效，不解释为动作成功；完整证据见 `docs/evidence/PLAYER_INPUT_READ_ACCEPTANCE_2026-08-29.json`。
+
+`0.49.30` 首次引入真实语义输入写入，但只存在于自动开发探针：仅允许受支持的离线普通陪练任务和 `Escape`，只在一次 `UpdateHID` 后对 `getTrg()` 返回位集调用一次继承的 `set(UInt32)`，不调用 `clear()` 或 `setDatas()`，也不循环维持按下。下一次 HID 更新必须由游戏自然清除该触发位，并在最多 3 个 HID 周期内由 `isTrg(Escape)` 严格确认 Boolean `false`；注入前取消、签名变化、非 Boolean 返回、未释放、联机、错误任务或不支持版本全部失败关闭。此实验不接入正常陪练 UI、快捷键或武器连招，实机报告必须同时证明写入恰好 1 次、自然释放和游戏继续响应，才允许下一版把范围扩大到一个武器命令。
 
 `0.41.0` 将指定出招菜单收敛为“精选起手目录”，按独立关键招式、固定派生起手和条件派生起手分组。每个入口仍必须先展示派生树，再开放开始按钮；训练顺序、分类和简介全部属于怪物数据包，通用 Controller 不写死轰龙招式。当前只公开已具备安全证据的咆哮和短距半回转钩咬，后续起手通过同一数据契约批量加入，不把未经验证的 Action 暴露给玩家。
 

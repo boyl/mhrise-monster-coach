@@ -2469,7 +2469,7 @@ end
 
 function M.input_motion_diagnostics(self)
     return self.input_motion_adapter and self.input_motion_adapter:diagnostics(self.player) or {
-        schema_version = 10,
+        schema_version = 11,
         policy = "read_only_known_hid_contract_probe",
         device_available = false,
     }
@@ -2489,6 +2489,31 @@ end
 
 function M.flush_input_motion_axis(self)
     return self.input_motion_adapter and self.input_motion_adapter:flush() or true
+end
+
+function M.request_semantic_input_trigger(self, command)
+    local context = self.last_context or {}
+    if context.in_quest ~= true or context.is_online == true
+        or context.build_supported == false
+        or tonumber(context.quest_no) ~= tonumber(self.profile.training_quest.id) then
+        return false, "Semantic trigger requires the supported offline training quest"
+    end
+    self.input_motion_adapter:diagnostics(self.player)
+    return self.input_motion_adapter:arm_semantic_trigger(command)
+end
+
+function M.flush_semantic_input_trigger(self)
+    return self.input_motion_adapter and self.input_motion_adapter:flush_semantic_trigger() or true
+end
+
+function M.semantic_input_trigger_diagnostics(self)
+    return self.input_motion_adapter and self.input_motion_adapter:semantic_trigger_diagnostics()
+        or { status = "unavailable" }
+end
+
+function M.cancel_semantic_input_trigger(self)
+    return self.input_motion_adapter and self.input_motion_adapter:cancel_semantic_trigger()
+        or true
 end
 
 function M.area_snapshot(self)

@@ -77,6 +77,15 @@ function M.start()
     function probe_api:release_input_motion_axis()
         return runtime:release_input_motion_axis()
     end
+    function probe_api:request_semantic_input_trigger(command)
+        return runtime:request_semantic_input_trigger(command)
+    end
+    function probe_api:semantic_input_trigger_diagnostics()
+        return runtime:semantic_input_trigger_diagnostics()
+    end
+    function probe_api:cancel_semantic_input_trigger()
+        return runtime:cancel_semantic_input_trigger()
+    end
     function probe_api:request_arena_transfer()
         return runtime:request_arena_transfer()
     end
@@ -244,6 +253,7 @@ function M.start()
     re.on_application_entry("UpdateHID", function()
         controller:guard("input_motion_flush", function()
             runtime:flush_input_motion_axis()
+            runtime:flush_semantic_input_trigger()
         end)
     end)
     re.on_pre_application_entry("LockScene", function()
@@ -258,7 +268,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.29-player-input-read-contract loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.30-semantic-trigger-experiment loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

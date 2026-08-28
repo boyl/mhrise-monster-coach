@@ -131,6 +131,7 @@ end
 
 function M:fail(reason)
     if self.api.release_input_motion_axis then self.api:release_input_motion_axis() end
+    if self.api.cancel_semantic_input_trigger then self.api:cancel_semantic_input_trigger() end
     if self.request and self.request.kind == "training_scenario_acceptance"
         and self.api.finish_training_acceptance then self.api:finish_training_acceptance() end
     self:report("failed", tostring(reason or "unknown error"))
@@ -179,6 +180,7 @@ function M:accept_request(request, context)
             and request.kind ~= "behavior_path_survey"
             and request.kind ~= "condition_induced_branch"
             and request.kind ~= "input_motion_metadata"
+            and request.kind ~= "semantic_input_trigger"
             and request.kind ~= "player_action_evidence"
             and request.kind ~= "input_motion_axis_write"
             and request.kind ~= "ui_contract_snapshot"
@@ -269,6 +271,16 @@ function M:accept_request(request, context)
             status = "pending",
             axis = { x = 0, y = 1 },
             target_frames = 60,
+        }
+    end
+    if request.kind == "semantic_input_trigger" then
+        if request.semantic_command ~= "Escape" then
+            return self:fail("Semantic input trigger only allows Escape")
+        end
+        self.input_motion = {
+            status = "pending",
+            semantic_command = "Escape",
+            observed_nodes = {},
         }
     end
     if context.is_online or context.build_supported == false then
@@ -370,6 +382,32 @@ function M:update()
                             return self:fail("Input motion diagnostics unavailable")
                         end
                         return self:complete()
+                    end
+                    if self.request.kind == "semantic_input_trigger" then
+                        local diagnostics = self.api.input_motion_diagnostics
+                            and self.api:input_motion_diagnostics() or nil
+                        local instance = diagnostics and diagnostics.player_input_instance_contract
+                            or nil
+                        if instance == nil
+                            or instance.policy ~= "bounded_read_only_player_input_queries"
+                            or tonumber(instance.call_failures or 0) ~= 0
+                            or tonumber(instance.call_count or 0)
+                                ~= tonumber(instance.max_calls or -1) then
+                            return self:fail("Player input read contract is unavailable")
+                        end
+                        self.input_motion.preflight = diagnostics
+                        local before = self.api.player_action_diagnostics
+                            and self.api:player_action_diagnostics() or nil
+                        self.player_action = {
+                            before = before and before.player_action or nil,
+                            observed = {},
+                        }
+                        local ok, reason = self.api:request_semantic_input_trigger(
+                            self.input_motion.semantic_command)
+                        if not ok then return self:fail(reason) end
+                        self.input_motion.status = "armed"
+                        self:set_state("semantic_input_trigger_wait")
+                        return true
                     end
                     if self.request.kind == "player_action_evidence" then
                         self.input_motion = self.api.input_motion_diagnostics
@@ -541,6 +579,37 @@ function M:update()
             self.input_motion.diagnostics = self.api:input_motion_diagnostics()
             self.input_motion.status = "completed"
             return self:complete()
+        end
+    elseif self.state == "semantic_input_trigger_wait" then
+        local trigger = self.api:semantic_input_trigger_diagnostics()
+        self.input_motion.semantic_trigger = trigger
+        local snapshot = self.api.player_action_diagnostics
+            and self.api:player_action_diagnostics() or nil
+        local action = snapshot and snapshot.player_action or nil
+        local last = self.player_action.observed[#self.player_action.observed]
+        if action ~= nil and action.availability == "available"
+            and (last == nil or last.node_id ~= action.node_id
+                or last.node_name ~= action.node_name) then
+            self.player_action.observed[#self.player_action.observed + 1] = {
+                frame = self.frame,
+                node_id = action.node_id,
+                node_name = action.node_name,
+            }
+        end
+        if trigger.status == "failed" then
+            self.input_motion.status = "failed"
+            return self:fail(trigger.error)
+        end
+        if trigger.status == "released" then
+            self.input_motion.status = "released"
+            if #self.player_action.observed > 0 or self.state_frames >= 60 then
+                self.input_motion.postflight = self.api:input_motion_diagnostics()
+                return self:complete()
+            end
+        end
+        if self.state_frames % 15 == 1 then self:report("running") end
+        if self.state_frames > 180 then
+            return self:fail("Semantic input trigger timed out")
         end
     elseif self.state == "condition_branch_verify_successor" then
         local current = self.api:current_action() or {}

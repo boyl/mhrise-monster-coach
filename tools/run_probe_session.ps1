@@ -16,6 +16,7 @@ param(
     [ValidateRange(1, 20)][int]$BehaviorSweepCycles = 1,
     [switch]$ConditionBranch,
     [switch]$InputMotionMetadata,
+    [switch]$SemanticInputTrigger,
     [switch]$PlayerActionEvidence,
     [switch]$InputMotionAxisWrite,
     [switch]$UiContract,
@@ -42,6 +43,13 @@ foreach ($rawForcedAction in $ForcedActions) {
     }
 }
 $ForcedActions = @($normalizedForcedActions)
+if ($SemanticInputTrigger -and ($UiContract -or $MonsterRespawn -or
+        $ForcedActions.Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($TrainingScenarioId) -or
+        $BehaviorSurvey -or $BehaviorDistanceSweep -or $ConditionBranch -or
+        $InputMotionMetadata -or $PlayerActionEvidence -or $InputMotionAxisWrite -or
+        $NativeThinkBranch)) {
+    throw '-SemanticInputTrigger is an isolated probe mode and cannot be combined with another probe kind.'
+}
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $resolvedArchiveRoot = if ([string]::IsNullOrWhiteSpace($ProbeArchiveRoot)) {
     Join-Path $repositoryRoot 'artifacts\probe_reports'
@@ -62,6 +70,7 @@ $launchedGame = $false
 $effectiveBehaviorSurvey = [bool]($BehaviorSurvey -or $BehaviorDistanceSweep)
 $effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSurvey -or
     $ConditionBranch -or $NativeThinkBranch -or $PlayerActionEvidence -or
+    $SemanticInputTrigger -or
     $ForcedActions.Count -gt 0 -or $MonsterRespawn -or
     -not [string]::IsNullOrWhiteSpace($TrainingScenarioId))
 
@@ -161,6 +170,7 @@ if ($ResumeExisting) {
             elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
             elseif ($ConditionBranch) { 'condition_induced_branch' }
             elseif ($InputMotionMetadata) { 'input_motion_metadata' }
+            elseif ($SemanticInputTrigger) { 'semantic_input_trigger' }
             elseif ($PlayerActionEvidence) { 'player_action_evidence' }
             elseif ($InputMotionAxisWrite) { 'input_motion_axis_write' }
             elseif ($NativeThinkBranch) { 'native_think_branch' }
@@ -182,6 +192,7 @@ if ($ResumeExisting) {
         axis_x = if ($InputMotionAxisWrite) { 0 } else { $null }
         axis_y = if ($InputMotionAxisWrite) { 1 } else { $null }
         axis_frames = if ($InputMotionAxisWrite) { 60 } else { $null }
+        semantic_command = if ($SemanticInputTrigger) { 'Escape' } else { $null }
         think_reference = if ($NativeThinkBranch) { 'em032_combo_001.user' } else { $null }
         expected_successor = if ($NativeThinkBranch -or $ConditionBranch) { 5001 } else { $null }
         continue_on_action_failure = $ForcedActions.Count -gt 1
@@ -228,6 +239,14 @@ if ($resumedTerminalReport) {
             throw "Semantic input metadata analysis failed with exit code $LASTEXITCODE."
         }
         Write-Host "Semantic input analysis recovered: $analysisPath"
+    }
+    if ($resumedTerminalReport.kind -eq 'semantic_input_trigger') {
+        $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
+        $python = Resolve-VerifiedPython
+        & $python (Join-Path $PSScriptRoot 'analyze_semantic_trigger.py') `
+            $archivePath --output $analysisPath
+        if ($LASTEXITCODE -ne 0) { throw 'Semantic trigger analysis recovery failed.' }
+        Write-Host "Semantic trigger analysis recovered: $analysisPath"
     }
     if ($FullReport) {
         $resumedTerminalReport | ConvertTo-Json -Depth 12
@@ -767,6 +786,14 @@ do {
                     throw "Semantic input metadata analysis failed with exit code $LASTEXITCODE."
                 }
                 Write-Host "Semantic input analysis: $analysisPath"
+            }
+            if ($SemanticInputTrigger) {
+                $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
+                $python = Resolve-VerifiedPython
+                & $python (Join-Path $PSScriptRoot 'analyze_semantic_trigger.py') `
+                    $archivePath --output $analysisPath
+                if ($LASTEXITCODE -ne 0) { throw 'Semantic trigger analysis failed.' }
+                Write-Host "Semantic trigger analysis: $analysisPath"
             }
             if ($FullReport) {
                 $report | ConvertTo-Json -Depth 12

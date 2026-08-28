@@ -380,6 +380,15 @@ function metadata_api:input_motion_diagnostics()
             truncated = false,
             targets = {},
         },
+        player_input_instance_contract = {
+            policy = "bounded_read_only_player_input_queries",
+            max_calls = 4,
+            call_count = 4,
+            call_failures = 0,
+            gameplay_writes = 0,
+            instance_available = true,
+            instance_type = "snow.player.PlayerInput",
+        },
     }
 end
 local metadata_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
@@ -417,6 +426,32 @@ assert(metadata_reports[#metadata_reports].status == "completed"
 assert(metadata_reports[#metadata_reports].training_timeline.revision == 7
     and metadata_reports[#metadata_reports].training_timeline.last_round.outcome == "hit",
     "player action probe preserves the same training timeline consumed by the overlay")
+
+function metadata_api:request_semantic_input_trigger(command)
+    assert(command == "Escape", "only the allowlisted semantic command is requested")
+    return true
+end
+function metadata_api:semantic_input_trigger_diagnostics()
+    return {
+        policy = "single_frame_trigger_only",
+        status = "released",
+        command = "Escape",
+        write_count = 1,
+        read_count = 1,
+        released_after_hid_cycles = 2,
+    }
+end
+local semantic_trigger_probe = Probe.new(metadata_api, 200032001, { stable_frames = 1 })
+assert(semantic_trigger_probe:accept_request({
+    session_id = "semantic-input-trigger", kind = "semantic_input_trigger",
+    semantic_command = "Escape",
+}, forced_context))
+semantic_trigger_probe:update()
+semantic_trigger_probe:update()
+assert(metadata_reports[#metadata_reports].status == "completed"
+    and metadata_reports[#metadata_reports].input_motion.status == "released"
+    and metadata_reports[#metadata_reports].input_motion.semantic_trigger.write_count == 1,
+    "semantic trigger completes only after the single frame naturally releases")
 
 local valid_input_motion_diagnostics = metadata_api.input_motion_diagnostics
 function metadata_api:input_motion_diagnostics()

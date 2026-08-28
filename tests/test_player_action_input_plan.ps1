@@ -298,5 +298,11 @@ if ($probeSessionSource -notmatch "'pending', 'running', 'completed', 'failed'" 
     -or $probeSessionSource -notmatch 'recovered_terminal = \$true') {
     throw 'Probe resume must recover and clean an already-terminal matching session without new input.'
 }
+if ($probeSessionSource -notmatch '\[switch\]\$SemanticInputTrigger' `
+    -or $probeSessionSource -notmatch 'elseif \(\$SemanticInputTrigger\) \{ ''semantic_input_trigger'' \}' `
+    -or $probeSessionSource -notmatch 'semantic_command = if \(\$SemanticInputTrigger\) \{ ''Escape'' \}' `
+    -or $probeSessionSource -notmatch 'SemanticInputTrigger is an isolated probe mode') {
+    throw 'Semantic input trigger automation must remain an explicit Escape-only probe mode.'
+}
 
 Write-Host 'test_player_action_input_plan.ps1: PASS'

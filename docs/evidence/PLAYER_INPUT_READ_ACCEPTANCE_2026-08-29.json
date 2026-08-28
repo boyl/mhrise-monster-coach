@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.29-player-input-read-contract",
+  "captured_at": "2026-08-29",
+  "session_id": "d2541e1dd66a448b8717d925e1f416ae",
+  "scope": "当前猎人 snow.player.PlayerInput 精确 Boolean 读取契约验收",
+  "report": {
+    "artifact": "artifacts/probe_reports/d2541e1dd66a448b8717d925e1f416ae.input_motion_metadata.completed.json",
+    "sha256": "EDB7CAD284DFD9D067610FF344596EB800268F401C626E736DE730568E925936",
+    "status": "completed"
+  },
+  "analysis": {
+    "artifact": "artifacts/probe_reports/d2541e1dd66a448b8717d925e1f416ae.input_motion_metadata.completed.analysis.json",
+    "sha256": "020E098F827FB9F0A666BB15622AE509B7D5C488ABD42D84C364005FF9E43646",
+    "status": "player_input_read_contract_verified",
+    "experiment_allowed": false,
+    "violations": [],
+    "next_gate": "design_separate_guarded_semantic_press_release_experiment"
+  },
+  "findings": {
+    "instance_type": "snow.player.PlayerInput",
+    "method": "isDelay(snow.player.PlayerInput.CommandButton2)",
+    "call_count": 4,
+    "call_failures": 0,
+    "queries": [
+      { "command": "Atk_X", "value": 0, "result": false },
+      { "command": "Atk_A", "value": 1, "result": false },
+      { "command": "Atk_R_A", "value": 41, "result": false },
+      { "command": "Escape", "value": 3, "result": false }
+    ]
+  },
+  "safety": {
+    "player_input_gameplay_writes": 0,
+    "semantic_bitset_gameplay_writes": 0,
+    "adapter_request_count": 0,
+    "adapter_write_count": 0,
+    "game_responding_after_probe": true,
+    "game_crash": false
+  },
+  "interpretation": "真实当前玩家实例、命令枚举值和精确 Boolean 调用约定均已验证；本轮没有写入命令位，也没有证明任一命令会形成对应猎人动作。下一版本只允许独立、单命令、单帧且可确认自然释放的受控实验。"
+}

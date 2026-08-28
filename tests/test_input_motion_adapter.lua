@@ -129,6 +129,7 @@ local semantic_read_calls = 0
 local bitset_mutator_calls = 0
 local unrelated_player_field_reads = 0
 local player_instance_query_calls = 0
+local fake_semantic_trigger_active = false
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
     return {
@@ -161,6 +162,7 @@ local function semantic_metadata_method(name, return_type, param_types)
     end
     return method
 end
+local bitset_object = nil
 local bitset_parent_type = {
     get_full_name = function()
         return "snow.BitSetFlagBase`1<snow.player.PlayerInput.CommandButton2>"
@@ -178,9 +180,24 @@ local bitset_parent_type = {
         }}
     end,
     get_methods = function()
-        return { semantic_metadata_method("clearInheritedFlag", "System.Void", {
-            { name = "snow.player.PlayerInput.CommandButton2" },
-        }) }
+        return {
+            semantic_metadata_method("clearInheritedFlag", "System.Void", {
+                { name = "snow.player.PlayerInput.CommandButton2" },
+            }),
+            {
+                get_name = function() return "set" end,
+                get_return_type = function() return named_type("System.Void") end,
+                get_param_names = function() return { "flag" } end,
+                get_param_types = function() return { named_type("System.UInt32") } end,
+                is_static = function() return false end,
+                call = function(_, owner, value)
+                    assert(owner == bitset_object, "semantic set must target the resolved trigger bitset")
+                    assert(value == 3, "only the Escape command is allowlisted")
+                    bitset_mutator_calls = bitset_mutator_calls + 1
+                    fake_semantic_trigger_active = true
+                end,
+            },
+        }
     end,
 }
 local bitset_type = {
@@ -213,7 +230,7 @@ local bitset_type = {
         }
     end,
 }
-local bitset_object = { get_type_definition = function() return bitset_type end }
+bitset_object = { get_type_definition = function() return bitset_type end }
 local function semantic_read_getter(name)
     local method = semantic_metadata_method(name, bitset_type:get_full_name(), {})
     method.call = function(_, owner)
@@ -224,9 +241,14 @@ local function semantic_read_getter(name)
     return method
 end
 local semantic_parameter = { { name = "snow.player.PlayerInput.CommandButton2" } }
+local manager_is_trg = semantic_metadata_method("isTrg", "System.Boolean", semantic_parameter)
+manager_is_trg.call = function(_, owner, command)
+    assert(owner == stm and command == 3)
+    return fake_semantic_trigger_active
+end
 local semantic_manager_methods = {
     semantic_metadata_method("isOn", "System.Boolean", semantic_parameter),
-    semantic_metadata_method("isTrg", "System.Boolean", semantic_parameter),
+    manager_is_trg,
     semantic_read_getter("getOn"),
     semantic_read_getter("getTrg"),
     semantic_read_getter("getRel"),
@@ -454,7 +476,7 @@ Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics(current_player)
-assert(diagnostics.schema_version == 10)
+assert(diagnostics.schema_version == 11)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -612,6 +634,27 @@ local late_player_adapter = Adapter.new()
 assert(not late_player_adapter:diagnostics().player_input_owner_contract.player_available)
 assert(late_player_adapter:diagnostics(current_player).player_input_owner_contract.player_available,
     "a title-screen miss must not cache an unavailable player owner contract")
+local trigger_adapter = Adapter.new()
+trigger_adapter:diagnostics(current_player)
+assert(trigger_adapter:arm_semantic_trigger("Escape"))
+assert(trigger_adapter:semantic_trigger_diagnostics().status == "pending")
+assert(trigger_adapter:flush_semantic_trigger())
+assert(trigger_adapter:semantic_trigger_diagnostics().status == "injected")
+assert(trigger_adapter:semantic_trigger_diagnostics().write_count == 1)
+assert(bitset_mutator_calls == 1, "exactly one allowlisted trigger bit is written")
+fake_semantic_trigger_active = false
+assert(trigger_adapter:flush_semantic_trigger())
+assert(trigger_adapter:semantic_trigger_diagnostics().status == "released")
+assert(trigger_adapter:semantic_trigger_diagnostics().released_after_hid_cycles == 2)
+assert(not trigger_adapter:arm_semantic_trigger("Atk_R_A"),
+    "non-allowlisted semantic commands fail closed")
+local cancelled_trigger_adapter = Adapter.new()
+cancelled_trigger_adapter:diagnostics(current_player)
+assert(cancelled_trigger_adapter:arm_semantic_trigger("Escape"))
+assert(cancelled_trigger_adapter:cancel_semantic_trigger())
+assert(cancelled_trigger_adapter:semantic_trigger_diagnostics().status == "cancelled")
+assert(cancelled_trigger_adapter:flush_semantic_trigger())
+assert(bitset_mutator_calls == 1, "cancellation before UpdateHID must prevent injection")
 local adapter = Adapter.new()
 assert(adapter:write_axis(0, 1))
 assert(adapter:diagnostics().owned and adapter:diagnostics().request_count == 1)
