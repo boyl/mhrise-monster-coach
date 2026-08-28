@@ -89,3 +89,7 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.16` 修正后的完整七步复测仍只有直斩、突刺和翻滚命中预期语义；见切与特殊纳刀只产生普通 `atk_101`，两个后续居合步骤在等待特殊纳刀节点时超时。整批没有玩家接管，所有七项均被执行并保留部分证据，证明新的错误分类与批处理恢复有效，也证明 XBUTTON1 不是充分修复。该报告还确认活动红书为 `sacred_sheathe_combo`、蓝书才是 `special_sheathe_combo`；因此红书下要求特殊纳刀/居合三项属于测试计划错误，而非玩家动作失败。摘要见 `docs/evidence/PLAYER_ACTION_LOADOUT_RETEST_2026-08-28.json`。
 
 `0.49.17` 将活动书替换技提升为校准计划契约。默认批次仅执行当前配装适用步骤，报告同时保存 `expected_step_ids`、活动技能和带原因的 `excluded_steps`；分析器据此判断完整性。显式请求未装备的特殊纳刀或居合时直接拒绝，不自动切书或覆盖玩家配置。mhrice 的公开仓库提供静态游戏资源提取但不含运行时按键绑定解析；REFramework 提供 TDB/HID 访问但没有《崛起》现成的武器语义绑定 API。为避免继续猜侧键，既有输入元数据探针现只读筛选已知 `snow.StmInputManager` 层级中与 input/key/keyboard/mouse/button/bind/device/config 相关的字段和方法签名，等待下一次集中部署一次取证。
+
+`0.49.17` 的集中实机取证确认 `snow.StmInputManager` 直接提供 `getOn/getTrg/getRel/getDelay` 位集，以及接收 `snow.player.PlayerInput.CommandButton2` 的 `isOn/isTrg/isRel/isDelay` 查询；采样时 `get_LastInputDevice` 返回 `via.hid.GamePadDevice`，但 `_ActiveDevice=3` 所属的 `ActiveGameDevice` 尚未取得可解释成员，不能借用另一个 `ActiveDevice` 枚举下结论。这是“此前侧键猜测不可靠”的强证据，但尚不能证明用户的每个物理绑定。`0.49.18` 因此只读提取 `CommandButton2`、设备与键位配置的精确类型契约，先建立稳定的游戏语义层，再决定自动校准入口；本阶段仍不调用发现的方法。
+
+`0.49.18` 的实机结果完整取得 56 个语义命令；`snow.StmInputConfig` 同时暴露 `TryGet_main_pl_Conf(PL_INPUT, InGameMouseKeyBoardKey)`、`TryGet_sub_pl_Conf(...)` 和 `TryGet_pad_pl_Conf(PL_INPUT, snow.Pad.Button)`。这说明当前绑定可以沿游戏原生配置读取，而无需让用户反复猜按键。`0.49.19` 先以同一只读探针补齐这些参数枚举和 `snow.StmPlInputData` 父类型契约；解析/调用映射接口必须在该元数据门禁通过后单独实现和验收。

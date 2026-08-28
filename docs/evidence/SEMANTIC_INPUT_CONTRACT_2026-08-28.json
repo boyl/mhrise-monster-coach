@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "evidence_date": "2026-08-28",
+  "runtime": "mhrise / TDB 71",
+  "deployed_version": "0.49.18-semantic-input-contract",
+  "probe": {
+    "session_id": "8582d50484f94a09b4329e8197ffeabd",
+    "status": "completed",
+    "policy": "read_only_known_hid_contract_probe",
+    "request_count": 0,
+    "write_count": 0,
+    "artifact": "artifacts/probe_reports/8582d50484f94a09b4329e8197ffeabd.input_motion_metadata.completed.json",
+    "artifact_sha256": "1A29C27E9BA7F2C7EEE39A9D5E061BBC71A0184A6DB082BB193D856CB7118B05"
+  },
+  "observed_device": {
+    "source": "get_LastInputDevice",
+    "type": "via.hid.GamePadDevice",
+    "active_device_raw": 3,
+    "active_device_raw_type": "snow.StmInputManager.ActiveGameDevice",
+    "interpretation": "采样时最后输入设备为手柄；ActiveGameDevice 的 raw 3 尚无同类型成员名证据，不能借用 snow.StmInputManager.ActiveDevice 的值解释。"
+  },
+  "semantic_command_contract": {
+    "type": "snow.player.PlayerInput.CommandButton2",
+    "value_count": 56,
+    "representative_values": {
+      "Atk_X": 0,
+      "Atk_A": 1,
+      "Atk_R1": 2,
+      "Escape": 3,
+      "Guard": 4,
+      "Dash": 5,
+      "Atk_X_A": 33,
+      "Atk_X_RT": 34,
+      "Atk_A_RT": 35,
+      "Atk_X_A_RT": 37
+    },
+    "read_methods": [
+      "isOn",
+      "isTrg",
+      "isRel",
+      "isDelay",
+      "isSubOn"
+    ]
+  },
+  "binding_contract": {
+    "type": "snow.StmInputConfig",
+    "field_count": 43,
+    "method_count": 102,
+    "relevant_read_candidates": [
+      "TryGet_main_pl_Conf",
+      "TryGet_sub_pl_Conf",
+      "TryGet_pad_pl_Conf",
+      "TryGet_pad_pl_Static"
+    ]
+  },
+  "conclusion": {
+    "confirmed": "游戏存在稳定的玩家语义命令层和当前键位配置映射入口。",
+    "retired_assumption": "不再把 Windows XBUTTON1/XBUTTON2 编号视为玩家武器语义。",
+    "next_gate": "只读枚举 PL_INPUT、键鼠键码和手柄按钮值，再读取当前 main/sub/pad 映射；在此之前不调用输入写入或修改配置的方法。"
+  }
+}

@@ -20,12 +20,136 @@ local INPUT_CONTRACT_TERMS = {
     "input", "key", "keyboard", "mouse", "button", "bind", "device", "config",
 }
 
-local function mentions_input_contract(value)
+local PLAYER_INPUT_TERMS = {
+    "input", "command", "key", "keyboard", "mouse", "button", "bind", "device",
+    "config", "attack", "action", "on", "trg", "rel", "delay",
+}
+
+local MAX_CONTRACT_MEMBERS = 256
+local MAX_CONTRACT_LEVELS = 8
+
+local function mentions_any(value, terms)
     local lower = string.lower(tostring(value or ""))
-    for _, term in ipairs(INPUT_CONTRACT_TERMS) do
+    for _, term in ipairs(terms or INPUT_CONTRACT_TERMS) do
         if string.find(lower, term, 1, true) ~= nil then return true end
     end
     return false
+end
+
+local function primitive_value(field, instance)
+    local is_static = safe(function() return field:is_static() end) == true
+    local value = safe(function() return field:get_data(is_static and nil or instance) end)
+    if type(value) ~= "number" and type(value) ~= "boolean"
+        and type(value) ~= "string" then return nil, is_static end
+    return value, is_static
+end
+
+local function field_contract(field, instance)
+    local value, is_static = primitive_value(field, instance)
+    return {
+        name = safe(function() return field:get_name() end),
+        type = type_name(safe(function() return field:get_type() end)),
+        is_static = is_static,
+        primitive_value = value,
+    }
+end
+
+local function method_metadata(method)
+    local param_types = {}
+    for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+        param_types[#param_types + 1] = type_name(param_type) or "unknown"
+    end
+    return {
+        name = safe(function() return method:get_name() end),
+        return_type = type_name(safe(function() return method:get_return_type() end)),
+        param_types = param_types,
+    }
+end
+
+-- Exact-type enum metadata only. This reads literal/static field values and never
+-- invokes the enum or any gameplay method. Unknown types fail closed.
+local function enum_contract(type_name_value)
+    local type_def = safe(function() return sdk.find_type_definition(type_name_value) end)
+    local result = { type = type_name_value, available = type_def ~= nil, values = {} }
+    if type_def == nil then return result end
+    for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+        if #result.values >= MAX_CONTRACT_MEMBERS then
+            result.truncated = true
+            break
+        end
+        local value, is_static = primitive_value(field, nil)
+        if is_static and value ~= nil then
+            result.values[#result.values + 1] = {
+                name = safe(function() return field:get_name() end),
+                value = value,
+            }
+        end
+    end
+    table.sort(result.values, function(a, b)
+        if type(a.value) == "number" and type(b.value) == "number" and a.value ~= b.value then
+            return a.value < b.value
+        end
+        return tostring(a.name) < tostring(b.name)
+    end)
+    return result
+end
+
+-- Bounded metadata over an explicitly named type. It exposes signatures and
+-- primitive fields only; it neither scans the global TDB nor calls discovered methods.
+local function filtered_type_contract(type_name_value, instance, terms)
+    local type_def = safe(function() return sdk.find_type_definition(type_name_value) end)
+    local result = {
+        type = type_name_value,
+        available = type_def ~= nil,
+        fields = {},
+        methods = {},
+    }
+    if type_def == nil then return result end
+    for _, field in ipairs(safe(function() return type_def:get_fields() end) or {}) do
+        if #result.fields >= MAX_CONTRACT_MEMBERS then
+            result.fields_truncated = true
+            break
+        end
+        local contract = field_contract(field, instance)
+        if mentions_any(contract.name, terms) or mentions_any(contract.type, terms) then
+            result.fields[#result.fields + 1] = contract
+        end
+    end
+    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+        if #result.methods >= MAX_CONTRACT_MEMBERS then
+            result.methods_truncated = true
+            break
+        end
+        local contract = method_metadata(method)
+        if mentions_any(contract.name, terms) or mentions_any(contract.return_type, terms)
+            or mentions_any(table.concat(contract.param_types, " "), terms) then
+            result.methods[#result.methods + 1] = contract
+        end
+    end
+    table.sort(result.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
+    table.sort(result.methods, function(a, b)
+        local a_key = tostring(a.name) .. "(" .. table.concat(a.param_types, ",") .. ")"
+        local b_key = tostring(b.name) .. "(" .. table.concat(b.param_types, ",") .. ")"
+        return a_key < b_key
+    end)
+    return result
+end
+
+local function filtered_type_hierarchy_contract(type_name_value, instance, terms)
+    local type_def = safe(function() return sdk.find_type_definition(type_name_value) end)
+    local result = { type = type_name_value, available = type_def ~= nil, levels = {} }
+    local seen, depth = {}, 0
+    while type_def ~= nil and depth < MAX_CONTRACT_LEVELS do
+        local current_name = type_name(type_def) or "unknown"
+        if seen[current_name] then break end
+        seen[current_name] = true
+        local level = filtered_type_contract(current_name, instance, terms)
+        result.levels[#result.levels + 1] = level
+        type_def = safe(function() return type_def:get_parent_type() end)
+        depth = depth + 1
+    end
+    if type_def ~= nil then result.truncated = true end
+    return result
 end
 
 -- This is deliberately a bounded metadata probe over one known singleton
@@ -41,32 +165,16 @@ local function input_contract_hierarchy(type_def, instance)
             local name = safe(function() return field:get_name() end)
             local field_type = safe(function() return field:get_type() end)
             local field_type_name = type_name(field_type)
-            if mentions_input_contract(name) or mentions_input_contract(field_type_name) then
-                local value = safe(function() return field:get_data(instance) end)
-                if type(value) ~= "number" and type(value) ~= "boolean"
-                    and type(value) ~= "string" then value = nil end
-                level.fields[#level.fields + 1] = {
-                    name = name,
-                    type = field_type_name,
-                    is_static = safe(function() return field:is_static() end) == true,
-                    primitive_value = value,
-                }
+            if mentions_any(name) or mentions_any(field_type_name) then
+                level.fields[#level.fields + 1] = field_contract(field, instance)
             end
         end
         for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
             local name = safe(function() return method:get_name() end)
-            local return_type = type_name(safe(function() return method:get_return_type() end))
-            local param_types = {}
-            for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
-                param_types[#param_types + 1] = type_name(param_type) or "unknown"
-            end
-            if mentions_input_contract(name) or mentions_input_contract(return_type)
-                or mentions_input_contract(table.concat(param_types, " ")) then
-                level.methods[#level.methods + 1] = {
-                    name = name,
-                    return_type = return_type,
-                    param_types = param_types,
-                }
+            local contract = method_metadata(method)
+            if mentions_any(name) or mentions_any(contract.return_type)
+                or mentions_any(table.concat(contract.param_types, " ")) then
+                level.methods[#level.methods + 1] = contract
             end
         end
         table.sort(level.fields, function(a, b) return tostring(a.name) < tostring(b.name) end)
@@ -162,8 +270,9 @@ function M:diagnostics()
     local stm = safe(function() return sdk.get_managed_singleton("snow.StmInputManager") end)
     local stm_type = stm and safe(function() return stm:get_type_definition() end) or nil
     local active_device = stm and safe(function() return stm:get_field("_ActiveDevice") end) or nil
+    local player_input_data = stm and safe(function() return stm:get_field("plParam") end) or nil
     return {
-        schema_version = 1,
+        schema_version = 2,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -181,6 +290,26 @@ function M:diagnostics()
         stm_input_manager_available = stm ~= nil,
         stm_input_manager_type = type_name(stm_type),
         stm_input_contract = input_contract_hierarchy(stm_type, stm),
+        semantic_command_enum = enum_contract("snow.player.PlayerInput.CommandButton2"),
+        input_enum_contracts = {
+            enum_contract("snow.StmInputManager.ActiveGameDevice"),
+            enum_contract("snow.StmInputManager.ActiveDevice"),
+            enum_contract("snow.StmInputManager.InGameInputDevice"),
+            enum_contract("snow.StmInputConfig.KeyConfigType"),
+            enum_contract("snow.StmInputManager.PL_INPUT"),
+            enum_contract("snow.StmInputManager.STATIC_PL_INPUT"),
+            enum_contract("snow.StmInputManager.InGameMouseKeyBoardKey"),
+            enum_contract("snow.Pad.Button"),
+            enum_contract("via.hid.MouseButton"),
+        },
+        known_type_contracts = {
+            filtered_type_contract("snow.StmPlInputData", player_input_data, PLAYER_INPUT_TERMS),
+            filtered_type_contract("snow.StmInputConfig", nil, PLAYER_INPUT_TERMS),
+        },
+        known_type_hierarchies = {
+            filtered_type_hierarchy_contract(
+                "snow.StmPlInputData", player_input_data, PLAYER_INPUT_TERMS),
+        },
         stm_active_device = active_device and safe(function()
             return tonumber(active_device:get_field("_ActiveDevice"))
                 or tostring(active_device:get_field("_ActiveDevice"))
