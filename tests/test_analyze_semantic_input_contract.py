@@ -35,6 +35,21 @@ def complete_payload():
             {"name": "Atk_R_A", "value": 41},
         ]},
         "types": types,
+    }, "semantic_bitset_contract": {
+        "policy": "bounded_read_only_semantic_bitset_getters",
+        "max_calls": 4,
+        "call_count": 4,
+        "call_failures": 0,
+        "gameplay_writes": 0,
+        "getters": [{
+            "name": name,
+            "status": "resolved",
+            "object_type": "snow.BitSetFlag`1<snow.player.PlayerInput.CommandButton2>",
+            "object_contract": {"methods": [
+                method("getFlag", "snow.player.PlayerInput.CommandButton2"),
+                method("setFlag", "snow.player.PlayerInput.CommandButton2", "System.Boolean"),
+            ]},
+        } for name in ("getOn", "getTrg", "getRel", "getDelay")],
     }}}
 
 
@@ -42,7 +57,7 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
     def test_finds_instance_owned_update_candidate_without_allowing_experiment(self):
         result = analyze(complete_payload())
 
-        self.assertEqual(result["status"], "candidate_owner_found")
+        self.assertEqual(result["status"], "bitset_mutator_candidate_found")
         self.assertFalse(result["experiment_allowed"])
         self.assertEqual(result["violations"], [])
         self.assertEqual(result["command_enum_count"], 2)
@@ -51,6 +66,13 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
         ])
         self.assertEqual(len(result["viable_update_candidates"]), 1)
         self.assertIn("updateCommand", result["viable_update_candidates"][0]["signature"])
+        self.assertEqual(result["semantic_bitset_call_count"], 4)
+        self.assertEqual(result["semantic_bitset_object_types"], [
+            "snow.BitSetFlag`1<snow.player.PlayerInput.CommandButton2>",
+        ])
+        self.assertEqual(len(result["bitset_mutator_candidates"]), 4)
+        self.assertTrue(all(not item["signature"].startswith("getFlag")
+                            for item in result["bitset_mutator_candidates"]))
 
     def test_write_or_call_count_violation_fails_closed(self):
         payload = complete_payload()
@@ -70,6 +92,16 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "invalid_read_only_contract")
         self.assertEqual(result["missing_type_entries"], list(EXPECTED_TYPES))
+        self.assertFalse(result["experiment_allowed"])
+
+    def test_bitset_getter_failure_blocks_mutator_candidate(self):
+        payload = complete_payload()
+        payload["input_motion"]["semantic_bitset_contract"]["call_failures"] = 1
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"], "invalid_read_only_contract")
+        self.assertIn("semantic_bitset_getter_call_failed", result["violations"])
         self.assertFalse(result["experiment_allowed"])
 
 

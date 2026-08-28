@@ -70,6 +70,8 @@ app (composition root)
 
 `input_motion_adapter` 的语义输入调查边界是独立的只读契约：只检查 `snow.StmInputManager`、`snow.StmPlayerInput`、`snow.player.PlayerInput` 与 `snow.StmInputManager.InputUI` 四个明确类型，并保存 `CommandButton2` 枚举、过滤后的字段/方法签名、已知 `getOn/getTrg/getRel/getDelay/isOn/isTrg/isRel/isDelay` 查询方法及受管单例可用性。契约不调用发现的方法、不安装 Hook、不写位集，并以 `gameplay_method_calls=0`、`gameplay_writes=0` 暴露安全不变量。它只负责回答“语义命令由谁持有、在哪个更新点可观察”，后续受控写入实验必须作为单独版本实现和验收，不能在元数据发现阶段顺手注入。
 
+上一层元数据在实机确认后，`semantic_bitset_contract` 才允许对 `snow.StmInputManager` 的 `getOn/getTrg/getRel/getDelay` 四个精确零参数 getter 各调用一次。全局上限固定为 4；调用失败、对象缺失和类型不可读分别记录。返回对象只做元数据检查，禁止调用其 `set/clear/add/remove/reset/toggle` 候选方法。结果按 Adapter 实例缓存，避免 Overlay 每帧重复读取；自动分析即使发现修改候选也保持 `experiment_allowed=false`。
+
 ### 离线怪物数据管线
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。

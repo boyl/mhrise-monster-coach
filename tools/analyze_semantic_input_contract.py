@@ -16,6 +16,7 @@ EXPECTED_TYPES = (
 )
 QUERY_METHODS = {"getOn", "getTrg", "getRel", "getDelay", "isOn", "isTrg", "isRel", "isDelay"}
 UPDATE_TERMS = ("update", "command", "input", "button", "trigger")
+MUTATION_TERMS = ("set", "clear", "reset", "add", "remove", "toggle")
 
 
 def _signature(method: dict) -> str:
@@ -81,8 +82,44 @@ def analyze(payload: dict) -> dict:
 
     viable_updates = [item for item in update_candidates
                       if item["instance_available"] or item["is_static"]]
+    bitset_contract = input_motion.get("semantic_bitset_contract") or {}
+    bitset_mutator_candidates = []
+    bitset_object_types = []
+    if bitset_contract.get("policy") != "bounded_read_only_semantic_bitset_getters":
+        violations.append("semantic_bitset_contract_missing_or_changed")
+    if bitset_contract.get("gameplay_writes") != 0:
+        violations.append("semantic_bitset_gameplay_writes_not_zero")
+    if bitset_contract.get("call_failures") != 0:
+        violations.append("semantic_bitset_getter_call_failed")
+    call_count = bitset_contract.get("call_count")
+    max_calls = bitset_contract.get("max_calls")
+    if not isinstance(call_count, int) or not isinstance(max_calls, int) or call_count > max_calls:
+        violations.append("semantic_bitset_call_budget_invalid")
+    for getter in bitset_contract.get("getters") or []:
+        object_type = getter.get("object_type")
+        if object_type and object_type not in bitset_object_types:
+            bitset_object_types.append(object_type)
+        object_contract = getter.get("object_contract") or {}
+        for method in object_contract.get("methods") or []:
+            name = str(method.get("name") or "")
+            if not any(term in name.lower() for term in MUTATION_TERMS):
+                continue
+            candidate = {
+                "source_getter": getter.get("name"),
+                "object_type": object_type,
+                "signature": _signature(method),
+                "is_static": method.get("is_static") is True,
+                "classification": "metadata_candidate_only",
+            }
+            if candidate not in bitset_mutator_candidates:
+                bitset_mutator_candidates.append(candidate)
+    bitset_mutator_candidates.sort(
+        key=lambda item: (str(item["object_type"]), item["signature"], str(item["source_getter"])))
+
     if violations:
         status = "invalid_read_only_contract"
+    elif bitset_mutator_candidates:
+        status = "bitset_mutator_candidate_found"
     elif viable_updates:
         status = "candidate_owner_found"
     else:
@@ -102,9 +139,13 @@ def analyze(payload: dict) -> dict:
             query_signatures, key=lambda item: (item["type"], item["signature"])),
         "update_candidates": update_candidates,
         "viable_update_candidates": viable_updates,
+        "semantic_bitset_call_count": call_count,
+        "semantic_bitset_max_calls": max_calls,
+        "semantic_bitset_object_types": sorted(bitset_object_types),
+        "bitset_mutator_candidates": bitset_mutator_candidates,
         "next_gate": (
             "separate_guarded_press_release_experiment_required"
-            if status == "candidate_owner_found"
+            if status in {"candidate_owner_found", "bitset_mutator_candidate_found"}
             else "stop_semantic_write_route_or_collect_missing_metadata"
         ),
     }

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.26-semantic-input-contract",
+  "captured_at": "2026-08-28",
+  "session_id": "68a1cc1d77d84a7d85345744a77b031e",
+  "scope": "MHR 语义输入类型、命令枚举、单例所有者与查询签名的集中只读验收",
+  "report": {
+    "artifact": "artifacts/probe_reports/68a1cc1d77d84a7d85345744a77b031e.input_motion_metadata.completed.json",
+    "sha256": "06783D4E617EC333BE546AE86202A91DA0D1D7A017967681B571B5FA7FD005B3",
+    "status": "completed"
+  },
+  "analysis": {
+    "artifact": "artifacts/probe_reports/68a1cc1d77d84a7d85345744a77b031e.input_motion_metadata.completed.analysis.json",
+    "sha256": "F86BEFCF89DDC0C6B117A30E369916A6042AFC1D02D4B7050B67C30A192F2C7",
+    "status": "candidate_owner_found",
+    "experiment_allowed": false,
+    "violations": []
+  },
+  "findings": {
+    "command_enum_count": 56,
+    "exact_type_count": 4,
+    "missing_types": [],
+    "unavailable_types": [],
+    "instance_owner_candidates": ["snow.StmInputManager"],
+    "semantic_query_signature_count": 22,
+    "manager_bitset_getters": ["getOn", "getTrg", "getRel", "getDelay"],
+    "non_singleton_mutator_type": "snow.StmPlayerInput"
+  },
+  "safety": {
+    "metadata_gameplay_method_calls": 0,
+    "metadata_gameplay_writes": 0,
+    "adapter_request_count": 0,
+    "adapter_write_count": 0,
+    "terminal_request_removed": true,
+    "game_crash": false
+  },
+  "interpretation": "类型存在和方法名不能证明可安全调用。下一层只允许四个已确认 Manager getter 的有界只读调用，以取得返回位集对象契约。"
+}

@@ -121,6 +121,8 @@ local player_input_data_type = {
 }
 local dictionary_method_calls = 0
 local semantic_method_calls = 0
+local semantic_read_calls = 0
+local bitset_mutator_calls = 0
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
     return {
@@ -153,11 +155,53 @@ local function semantic_metadata_method(name, return_type, param_types)
     end
     return method
 end
+local bitset_type = {
+    get_full_name = function()
+        return "snow.BitSetFlag`1<snow.player.PlayerInput.CommandButton2>"
+    end,
+    get_fields = function() return {} end,
+    get_methods = function()
+        return {
+            semantic_metadata_method("getFlag", "System.Boolean", {
+                { name = "snow.player.PlayerInput.CommandButton2" },
+            }),
+            {
+                get_name = function() return "setFlag" end,
+                get_return_type = function() return named_type("System.Void") end,
+                get_param_names = function() return { "command", "enabled" } end,
+                get_param_types = function()
+                    return {
+                        named_type("snow.player.PlayerInput.CommandButton2"),
+                        named_type("System.Boolean"),
+                    }
+                end,
+                is_static = function() return false end,
+                call = function()
+                    bitset_mutator_calls = bitset_mutator_calls + 1
+                    error("bitset mutator must never be called by read contract")
+                end,
+            },
+        }
+    end,
+}
+local bitset_object = { get_type_definition = function() return bitset_type end }
+local function semantic_read_getter(name)
+    local method = semantic_metadata_method(name, bitset_type:get_full_name(), {})
+    method.call = function(_, owner)
+        assert(owner == stm, "semantic getter must use StmInputManager singleton")
+        semantic_read_calls = semantic_read_calls + 1
+        return bitset_object
+    end
+    return method
+end
 local semantic_parameter = { { name = "snow.player.PlayerInput.CommandButton2" } }
 local semantic_manager_methods = {
     semantic_metadata_method("isOn", "System.Boolean", semantic_parameter),
     semantic_metadata_method("isTrg", "System.Boolean", semantic_parameter),
-    semantic_metadata_method("getOn", "snow.BitSetFlag`1", {}),
+    semantic_read_getter("getOn"),
+    semantic_read_getter("getTrg"),
+    semantic_read_getter("getRel"),
+    semantic_read_getter("getDelay"),
     semantic_metadata_method("updateInput", "System.Void", {}),
 }
 stm_type.get_methods = function()
@@ -314,6 +358,7 @@ sdk = {
         if name == "snow.StmPlayerInput" then return stm_player_input_type end
         if name == "snow.player.PlayerInput" then return player_input_type end
         if name == "snow.StmInputManager.InputUI" then return input_ui_type end
+        if name == bitset_type:get_full_name() then return bitset_type end
     end,
     get_native_singleton = function() return {} end,
     call_native_func = function(_, _, name)
@@ -329,7 +374,7 @@ Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics()
-assert(diagnostics.schema_version == 7)
+assert(diagnostics.schema_version == 8)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -342,7 +387,11 @@ assert(diagnostics.stm_active_device == 1 and diagnostics.emu_left_up_available)
 assert(#diagnostics.stm_input_contract == 1)
 assert(diagnostics.stm_input_contract[1].fields[1].name == "_KeyboardConfig")
 assert(diagnostics.stm_input_contract[1].fields[1].primitive_value == 4)
-assert(diagnostics.stm_input_contract[1].methods[1].name == "get_ActiveInputDevice")
+local active_input_device_method_found = false
+for _, method in ipairs(diagnostics.stm_input_contract[1].methods) do
+    if method.name == "get_ActiveInputDevice" then active_input_device_method_found = true end
+end
+assert(active_input_device_method_found)
 assert(diagnostics.semantic_command_enum.available)
 assert(#diagnostics.semantic_command_enum.values == 2)
 assert(diagnostics.semantic_command_enum.values[1].name == "Attack")
@@ -356,16 +405,35 @@ assert(semantic.command_enum.available and #semantic.command_enum.values == 2)
 assert(#semantic.types == 4)
 assert(semantic.types[1].type == "snow.StmInputManager")
 assert(semantic.types[1].singleton_lookup and semantic.types[1].instance_available)
-assert(#semantic.types[1].semantic_query_methods == 3)
-assert(semantic.types[1].semantic_query_methods[1].name == "getOn")
-assert(semantic.types[1].semantic_query_methods[2].name == "isOn")
-assert(semantic.types[1].semantic_query_methods[3].name == "isTrg")
+assert(#semantic.types[1].semantic_query_methods == 6)
+assert(semantic.types[1].semantic_query_methods[1].name == "getDelay")
+assert(semantic.types[1].semantic_query_methods[2].name == "getOn")
+assert(semantic.types[1].semantic_query_methods[3].name == "getRel")
+assert(semantic.types[1].semantic_query_methods[4].name == "getTrg")
+assert(semantic.types[1].semantic_query_methods[5].name == "isOn")
+assert(semantic.types[1].semantic_query_methods[6].name == "isTrg")
 assert(semantic.types[2].type == "snow.StmPlayerInput")
 assert(semantic.types[2].singleton_lookup and semantic.types[2].instance_available)
 assert(semantic.types[3].type == "snow.player.PlayerInput")
 assert(not semantic.types[3].singleton_lookup and not semantic.types[3].instance_available)
 assert(semantic.types[4].type == "snow.StmInputManager.InputUI")
 assert(semantic_method_calls == 0, "semantic metadata contract is strictly read-only")
+local bitsets = diagnostics.semantic_bitset_contract
+assert(bitsets.schema_version == 1)
+assert(bitsets.policy == "bounded_read_only_semantic_bitset_getters")
+assert(bitsets.max_calls == 4 and bitsets.call_count == 4)
+assert(bitsets.call_failures == 0 and bitsets.gameplay_writes == 0)
+assert(bitsets.manager_type_available and bitsets.manager_instance_available)
+assert(#bitsets.getters == 4)
+for _, getter in ipairs(bitsets.getters) do
+    assert(getter.status == "resolved")
+    assert(getter.object_available)
+    assert(getter.object_type == bitset_type:get_full_name())
+    assert(getter.object_contract.available)
+    assert(#getter.object_contract.methods == 2)
+end
+assert(semantic_read_calls == 4)
+assert(bitset_mutator_calls == 0, "returned bitset methods are metadata-only")
 assert(#diagnostics.input_enum_contracts == 9)
 assert(diagnostics.input_enum_contracts[1].values[2].name == "GamePad")
 assert(diagnostics.input_enum_contracts[2].available == false)
@@ -423,9 +491,12 @@ assert(dictionary_method_calls == 24, "only bounded dictionary lookups are invok
 local cached_adapter = Adapter.new()
 cached_adapter:diagnostics()
 local calls_after_first_snapshot = dictionary_method_calls
+local semantic_reads_after_first_snapshot = semantic_read_calls
 cached_adapter:diagnostics()
 assert(dictionary_method_calls == calls_after_first_snapshot,
     "current binding lookup is cached per adapter")
+assert(semantic_read_calls == semantic_reads_after_first_snapshot,
+    "semantic bitset getters are cached per adapter")
 local adapter = Adapter.new()
 assert(adapter:write_axis(0, 1))
 assert(adapter:diagnostics().owned and adapter:diagnostics().request_count == 1)

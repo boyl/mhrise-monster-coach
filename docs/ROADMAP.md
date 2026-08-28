@@ -44,7 +44,7 @@
 
 ## 当前推进批次
 
-当前源码版本为 `0.49.26-semantic-input-contract`，按用户要求暂不部署。输入适配器已把 MHR 语义输入调查收敛到四个精确类型、`CommandButton2` 枚举和八个已知查询方法；只读契约明确记录零游戏方法调用、零写入并缓存结果。探针归档后自动生成语义输入分析，分类实例所有者、查询签名和更新候选，但固定禁止直接实验。本批不调用发现的方法、不安装 Hook、不改写位集，也不修改装备、替换技、输入配置或存档。下一次集中部署只需一次采集即可同时回答类型可用性、单例所有者、方法签名和更新候选，不再拆成多轮手工试错。
+当前源码版本为 `0.49.27-semantic-bitset-contract`，按用户要求暂不部署。`0.49.26` 的集中只读报告已确认 56 个 `CommandButton2`、四个目标类型全部存在、唯一直接单例所有者为 `snow.StmInputManager`，且报告中游戏方法调用、玩法请求和写入均为零。新源码只对 Manager 的 `getOn/getTrg/getRel/getDelay` 四个精确零参数 getter 各调用一次，取得返回位集的实际类型和方法元数据；不调用位集方法、不安装 Hook、不改写命令位。自动分析即使发现修改候选也固定禁止直接实验。
 
 `0.41.0` 将指定出招菜单收敛为“精选起手目录”，按独立关键招式、固定派生起手和条件派生起手分组。每个入口仍必须先展示派生树，再开放开始按钮；训练顺序、分类和简介全部属于怪物数据包，通用 Controller 不写死轰龙招式。当前只公开已具备安全证据的咆哮和短距半回转钩咬，后续起手通过同一数据契约批量加入，不把未经验证的 Action 暴露给玩家。
 
@@ -149,6 +149,8 @@
 `0.49.25` 的 `mouse_event` 与批量 `SendInput` 两轮实机结果一致：当前绑定读取零失败，直斩/突刺/翻滚通过，见切仍只出现普通直斩。由此结束 Windows 物理侧键注入调查；下一批先为 `snow.StmPlayerInput` / `CommandButton2` 建立精确方法、字段、更新时序和释放契约，只有只读门禁完整后才做一次语义位写入实验。REFramework 的 RE7/RE8 VR 脚本可作为“在游戏输入更新点合并按钮位”的结构参考，但 MHR 既有三轮通用 HID 轴/按钮实验均无位移，不能直接照搬为已验证实现。
 
 `0.49.26` 已在源码中完成只读语义输入元数据契约。它有界检查 `snow.StmInputManager`、`snow.StmPlayerInput`、`snow.player.PlayerInput`、`snow.StmInputManager.InputUI`，并单独列出 `CommandButton2` 与 `getOn/getTrg/getRel/getDelay/isOn/isTrg/isRel/isDelay` 查询签名。离线假 SDK 测试证明契约不会调用这些方法；本版暂不部署，因此所有运行时类型和单例结果仍保持候选。下一门禁是一次集中只读采集，随后才决定是否存在可成对实现“按下/释放”的更新入口；若不存在则停止游戏内注入路线，不再增加猜测轮次。
+
+`0.49.26` 随后完成一次集中只读验收：四个目标类型全部存在，`CommandButton2` 共 56 项；`snow.StmInputManager` 是唯一可直接取得的实例，具有四个位集 getter 和 `update/updateInGameFrame`，而带 `setButton/clearButton` 的 `snow.StmPlayerInput` 不是受管单例。该结果禁止直接调用后者。`0.49.27` 因此进入下一层有界只读方法契约：只调用四个已确认的 Manager getter，检查返回位集对象，不写入。真实报告与自动分析哈希见 `docs/evidence/SEMANTIC_INPUT_METADATA_ACCEPTANCE_2026-08-28.json`。
 
 当前主线已由“逐项强制 Action”收敛为“指定起手、原生续接、实时派生训练”。首个用户入口“执行：咆哮”已在 `0.33.0-specified-move-training` 由用户实机确认，`0.34.0-repeat-training` 又通过真实 Controller 自动完成 3/3 循环；小咬扩充仅完成 1/3 后出现 Action 不退出，证明一次注入成功不能代表可重复训练，入口已撤回。下一批先建立稳定空闲入口和 `native_branch` 路径追踪，再选择一个具有明确派生的根动作验证，后续不逐个强塞 Action。直接局内重置仍只接受引擎原生重建/重置接口，不恢复已证明会崩溃的 Transform 写回路径。古塔准备区到战斗区已采用坐标导航、一次性交互和战斗层判定自动完成，开发探针可在单项异常后通过 F7 恢复并继续采样。
 

@@ -113,3 +113,5 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.25` 的两次完整自动实机对照分别使用旧 `mouse_event` 和微软推荐的批量 `SendInput`。两轮均读取同一当前绑定、完成 4/4 传输观察，并稳定命中直斩、突刺和翻滚；见切两轮都只出现 `atk_101`，没有 `atk_147`。因此当前绑定读取已验证，但 Windows 物理侧键注入不能作为 MHR 气刃语义入口；该路线停止，不再试 `x1/x2` 或延长人工轮次。后续仅调查有边界的 `snow.StmPlayerInput` / `CommandButton2` 游戏语义链。摘要见 `docs/evidence/RUNTIME_BINDING_CALIBRATION_2026-08-28.json`。
 
 `0.49.26` 先建立只读语义输入元数据门禁，不把“枚举中存在 `Atk_R_A` 等名称”直接解释为见切输入。契约只覆盖四个精确类型、语义命令枚举、过滤后的字段/方法和八个明确查询方法，读取可能的受管单例存在性；它不调用查询方法、不 Hook 更新函数、不写命令位。源码离线测试以会在调用时立即报错的假方法验证零调用边界。探针完成后自动分析并归档实例所有者、查询签名和更新候选，分析结果固定为 `experiment_allowed=false`。只有后续一次集中只读采集能明确所有者、更新入口和签名，才允许在独立版本中设计可恢复的按下/释放实验；否则保持外部校准仅支持已验证的普通攻击与回避。
+
+`0.49.26` 的集中实机取证确认四个目标类型均存在、`CommandButton2` 共 56 项，且 `snow.StmInputManager` 是唯一直接可取得的实例。Manager 暴露 `getOn/getTrg/getRel/getDelay`，但真正含 `setButton/clearButton` 的 `snow.StmPlayerInput` 不是受管单例，故不能根据类型存在就直接调用。报告的元数据契约、Adapter 请求和写入均为零。`0.49.27` 只把四个已确认的 Manager getter 提升为有界只读调用，用于取得返回位集的实际类型与精确方法；四次调用后缓存，任何失败均阻止后续实验，位集修改方法在本版仍只记录不调用。

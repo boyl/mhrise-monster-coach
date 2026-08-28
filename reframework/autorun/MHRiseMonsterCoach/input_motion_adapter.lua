@@ -43,6 +43,11 @@ local SEMANTIC_QUERY_METHODS = {
     isDelay = true,
 }
 
+local SEMANTIC_BITSET_GETTERS = { "getOn", "getTrg", "getRel", "getDelay" }
+local SEMANTIC_BITSET_TERMS = {
+    "bit", "flag", "get", "is", "set", "clear", "reset", "add", "remove", "toggle",
+}
+
 local MAX_CONTRACT_MEMBERS = 256
 local MAX_CONTRACT_LEVELS = 8
 local BINDING_DICTIONARY_FIELDS = {
@@ -262,6 +267,76 @@ local function semantic_input_metadata_contract()
     return result
 end
 
+local function exact_zero_arg_method(type_def, name)
+    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+        if safe(function() return method:get_name() end) == name then
+            local params = safe(function() return method:get_param_types() end) or {}
+            if #params == 0 then return method end
+        end
+    end
+    return nil
+end
+
+-- The previous metadata-only gate established these four exact no-argument
+-- getters on snow.StmInputManager. This next layer invokes only those read
+-- methods once per adapter, then inspects the returned bit-set object metadata.
+-- No method on a returned object is called and no field is written.
+local function semantic_bitset_read_contract()
+    local manager_type = safe(function()
+        return sdk.find_type_definition("snow.StmInputManager")
+    end)
+    local manager = safe(function()
+        return sdk.get_managed_singleton("snow.StmInputManager")
+    end)
+    local result = {
+        schema_version = 1,
+        policy = "bounded_read_only_semantic_bitset_getters",
+        max_calls = #SEMANTIC_BITSET_GETTERS,
+        call_count = 0,
+        call_failures = 0,
+        gameplay_writes = 0,
+        manager_type_available = manager_type ~= nil,
+        manager_instance_available = manager ~= nil,
+        getters = {},
+    }
+    for _, name in ipairs(SEMANTIC_BITSET_GETTERS) do
+        local method = exact_zero_arg_method(manager_type, name)
+        local entry = {
+            name = name,
+            method_available = method ~= nil,
+            method = method and method_metadata(method) or nil,
+            status = "method_unavailable",
+        }
+        if method ~= nil and manager ~= nil and result.call_count < result.max_calls then
+            result.call_count = result.call_count + 1
+            local ok, object = pcall(function() return method:call(manager) end)
+            if not ok then
+                result.call_failures = result.call_failures + 1
+                entry.status = "call_failed"
+            elseif object == nil then
+                entry.status = "object_unavailable"
+            else
+                local object_type = safe(function() return object:get_type_definition() end)
+                local object_type_name = type_name(object_type)
+                entry.status = object_type_name and "resolved" or "object_type_unavailable"
+                entry.object_available = true
+                entry.object_type = object_type_name
+                if object_type_name ~= nil then
+                    entry.object_contract = filtered_type_contract(
+                        object_type_name, object, SEMANTIC_BITSET_TERMS)
+                end
+            end
+        elseif method ~= nil and manager == nil then
+            entry.status = "manager_unavailable"
+        elseif method ~= nil then
+            entry.status = "call_limit"
+            result.truncated = true
+        end
+        result.getters[#result.getters + 1] = entry
+    end
+    return result
+end
+
 local function binding_dictionary_field_contract(config_type, config_instance, spec)
     local result = {
         role = spec.role,
@@ -454,6 +529,7 @@ function M.new()
         binding_dictionary_snapshot = nil,
         current_binding_snapshot = nil,
         semantic_input_snapshot = nil,
+        semantic_bitset_snapshot = nil,
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
     }, { __index = M })
 end
@@ -537,8 +613,11 @@ function M:diagnostics()
     if self.semantic_input_snapshot == nil then
         self.semantic_input_snapshot = semantic_input_metadata_contract()
     end
+    if self.semantic_bitset_snapshot == nil then
+        self.semantic_bitset_snapshot = semantic_bitset_read_contract()
+    end
     return {
-        schema_version = 7,
+        schema_version = 8,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -558,6 +637,7 @@ function M:diagnostics()
         stm_input_contract = input_contract_hierarchy(stm_type, stm),
         semantic_command_enum = enum_contract("snow.player.PlayerInput.CommandButton2"),
         semantic_input_contract = self.semantic_input_snapshot,
+        semantic_bitset_contract = self.semantic_bitset_snapshot,
         input_enum_contracts = {
             enum_contract("snow.StmInputManager.ActiveGameDevice"),
             enum_contract("snow.StmInputManager.ActiveDevice"),

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.27-semantic-bitset-contract",
+  "captured_at": "2026-08-28",
+  "scope": "四个 MHR 语义输入位集 getter 的有界只读对象契约",
+  "deployment_status": "not_deployed_by_user_request",
+  "contract": {
+    "policy": "bounded_read_only_semantic_bitset_getters",
+    "owner": "snow.StmInputManager",
+    "allowlisted_getters": ["getOn", "getTrg", "getRel", "getDelay"],
+    "max_calls": 4,
+    "calls_per_getter": 1,
+    "returned_object_method_calls": 0,
+    "gameplay_writes": 0,
+    "hooks_installed": 0,
+    "cached_per_adapter": true
+  },
+  "automatic_analysis": {
+    "tool": "tools/analyze_semantic_input_contract.py",
+    "rejects_getter_failures": true,
+    "rejects_call_budget_overflow": true,
+    "rejects_nonzero_writes": true,
+    "experiment_allowed": false
+  },
+  "offline_verification": {
+    "lua_behavior_tests": "34/34 PASS",
+    "lua_syntax_tests": "70/70 PASS",
+    "python_tests": "46/46 PASS",
+    "powershell_input_plan": "PASS",
+    "powershell_arena_navigation": "PASS",
+    "temporary_deployment_test": "PASS"
+  },
+  "next_gate": "集中只读取得四个位集的真实对象类型和精确修改方法；通过后另开版本设计可恢复的单命令按下/释放实验。"
+}
