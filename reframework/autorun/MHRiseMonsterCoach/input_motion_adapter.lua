@@ -27,6 +27,30 @@ local PLAYER_INPUT_TERMS = {
 
 local MAX_CONTRACT_MEMBERS = 256
 local MAX_CONTRACT_LEVELS = 8
+local BINDING_DICTIONARY_FIELDS = {
+    { role = "main_keyboard", name = "main_pl_Conf" },
+    { role = "sub_keyboard", name = "sub_pl_Conf" },
+    { role = "player_pad", name = "pad_pl_Conf" },
+    { role = "static_pad", name = "pad_pl_Static" },
+}
+
+local BINDING_DICTIONARY_METHODS = {
+    get_Item = true,
+    ContainsKey = true,
+    TryGetValue = true,
+    get_Count = true,
+    get_Keys = true,
+    GetEnumerator = true,
+}
+
+local BINDING_TARGETS = {
+    { role = "evade", name = "ACTION_ESCAPE" },
+    { role = "primary_attack", name = "ACTION_X_ATTACK" },
+    { role = "secondary_attack", name = "ACTION_A_ATTACK" },
+    { role = "weapon_special", name = "ACTION_EX_GUARD_FIRE" },
+}
+
+local MAX_BINDING_LOOKUP_CALLS = 24
 
 local function mentions_any(value, terms)
     local lower = string.lower(tostring(value or ""))
@@ -38,7 +62,9 @@ end
 
 local function primitive_value(field, instance)
     local is_static = safe(function() return field:is_static() end) == true
-    local value = safe(function() return field:get_data(is_static and nil or instance) end)
+    local owner = instance
+    if is_static then owner = nil end
+    local value = safe(function() return field:get_data(owner) end)
     if type(value) ~= "number" and type(value) ~= "boolean"
         and type(value) ~= "string" then return nil, is_static end
     return value, is_static
@@ -55,14 +81,24 @@ local function field_contract(field, instance)
 end
 
 local function method_metadata(method)
-    local param_types = {}
-    for _, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
-        param_types[#param_types + 1] = type_name(param_type) or "unknown"
+    local param_types, params = {}, {}
+    local names = safe(function() return method:get_param_names() end) or {}
+    for index, param_type in ipairs(safe(function() return method:get_param_types() end) or {}) do
+        local current_type = type_name(param_type) or "unknown"
+        param_types[#param_types + 1] = current_type
+        params[#params + 1] = {
+            index = index - 1,
+            name = names[index],
+            type = current_type,
+            is_by_ref = safe(function() return param_type:is_by_ref() end) == true,
+        }
     end
     return {
         name = safe(function() return method:get_name() end),
         return_type = type_name(safe(function() return method:get_return_type() end)),
         param_types = param_types,
+        params = params,
+        is_static = safe(function() return method:is_static() end) == true,
     }
 end
 
@@ -92,6 +128,20 @@ local function enum_contract(type_name_value)
         return tostring(a.name) < tostring(b.name)
     end)
     return result
+end
+
+local function enum_value_by_name(contract, name)
+    for _, item in ipairs(contract and contract.values or {}) do
+        if item.name == name then return item.value end
+    end
+    return nil
+end
+
+local function enum_name_by_value(contract, value)
+    for _, item in ipairs(contract and contract.values or {}) do
+        if item.value == value then return item.name end
+    end
+    return nil
 end
 
 -- Bounded metadata over an explicitly named type. It exposes signatures and
@@ -152,6 +202,150 @@ local function filtered_type_hierarchy_contract(type_name_value, instance, terms
     return result
 end
 
+local function binding_dictionary_field_contract(config_type, config_instance, spec)
+    local result = {
+        role = spec.role,
+        name = spec.name,
+        available = false,
+        methods = {},
+    }
+    if config_type == nil then return result end
+    local field = safe(function() return config_type:get_field(spec.name) end)
+    if field == nil then return result end
+    result.available = true
+    result.is_static = safe(function() return field:is_static() end) == true
+    result.declared_type = type_name(safe(function() return field:get_type() end))
+    local owner = config_instance
+    if result.is_static then owner = nil end
+    local object = safe(function() return field:get_data(owner) end)
+    result.object_available = object ~= nil
+    local object_type = object and safe(function() return object:get_type_definition() end) or nil
+    result.object_type = type_name(object_type)
+    for _, method in ipairs(safe(function() return object_type:get_methods() end) or {}) do
+        local name = safe(function() return method:get_name() end)
+        if BINDING_DICTIONARY_METHODS[name] then
+            result.methods[#result.methods + 1] = method_metadata(method)
+        end
+    end
+    table.sort(result.methods, function(a, b)
+        local a_key = tostring(a.name) .. "(" .. table.concat(a.param_types, ",") .. ")"
+        local b_key = tostring(b.name) .. "(" .. table.concat(b.param_types, ",") .. ")"
+        return a_key < b_key
+    end)
+    return result
+end
+
+-- Exact, read-only metadata over the four binding dictionaries already exposed by
+-- snow.StmInputConfig. No dictionary method is invoked in this contract probe.
+local function binding_dictionary_contract()
+    local config_type = safe(function() return sdk.find_type_definition("snow.StmInputConfig") end)
+    local config_instance = safe(function() return sdk.get_managed_singleton("snow.StmInputConfig") end)
+    local result = {
+        schema_version = 1,
+        policy = "read_only_exact_dictionary_metadata",
+        config_type_available = config_type ~= nil,
+        config_instance_available = config_instance ~= nil,
+        fields = {},
+    }
+    for _, spec in ipairs(BINDING_DICTIONARY_FIELDS) do
+        result.fields[#result.fields + 1] = binding_dictionary_field_contract(
+            config_type, config_instance, spec)
+    end
+    return result
+end
+
+
+local function exact_dictionary_object(config_type, config_instance, field_name)
+    local field = config_type and safe(function() return config_type:get_field(field_name) end) or nil
+    if field == nil then return nil, nil end
+    local owner = config_instance
+    if safe(function() return field:is_static() end) == true then owner = nil end
+    local object = safe(function() return field:get_data(owner) end)
+    local object_type = object and safe(function() return object:get_type_definition() end) or nil
+    return object, object_type
+end
+
+local function exact_dictionary_lookup(object, object_type, key, value_enum, state)
+    if object == nil or object_type == nil then return { status = "dictionary_unavailable" } end
+    local contains = safe(function() return object_type:get_method("ContainsKey(System.Int32)") end)
+    local item = safe(function() return object_type:get_method("get_Item(System.Int32)") end)
+    if contains == nil or item == nil then return { status = "method_unavailable" } end
+    if state.call_count >= MAX_BINDING_LOOKUP_CALLS then
+        state.truncated = true
+        return { status = "call_limit" }
+    end
+    state.call_count = state.call_count + 1
+    local contains_ok, present = pcall(function() return contains:call(object, key) end)
+    if not contains_ok then
+        state.call_failures = state.call_failures + 1
+        return { status = "contains_call_failed" }
+    end
+    if present ~= true then return { status = "key_unavailable" } end
+    if state.call_count >= MAX_BINDING_LOOKUP_CALLS then
+        state.truncated = true
+        return { status = "call_limit" }
+    end
+    state.call_count = state.call_count + 1
+    local item_ok, value = pcall(function() return item:call(object, key) end)
+    if not item_ok then
+        state.call_failures = state.call_failures + 1
+        return { status = "item_call_failed" }
+    end
+    local raw = tonumber(value)
+    if raw == nil then
+        state.value_failures = state.value_failures + 1
+        return { status = "value_unreadable" }
+    end
+    return {
+        status = "resolved",
+        name = enum_name_by_value(value_enum, raw),
+        value = raw,
+    }
+end
+
+-- Read only four explicit player actions from the already validated dictionaries.
+-- The operation is cached and capped at ContainsKey + get_Item for three paths.
+local function current_binding_values()
+    local config_type = safe(function() return sdk.find_type_definition("snow.StmInputConfig") end)
+    local config_instance = safe(function() return sdk.get_managed_singleton("snow.StmInputConfig") end)
+    local logical = enum_contract("snow.StmInputManager.PL_INPUT")
+    local keyboard = enum_contract("snow.StmInputManager.InGameMouseKeyBoardKey")
+    local pad = enum_contract("snow.Pad.Button")
+    local main, main_type = exact_dictionary_object(config_type, config_instance, "main_pl_Conf")
+    local sub, sub_type = exact_dictionary_object(config_type, config_instance, "sub_pl_Conf")
+    local player_pad, player_pad_type = exact_dictionary_object(
+        config_type, config_instance, "pad_pl_Conf")
+    local state = { call_count = 0, call_failures = 0, value_failures = 0, truncated = false }
+    local result = {
+        schema_version = 1,
+        policy = "read_only_exact_dictionary_lookup",
+        max_calls = MAX_BINDING_LOOKUP_CALLS,
+        targets = {},
+    }
+    for _, target in ipairs(BINDING_TARGETS) do
+        local raw = enum_value_by_name(logical, target.name)
+        local entry = {
+            role = target.role,
+            logical_input = { name = target.name, value = raw },
+        }
+        if raw == nil then
+            entry.main = { status = "logical_input_unavailable" }
+            entry.sub = { status = "logical_input_unavailable" }
+            entry.pad = { status = "logical_input_unavailable" }
+        else
+            entry.main = exact_dictionary_lookup(main, main_type, raw, keyboard, state)
+            entry.sub = exact_dictionary_lookup(sub, sub_type, raw, keyboard, state)
+            entry.pad = exact_dictionary_lookup(player_pad, player_pad_type, raw, pad, state)
+        end
+        result.targets[#result.targets + 1] = entry
+    end
+    result.call_count = state.call_count
+    result.call_failures = state.call_failures
+    result.value_failures = state.value_failures
+    result.truncated = state.truncated
+    return result
+end
+
 -- This is deliberately a bounded metadata probe over one known singleton
 -- hierarchy.  It never invokes an unknown input method or walks every TDB type.
 local function input_contract_hierarchy(type_def, instance)
@@ -197,6 +391,8 @@ function M.new()
         release_pending = false,
         requests = 0,
         writes = 0,
+        binding_dictionary_snapshot = nil,
+        current_binding_snapshot = nil,
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
     }, { __index = M })
 end
@@ -271,8 +467,14 @@ function M:diagnostics()
     local stm_type = stm and safe(function() return stm:get_type_definition() end) or nil
     local active_device = stm and safe(function() return stm:get_field("_ActiveDevice") end) or nil
     local player_input_data = stm and safe(function() return stm:get_field("plParam") end) or nil
+    if self.binding_dictionary_snapshot == nil then
+        self.binding_dictionary_snapshot = binding_dictionary_contract()
+    end
+    if self.current_binding_snapshot == nil then
+        self.current_binding_snapshot = current_binding_values()
+    end
     return {
-        schema_version = 2,
+        schema_version = 6,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -310,6 +512,8 @@ function M:diagnostics()
             filtered_type_hierarchy_contract(
                 "snow.StmPlInputData", player_input_data, PLAYER_INPUT_TERMS),
         },
+        binding_dictionaries = self.binding_dictionary_snapshot,
+        current_bindings = self.current_binding_snapshot,
         stm_active_device = active_device and safe(function()
             return tonumber(active_device:get_field("_ActiveDevice"))
                 or tostring(active_device:get_field("_ActiveDevice"))

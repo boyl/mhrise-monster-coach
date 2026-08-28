@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "evidence_date": "2026-08-28",
+  "runtime": "mhrise / TDB 71",
+  "deployed_version": "0.49.20-binding-parameter-direction",
+  "probe": {
+    "session_id": "3c5f323b04d8427485c2232596222e61",
+    "status": "completed",
+    "request_count": 0,
+    "write_count": 0,
+    "artifact": "artifacts/probe_reports/3c5f323b04d8427485c2232596222e61.input_motion_metadata.completed.json",
+    "artifact_sha256": "CB4FEDF4A8AF9431AEE268313BB7DDEAB97DA51C07C566C81B322EA815967608"
+  },
+  "methods": [
+    {
+      "name": "TryGet_main_pl_Conf",
+      "is_static": true,
+      "return_type": "System.Boolean",
+      "params": [
+        { "name": "key", "type": "snow.StmInputManager.PL_INPUT", "is_by_ref": false },
+        { "name": "valueData", "type": "snow.StmInputManager.InGameMouseKeyBoardKey", "is_by_ref": false }
+      ]
+    },
+    {
+      "name": "TryGet_sub_pl_Conf",
+      "is_static": true,
+      "return_type": "System.Boolean",
+      "params": [
+        { "name": "key", "type": "snow.StmInputManager.PL_INPUT", "is_by_ref": false },
+        { "name": "valueData", "type": "snow.StmInputManager.InGameMouseKeyBoardKey", "is_by_ref": false }
+      ]
+    },
+    {
+      "name": "TryGet_pad_pl_Conf",
+      "is_static": false,
+      "return_type": "System.Boolean",
+      "params": [
+        { "name": "key", "type": "snow.StmInputManager.PL_INPUT", "is_by_ref": false },
+        { "name": "valueData", "type": "snow.Pad.Button", "is_by_ref": false }
+      ]
+    },
+    {
+      "name": "TryGet_pad_pl_Static",
+      "is_static": false,
+      "return_type": "System.Boolean",
+      "params": [
+        { "name": "key", "type": "snow.StmInputManager.STATIC_PL_INPUT", "is_by_ref": false },
+        { "name": "valueData", "type": "snow.Pad.Button", "is_by_ref": false }
+      ]
+    }
+  ],
+  "conclusion": {
+    "confirmed": "四个 TryGet_* 都是布尔绑定匹配谓词，不是带 out/ref 输出的 getter。",
+    "implementation_path": "仅对校准需要的逻辑动作，在已枚举的键鼠和手柄候选中做有上限的一次性匹配。",
+    "safety": "本轮只读 TDB 方法元数据，未调用 TryGet_*、未发送输入、未修改键位。"
+  }
+}

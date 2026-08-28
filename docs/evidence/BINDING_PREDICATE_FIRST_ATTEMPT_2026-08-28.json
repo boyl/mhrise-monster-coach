@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "evidence_date": "2026-08-28",
+  "runtime": "mhrise / TDB 71",
+  "deployed_version": "0.49.21-current-binding-resolution",
+  "probe": {
+    "session_id": "83824cf9ed074c109eacad32a5d17d7e",
+    "status": "completed",
+    "request_count": 0,
+    "write_count": 0,
+    "artifact": "artifacts/probe_reports/83824cf9ed074c109eacad32a5d17d7e.input_motion_metadata.completed.json",
+    "artifact_sha256": "59212FE1D9088C095E9530C3E8B9962E1E3DF9CF6518D1FFF9A4994AB966E9CF"
+  },
+  "binding_query": {
+    "query_count": 12,
+    "call_failures": 12,
+    "truncated": false,
+    "game_crashed": false,
+    "resolved_targets": 0,
+    "first_keyboard_candidate": { "name": "None", "value": 0 },
+    "first_pad_candidate": { "name": "NONE", "value": 0 }
+  },
+  "conclusion": {
+    "confirmed": "方法存在且异常被每条 main/sub/pad 路径隔离，但候选零值不能用于匹配调用。",
+    "not_confirmed": "本轮不能判断非零候选是否可正常匹配当前绑定。",
+    "next_attempt": "过滤 None/Invalid/Max/*Mask；孤立异常继续，累计 32 次失败立即停止。"
+  }
+}

@@ -93,3 +93,15 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.17` 的集中实机取证确认 `snow.StmInputManager` 直接提供 `getOn/getTrg/getRel/getDelay` 位集，以及接收 `snow.player.PlayerInput.CommandButton2` 的 `isOn/isTrg/isRel/isDelay` 查询；采样时 `get_LastInputDevice` 返回 `via.hid.GamePadDevice`，但 `_ActiveDevice=3` 所属的 `ActiveGameDevice` 尚未取得可解释成员，不能借用另一个 `ActiveDevice` 枚举下结论。这是“此前侧键猜测不可靠”的强证据，但尚不能证明用户的每个物理绑定。`0.49.18` 因此只读提取 `CommandButton2`、设备与键位配置的精确类型契约，先建立稳定的游戏语义层，再决定自动校准入口；本阶段仍不调用发现的方法。
 
 `0.49.18` 的实机结果完整取得 56 个语义命令；`snow.StmInputConfig` 同时暴露 `TryGet_main_pl_Conf(PL_INPUT, InGameMouseKeyBoardKey)`、`TryGet_sub_pl_Conf(...)` 和 `TryGet_pad_pl_Conf(PL_INPUT, snow.Pad.Button)`。这说明当前绑定可以沿游戏原生配置读取，而无需让用户反复猜按键。`0.49.19` 先以同一只读探针补齐这些参数枚举和 `snow.StmPlInputData` 父类型契约；解析/调用映射接口必须在该元数据门禁通过后单独实现和验收。
+
+`0.49.20` 只为方法签名增加参数名称、位置与 `is_by_ref` 证据。若映射的物理键参数是引用参数，后续读取器必须使用 REFramework 值类型缓冲区并核对布尔返回值；若是普通输入参数，则只能采用受限候选匹配，不得用全 TDB 或逐帧全值域暴力枚举。两种路径都保持在 `input_motion_adapter` 外部边界，不把物理键码泄漏到 Response 或训练 Model。
+
+`0.49.20` 实机结果选择了第二条路径：main/sub/pad 的物理键参数均为普通输入值，方法返回布尔匹配结果。`0.49.21` 的读取器仅解析 `ACTION_ESCAPE`、`ACTION_X_ATTACK`、`ACTION_A_ATTACK`、`ACTION_EX_GUARD_FIRE` 四项，并分别返回逻辑角色、枚举名称和 raw 值；结果只用于开发校准输入边界，不改变玩家装备、替换技或产品 Response。
+
+`0.49.21` 首轮调用在每条路径的 `None/NONE=0` 候选抛出异常，12 次均被捕获，游戏与任务继续运行；这证明失败隔离有效，但不构成非零候选不可用的证据。`0.49.22` 排除哨兵、最大值和按钮掩码候选，孤立候选异常继续并记录首个错误，累计 32 次立即停止。完整首轮证据见 `docs/evidence/BINDING_PREDICATE_FIRST_ATTEMPT_2026-08-28.json`。
+
+`0.49.22` 第二轮实机证据排除了“只因 `None/NONE=0` 失败”：43 个非零候选调用全部抛出异常，游戏保持运行，输入适配器的玩法请求和写入均为零。谓词枚举路径因此退役，不再增加第三轮猜测。`0.49.23` 直接读取四个已暴露的绑定字典字段，仅提取字段 owner、声明/实际对象类型与精确字典方法元数据；本版本不调用任何字典方法。完整失败证据见 `docs/evidence/BINDING_PREDICATE_SECOND_ATTEMPT_2026-08-28.json`。
+
+`0.49.23` 实机验证四个绑定字段与实际字典对象全部存在；main/sub 为静态键鼠字典，pad/player-static 为实例手柄字典。所有对象均暴露精确的 `ContainsKey(Int32)` 与 `get_Item(Int32)`，且返回类型与字段值类型一致。`0.49.24` 在这一门禁后才加入四个逻辑动作的 main/sub/pad 有界读取，最多 24 次并缓存一次；完整契约证据见 `docs/evidence/BINDING_DICTIONARY_CONTRACT_2026-08-28.json`。
+
+`0.49.24` 的真实读取以 23 次调用解析了全部键鼠主键、副键和三项独立手柄键，零调用失败、零值解析失败。结果确认当前配装的武器特殊键是 `MOUSE_EX1`，不再依赖 Win32 侧键顺序猜测；手柄字典没有该逻辑 ID，读取器保留 `key_unavailable`，不把组合语义伪装成单按钮。完整结果见 `docs/evidence/CURRENT_BINDING_READ_2026-08-28.json`。

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_date": "2026-08-28",
+  "runtime": "mhrise / TDB 71",
+  "deployed_version": "0.49.23-binding-dictionary-contract",
+  "probe": {
+    "session_id": "42100d585bc94b15a0576e983cf57e09",
+    "status": "completed",
+    "request_count": 0,
+    "write_count": 0,
+    "artifact": "artifacts/probe_reports/42100d585bc94b15a0576e983cf57e09.input_motion_metadata.completed.json",
+    "artifact_sha256": "03E4DCDD72D88EACF001056864096CEB0AE553D47BD9BEB64D4DBE8E5B5305DB"
+  },
+  "fields": [
+    {
+      "name": "main_pl_Conf",
+      "role": "main_keyboard",
+      "is_static": true,
+      "object_available": true,
+      "key_type": "System.Int32",
+      "value_type": "snow.StmInputManager.InGameMouseKeyBoardKey",
+      "declared_matches_actual": true
+    },
+    {
+      "name": "sub_pl_Conf",
+      "role": "sub_keyboard",
+      "is_static": true,
+      "object_available": true,
+      "key_type": "System.Int32",
+      "value_type": "snow.StmInputManager.InGameMouseKeyBoardKey",
+      "declared_matches_actual": true
+    },
+    {
+      "name": "pad_pl_Conf",
+      "role": "player_pad",
+      "is_static": false,
+      "object_available": true,
+      "key_type": "System.Int32",
+      "value_type": "snow.Pad.Button",
+      "declared_matches_actual": true
+    },
+    {
+      "name": "pad_pl_Static",
+      "role": "static_pad",
+      "is_static": false,
+      "object_available": true,
+      "key_type": "System.Int32",
+      "value_type": "snow.Pad.Button",
+      "declared_matches_actual": true
+    }
+  ],
+  "methods": {
+    "contains_key": "ContainsKey(System.Int32) -> System.Boolean",
+    "keyboard_item": "get_Item(System.Int32) -> snow.StmInputManager.InGameMouseKeyBoardKey",
+    "pad_item": "get_Item(System.Int32) -> snow.Pad.Button"
+  },
+  "conclusion": {
+    "confirmed": "四个字段的 owner、对象类型与精确只读字典方法契约均已确认。",
+    "next_path": "仅对逻辑 ID 8/13/14/15 执行 ContainsKey 后的 get_Item；main/sub/pad 总调用上限 24。",
+    "safety": "本轮未调用任何字典方法，输入适配器 request_count=0、write_count=0。"
+  }
+}

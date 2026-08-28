@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "evidence_date": "2026-08-28",
+  "runtime": "mhrise / TDB 71",
+  "deployed_version": "0.49.24-current-binding-read",
+  "probe": {
+    "session_id": "c189b71ef9814d939d5dac5681ca3805",
+    "status": "completed",
+    "request_count": 0,
+    "write_count": 0,
+    "artifact": "artifacts/probe_reports/c189b71ef9814d939d5dac5681ca3805.input_motion_metadata.completed.json",
+    "artifact_sha256": "63BC5E424788132DEC2EAC6239E25F6D4E15E67334FC3FB929F10BE5FB2E762C"
+  },
+  "lookup": {
+    "policy": "read_only_exact_dictionary_lookup",
+    "call_count": 23,
+    "max_calls": 24,
+    "call_failures": 0,
+    "value_failures": 0,
+    "truncated": false
+  },
+  "bindings": [
+    {
+      "role": "evade",
+      "logical_input": { "name": "ACTION_ESCAPE", "value": 8 },
+      "main": { "name": "Space", "value": 32 },
+      "sub": { "name": "None", "value": 0 },
+      "pad": { "name": "RD", "value": 32 }
+    },
+    {
+      "role": "primary_attack",
+      "logical_input": { "name": "ACTION_X_ATTACK", "value": 13 },
+      "main": { "name": "MOUSE_L", "value": 501 },
+      "sub": { "name": "None", "value": 0 },
+      "pad": { "name": "RU", "value": 16 }
+    },
+    {
+      "role": "secondary_attack",
+      "logical_input": { "name": "ACTION_A_ATTACK", "value": 14 },
+      "main": { "name": "MOUSE_R", "value": 502 },
+      "sub": { "name": "None", "value": 0 },
+      "pad": { "name": "RR", "value": 128 }
+    },
+    {
+      "role": "weapon_special",
+      "logical_input": { "name": "ACTION_EX_GUARD_FIRE", "value": 15 },
+      "main": { "name": "MOUSE_EX1", "value": 564 },
+      "sub": { "name": "None", "value": 0 },
+      "pad": { "status": "key_unavailable" }
+    }
+  ],
+  "conclusion": {
+    "confirmed": "当前本机四项键鼠绑定与三项独立手柄绑定可由原生配置字典稳定读取。",
+    "not_inferred": "武器特殊键没有独立 pad_pl_Conf 条目，不能据此猜测手柄组合键。",
+    "next_path": "自动校准与冲突检测只消费 status=resolved 的绑定；缺失组合映射保持安全拦截。",
+    "safety": "探针完成且游戏未崩溃；输入适配器 request_count=0、write_count=0。"
+  }
+}
