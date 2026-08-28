@@ -291,4 +291,12 @@ if ($calibrationSource -notmatch 'Calibration refused because Monster Hunter Ris
     throw 'The wrapper must refuse a live game, leave the launched game open by default, and clean terminal requests.'
 }
 
+$probeSessionSource = Get-Content -LiteralPath `
+    (Join-Path $PSScriptRoot '..\tools\run_probe_session.ps1') -Raw
+if ($probeSessionSource -notmatch "'pending', 'running', 'completed', 'failed'" `
+    -or $probeSessionSource -notmatch 'Terminal probe report recovered' `
+    -or $probeSessionSource -notmatch 'recovered_terminal = \$true') {
+    throw 'Probe resume must recover and clean an already-terminal matching session without new input.'
+}
+
 Write-Host 'test_player_action_input_plan.ps1: PASS'

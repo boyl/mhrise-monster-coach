@@ -2468,8 +2468,8 @@ function M.target_geometry_snapshot(self)
 end
 
 function M.input_motion_diagnostics(self)
-    return self.input_motion_adapter and self.input_motion_adapter:diagnostics() or {
-        schema_version = 6,
+    return self.input_motion_adapter and self.input_motion_adapter:diagnostics(self.player) or {
+        schema_version = 9,
         policy = "read_only_known_hid_contract_probe",
         device_available = false,
     }

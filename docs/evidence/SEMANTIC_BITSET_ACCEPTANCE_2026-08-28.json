@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.27-semantic-bitset-contract",
+  "captured_at": "2026-08-28",
+  "session_id": "9dc2dd7b2a7840a29100c7f8d45a4bf7",
+  "scope": "MHR 语义命令位集四个精确 getter 的集中有界只读验收",
+  "report": {
+    "artifact": "artifacts/probe_reports/9dc2dd7b2a7840a29100c7f8d45a4bf7.input_motion_metadata.completed.json",
+    "sha256": "C1F37299E894A3DCB587A2450A19E1C86DC3A50081ACF5DB7E72F4116F10A4C0",
+    "status": "completed"
+  },
+  "analysis": {
+    "artifact": "artifacts/probe_reports/9dc2dd7b2a7840a29100c7f8d45a4bf7.input_motion_metadata.completed.analysis.json",
+    "sha256": "196FEA995C08CB6D5202F7FEE0FE69A3ECECE16EA7B688B2295FDD8C2A73319A",
+    "status": "read_only_owner_without_mutator",
+    "experiment_allowed": false,
+    "violations": [],
+    "next_gate": "locate_stm_player_input_instance"
+  },
+  "findings": {
+    "getter_call_count": 4,
+    "getter_call_limit": 4,
+    "getter_call_failures": 0,
+    "resolved_getters": ["getOn", "getTrg", "getRel", "getDelay"],
+    "object_types": [
+      "snow.BitSetFlag`1<snow.player.PlayerInput.CommandButton2>"
+    ],
+    "exact_type_field_count": 0,
+    "exact_type_method_count": 0,
+    "bitset_mutator_candidates": []
+  },
+  "safety": {
+    "semantic_bitset_gameplay_writes": 0,
+    "adapter_request_count": 0,
+    "adapter_write_count": 0,
+    "terminal_request_removed": true,
+    "game_crash": false
+  },
+  "tool_recovery": {
+    "initial_archive_error": "bootstrap ack 原子写入发生瞬时 AccessDenied，游戏端报告此前已经正常完成",
+    "recovery": "-ResumeExisting 识别匹配的 completed 终态，归档、分析并清理请求；没有重新发送游戏输入",
+    "result": "completed"
+  },
+  "interpretation": "四个 Manager getter 均可安全只读解析，但精确返回类型没有公开成员。下一层同时检查返回对象父类型和当前猎人对象中的输入所有者字段；仍不允许输入写入实验。"
+}

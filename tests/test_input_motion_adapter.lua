@@ -123,6 +123,7 @@ local dictionary_method_calls = 0
 local semantic_method_calls = 0
 local semantic_read_calls = 0
 local bitset_mutator_calls = 0
+local unrelated_player_field_reads = 0
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
     return {
@@ -155,10 +156,33 @@ local function semantic_metadata_method(name, return_type, param_types)
     end
     return method
 end
+local bitset_parent_type = {
+    get_full_name = function()
+        return "snow.BitSetFlagBase`1<snow.player.PlayerInput.CommandButton2>"
+    end,
+    get_parent_type = function() return nil end,
+    get_fields = function()
+        return {{
+            get_name = function() return "_commandBits" end,
+            get_type = function() return named_type("System.UInt64") end,
+            get_data = function(_, owner)
+                assert(owner ~= nil, "inherited bitset field must use the returned object")
+                return 16
+            end,
+            is_static = function() return false end,
+        }}
+    end,
+    get_methods = function()
+        return { semantic_metadata_method("clearInheritedFlag", "System.Void", {
+            { name = "snow.player.PlayerInput.CommandButton2" },
+        }) }
+    end,
+}
 local bitset_type = {
     get_full_name = function()
         return "snow.BitSetFlag`1<snow.player.PlayerInput.CommandButton2>"
     end,
+    get_parent_type = function() return bitset_parent_type end,
     get_fields = function() return {} end,
     get_methods = function()
         return {
@@ -222,6 +246,7 @@ local stm_player_input_type = {
         return { semantic_metadata_method("updateCommand", "System.Void", {}) }
     end,
 }
+function stm_player_input_instance:get_type_definition() return stm_player_input_type end
 local player_input_type = {
     get_full_name = function() return "snow.player.PlayerInput" end,
     get_fields = function() return {} end,
@@ -229,6 +254,40 @@ local player_input_type = {
         return { semantic_metadata_method("checkCommand", "System.Boolean", semantic_parameter) }
     end,
 }
+local current_player = {}
+local current_player_base_type = {
+    get_full_name = function() return "snow.player.PlayerBase" end,
+    get_parent_type = function() return nil end,
+    get_fields = function()
+        return {{
+            get_name = function() return "_stmPlayerInput" end,
+            get_type = function() return named_type("snow.StmPlayerInput") end,
+            get_data = function(_, owner)
+                assert(owner == current_player, "owner field must use current master player")
+                return stm_player_input_instance
+            end,
+            is_static = function() return false end,
+        }}
+    end,
+    get_methods = function() return {} end,
+}
+local current_player_type = {
+    get_full_name = function() return "snow.player.LongSword" end,
+    get_parent_type = function() return current_player_base_type end,
+    get_fields = function()
+        return {{
+            get_name = function() return "_health" end,
+            get_type = function() return named_type("System.Single") end,
+            get_data = function()
+                unrelated_player_field_reads = unrelated_player_field_reads + 1
+                error("unrelated current-player field must not be read")
+            end,
+            is_static = function() return false end,
+        }}
+    end,
+    get_methods = function() return {} end,
+}
+function current_player:get_type_definition() return current_player_type end
 local input_ui_type = {
     get_full_name = function() return "snow.StmInputManager.InputUI" end,
     get_fields = function() return {} end,
@@ -359,6 +418,9 @@ sdk = {
         if name == "snow.player.PlayerInput" then return player_input_type end
         if name == "snow.StmInputManager.InputUI" then return input_ui_type end
         if name == bitset_type:get_full_name() then return bitset_type end
+        if name == bitset_parent_type:get_full_name() then return bitset_parent_type end
+        if name == current_player_type:get_full_name() then return current_player_type end
+        if name == current_player_base_type:get_full_name() then return current_player_base_type end
     end,
     get_native_singleton = function() return {} end,
     call_native_func = function(_, _, name)
@@ -373,8 +435,8 @@ sdk = {
 Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
-local diagnostics = Adapter.new():diagnostics()
-assert(diagnostics.schema_version == 8)
+local diagnostics = Adapter.new():diagnostics(current_player)
+assert(diagnostics.schema_version == 9)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -431,9 +493,28 @@ for _, getter in ipairs(bitsets.getters) do
     assert(getter.object_type == bitset_type:get_full_name())
     assert(getter.object_contract.available)
     assert(#getter.object_contract.methods == 2)
+    assert(getter.object_hierarchy.available)
+    assert(#getter.object_hierarchy.levels == 2)
+    assert(getter.object_hierarchy.levels[2].type == bitset_parent_type:get_full_name())
+    assert(getter.object_hierarchy.levels[2].fields[1].primitive_value == 16)
+    assert(getter.object_hierarchy.levels[2].methods[1].name == "clearInheritedFlag")
 end
 assert(semantic_read_calls == 4)
 assert(bitset_mutator_calls == 0, "returned bitset methods are metadata-only")
+local owner = diagnostics.player_input_owner_contract
+assert(owner.schema_version == 1)
+assert(owner.policy == "read_only_current_player_input_fields")
+assert(owner.gameplay_method_calls == 0 and owner.gameplay_writes == 0)
+assert(owner.player_available and owner.player_type_available)
+assert(owner.player_type == current_player_type:get_full_name())
+assert(#owner.hierarchy.levels == 2)
+assert(#owner.hierarchy.levels[1].fields == 0)
+assert(owner.hierarchy.levels[2].fields[1].name == "_stmPlayerInput")
+assert(owner.hierarchy.levels[2].fields[1].type == "snow.StmPlayerInput")
+assert(owner.hierarchy.levels[2].fields[1].object_available)
+assert(owner.hierarchy.levels[2].fields[1].object_type == "snow.StmPlayerInput")
+assert(unrelated_player_field_reads == 0,
+    "only metadata-matching current-player fields may be read")
 assert(#diagnostics.input_enum_contracts == 9)
 assert(diagnostics.input_enum_contracts[1].values[2].name == "GamePad")
 assert(diagnostics.input_enum_contracts[2].available == false)
@@ -489,14 +570,18 @@ assert(current.targets[3].main.name == "MouseRight" and current.targets[3].pad.n
 assert(current.targets[4].main.name == "MouseSide" and current.targets[4].pad.name == "PadR")
 assert(dictionary_method_calls == 24, "only bounded dictionary lookups are invoked")
 local cached_adapter = Adapter.new()
-cached_adapter:diagnostics()
+cached_adapter:diagnostics(current_player)
 local calls_after_first_snapshot = dictionary_method_calls
 local semantic_reads_after_first_snapshot = semantic_read_calls
-cached_adapter:diagnostics()
+cached_adapter:diagnostics(current_player)
 assert(dictionary_method_calls == calls_after_first_snapshot,
     "current binding lookup is cached per adapter")
 assert(semantic_read_calls == semantic_reads_after_first_snapshot,
     "semantic bitset getters are cached per adapter")
+local late_player_adapter = Adapter.new()
+assert(not late_player_adapter:diagnostics().player_input_owner_contract.player_available)
+assert(late_player_adapter:diagnostics(current_player).player_input_owner_contract.player_available,
+    "a title-screen miss must not cache an unavailable player owner contract")
 local adapter = Adapter.new()
 assert(adapter:write_axis(0, 1))
 assert(adapter:diagnostics().owned and adapter:diagnostics().request_count == 1)

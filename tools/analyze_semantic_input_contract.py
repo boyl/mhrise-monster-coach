@@ -17,6 +17,7 @@ EXPECTED_TYPES = (
 QUERY_METHODS = {"getOn", "getTrg", "getRel", "getDelay", "isOn", "isTrg", "isRel", "isDelay"}
 UPDATE_TERMS = ("update", "command", "input", "button", "trigger")
 MUTATION_TERMS = ("set", "clear", "reset", "add", "remove", "toggle")
+PLAYER_INPUT_OWNER_TYPES = {"snow.StmPlayerInput", "snow.player.PlayerInput"}
 
 
 def _signature(method: dict) -> str:
@@ -45,6 +46,40 @@ def _candidate_methods(type_entry: dict) -> list[dict]:
             "classification": "metadata_candidate_only",
         })
     return sorted(result, key=lambda item: (str(item["type"]), item["signature"]))
+
+
+def _contract_methods_with_level(contract: dict, hierarchy: dict | None = None):
+    for method in contract.get("methods") or []:
+        yield contract.get("type"), method
+    for level in (hierarchy or {}).get("levels") or []:
+        for method in level.get("methods") or []:
+            yield level.get("type"), method
+
+
+def _player_owner_fields(contract: dict) -> list[dict]:
+    result = []
+    for level in (contract.get("hierarchy") or {}).get("levels") or []:
+        for field in level.get("fields") or []:
+            declared_type = field.get("type")
+            object_type = field.get("object_type")
+            if declared_type not in PLAYER_INPUT_OWNER_TYPES \
+                    and object_type not in PLAYER_INPUT_OWNER_TYPES:
+                continue
+            result.append({
+                "level_type": level.get("type"),
+                "field": field.get("name"),
+                "declared_type": declared_type,
+                "object_available": field.get("object_available") is True,
+                "object_type": object_type,
+                "classification": (
+                    "resolved_current_player_owner"
+                    if field.get("object_available") is True
+                    and object_type in PLAYER_INPUT_OWNER_TYPES
+                    else "declared_owner_metadata_only"
+                ),
+            })
+    return sorted(result, key=lambda item: (
+        str(item["level_type"]), str(item["field"]), str(item["object_type"])))
 
 
 def analyze(payload: dict) -> dict:
@@ -100,13 +135,15 @@ def analyze(payload: dict) -> dict:
         if object_type and object_type not in bitset_object_types:
             bitset_object_types.append(object_type)
         object_contract = getter.get("object_contract") or {}
-        for method in object_contract.get("methods") or []:
+        for declaring_type, method in _contract_methods_with_level(
+                object_contract, getter.get("object_hierarchy") or {}):
             name = str(method.get("name") or "")
             if not any(term in name.lower() for term in MUTATION_TERMS):
                 continue
             candidate = {
                 "source_getter": getter.get("name"),
                 "object_type": object_type,
+                "declaring_type": declaring_type,
                 "signature": _signature(method),
                 "is_static": method.get("is_static") is True,
                 "classification": "metadata_candidate_only",
@@ -114,14 +151,30 @@ def analyze(payload: dict) -> dict:
             if candidate not in bitset_mutator_candidates:
                 bitset_mutator_candidates.append(candidate)
     bitset_mutator_candidates.sort(
-        key=lambda item: (str(item["object_type"]), item["signature"], str(item["source_getter"])))
+        key=lambda item: (str(item["object_type"]), str(item["declaring_type"]),
+                          item["signature"], str(item["source_getter"])))
+
+    owner_contract = input_motion.get("player_input_owner_contract") or {}
+    input_schema = input_motion.get("schema_version")
+    if isinstance(input_schema, int) and input_schema >= 9:
+        if owner_contract.get("policy") != "read_only_current_player_input_fields":
+            violations.append("player_input_owner_contract_missing_or_changed")
+        if owner_contract.get("gameplay_method_calls") != 0:
+            violations.append("player_input_owner_method_calls_not_zero")
+        if owner_contract.get("gameplay_writes") != 0:
+            violations.append("player_input_owner_writes_not_zero")
+    player_owner_fields = _player_owner_fields(owner_contract)
+    resolved_player_owners = [item for item in player_owner_fields
+                              if item["classification"] == "resolved_current_player_owner"]
 
     if violations:
         status = "invalid_read_only_contract"
+    elif resolved_player_owners:
+        status = "player_input_instance_candidate_found"
     elif bitset_mutator_candidates:
         status = "bitset_mutator_candidate_found"
     elif viable_updates:
-        status = "candidate_owner_found"
+        status = "read_only_owner_without_mutator"
     else:
         status = "no_callable_owner_candidate"
 
@@ -143,9 +196,18 @@ def analyze(payload: dict) -> dict:
         "semantic_bitset_max_calls": max_calls,
         "semantic_bitset_object_types": sorted(bitset_object_types),
         "bitset_mutator_candidates": bitset_mutator_candidates,
+        "player_available": owner_contract.get("player_available") is True,
+        "player_type": owner_contract.get("player_type"),
+        "player_input_owner_fields": player_owner_fields,
+        "resolved_player_input_owners": resolved_player_owners,
         "next_gate": (
+            "verify_stm_player_input_instance_read_contract"
+            if status == "player_input_instance_candidate_found"
+            else
             "separate_guarded_press_release_experiment_required"
-            if status in {"candidate_owner_found", "bitset_mutator_candidate_found"}
+            if status == "bitset_mutator_candidate_found"
+            else "locate_stm_player_input_instance"
+            if status == "read_only_owner_without_mutator"
             else "stop_semantic_write_route_or_collect_missing_metadata"
         ),
     }

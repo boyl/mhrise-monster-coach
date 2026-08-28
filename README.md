@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：源码开发版 `0.49.27-semantic-bitset-contract`，本版按计划暂不部署。轰龙核心闭环已有多项实机证据，但仓库源码领先于已安装副本；尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
+> 当前状态：源码候选版 `0.49.28-player-input-owner-contract`。`0.49.27` 的四个位集 getter 已完成集中实机验收；本版继续以只读方式检查返回位集父类型和当前猎人对象中的输入所有者字段，尚未开放语义输入写入。轰龙核心闭环已有多项实机证据，但尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 
@@ -153,14 +153,14 @@ pwsh -NoProfile -File tests/test_deploy_dev.ps1
 
 ## 近期目标
 
-1. 用四次有界只读 getter 取得 `getOn/getTrg/getRel/getDelay` 返回位集的真实对象契约；本源码版不调用任何位集方法、不 Hook 更新点、不写命令位。
-2. 下一次集中只读取证确认位集对象及精确修改方法后，才设计独立的成对按下/释放实验，并将动作节点与怪物判定窗关联。
+1. 在当前猎人对象的类型层级中只读取名称或声明类型匹配 `input/command/button` 的字段，定位真实 `snow.StmPlayerInput` / `snow.player.PlayerInput` 实例；无关字段不会读取。
+2. 同一次集中只读取证检查四个位集返回对象的父类型成员。只有实例路径、查询结果、更新时序和可恢复释放都分别验证后，才设计独立的成对按下/释放实验。
 3. 完成轰龙实用版 8–12 个高价值起手及主要固定、条件和随机派生。
 4. 稳定轰龙闭环后，以第二只复杂怪物验证数据包扩展能力。
 
 详细排期、每项安全门禁以及明确不开发的功能见[路线图](docs/ROADMAP.md)。
 
-开发期执行 `tools/run_probe_session.ps1 -InputMotionMetadata` 时，终态报告会自动交给 `tools/analyze_semantic_input_contract.py`，在同一归档目录生成 `.analysis.json`。分析器只分类实例所有者、查询签名与更新候选，且固定输出 `experiment_allowed=false`；它不会因为发现方法名就启动输入写入实验。
+开发期执行 `tools/run_probe_session.ps1 -InputMotionMetadata` 时，终态报告会自动交给 `tools/analyze_semantic_input_contract.py`，在同一归档目录生成 `.analysis.json`。分析器只分类实例所有者、位集继承成员、查询签名与更新候选，且固定输出 `experiment_allowed=false`；它不会因为发现方法名就启动输入写入实验。若外层归档恰遇瞬时文件占用，可用 `-ResumeExisting` 恢复已经完成的匹配终态；恢复过程不重新发送游戏输入。
 
 ## 许可证
 

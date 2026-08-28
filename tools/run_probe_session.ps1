@@ -133,6 +133,7 @@ if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
 }
 $sessionId = $null
 $request = $null
+$resumedTerminalReport = $null
 if ($ResumeExisting) {
     if (-not $game) { throw '-ResumeExisting requires a running game process.' }
     try { $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json } catch {
@@ -142,10 +143,13 @@ if ($ResumeExisting) {
         throw '-ResumeExisting could not read the active probe report.'
     }
     if (-not $request.session_id -or $existingReport.session_id -ne $request.session_id -or
-        $existingReport.status -notin @('pending', 'running')) {
-        throw '-ResumeExisting found no matching pending or running probe session.'
+        $existingReport.status -notin @('pending', 'running', 'completed', 'failed')) {
+        throw '-ResumeExisting found no matching active or terminal probe session.'
     }
     $sessionId = [string]$request.session_id
+    if ($existingReport.status -in @('completed', 'failed')) {
+        $resumedTerminalReport = $existingReport
+    }
 } else {
     $sessionId = [Guid]::NewGuid().ToString('N')
     $request = [ordered]@{
@@ -206,6 +210,39 @@ if (-not $game) {
         else { 'Probe request delivered to the running game.' })
 }
 Write-Host "Session: $sessionId"
+
+if ($resumedTerminalReport) {
+    New-Item -ItemType Directory -Path $resolvedArchiveRoot -Force | Out-Null
+    $safeKind = ([string]$resumedTerminalReport.kind) -replace '[^A-Za-z0-9_.-]', '_'
+    $archivePath = Join-Path $resolvedArchiveRoot `
+        "$($resumedTerminalReport.session_id).$safeKind.$($resumedTerminalReport.status).json"
+    Copy-Item -LiteralPath $reportPath -Destination $archivePath -Force
+    Write-Host "Terminal probe report recovered: $archivePath"
+    Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
+    if ($resumedTerminalReport.kind -eq 'input_motion_metadata') {
+        $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
+        $python = Resolve-VerifiedPython
+        & $python (Join-Path $PSScriptRoot 'analyze_semantic_input_contract.py') `
+            $archivePath --output $analysisPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Semantic input metadata analysis failed with exit code $LASTEXITCODE."
+        }
+        Write-Host "Semantic input analysis recovered: $analysisPath"
+    }
+    if ($FullReport) {
+        $resumedTerminalReport | ConvertTo-Json -Depth 12
+    } else {
+        [ordered]@{
+            session_id = $resumedTerminalReport.session_id
+            kind = $resumedTerminalReport.kind
+            status = $resumedTerminalReport.status
+            reason = $resumedTerminalReport.reason
+            recovered_terminal = $true
+        } | ConvertTo-Json
+    }
+    if ($resumedTerminalReport.status -eq 'failed') { exit 2 }
+    exit 0
+}
 
 if ($launchedGame) {
     $startupDeadline = (Get-Date).AddSeconds(90)

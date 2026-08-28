@@ -44,7 +44,9 @@
 
 ## 当前推进批次
 
-当前源码版本为 `0.49.27-semantic-bitset-contract`，按用户要求暂不部署。`0.49.26` 的集中只读报告已确认 56 个 `CommandButton2`、四个目标类型全部存在、唯一直接单例所有者为 `snow.StmInputManager`，且报告中游戏方法调用、玩法请求和写入均为零。新源码只对 Manager 的 `getOn/getTrg/getRel/getDelay` 四个精确零参数 getter 各调用一次，取得返回位集的实际类型和方法元数据；不调用位集方法、不安装 Hook、不改写命令位。自动分析即使发现修改候选也固定禁止直接实验。
+当前源码候选版本为 `0.49.28-player-input-owner-contract`。`0.49.27` 已完成集中实机验收：Manager 的 `getOn/getTrg/getRel/getDelay` 四次有界只读调用全部成功，返回同一 `snow.BitSetFlag<CommandButton2>` 实际类型，零失败、零请求、零写入；该精确类型没有公开字段或方法，因此不能直接升级为输入入口。真实报告、分析哈希和恢复过程见 `docs/evidence/SEMANTIC_BITSET_ACCEPTANCE_2026-08-28.json`。
+
+`0.49.28` 将两个剩余未知点合并为一次只读取证：一是继续检查上述位集对象的父类型元数据，避免把继承成员误判为不存在；二是由 Runtime 把已取得的当前猎人实例作为只读依赖传给输入 Adapter，只读取类型层级中名称或声明类型匹配 `input/command/button` 的字段，并记录实际对象类型。Adapter 不负责查找玩家，不保存托管对象，不调用候选方法；无关玩家字段在元数据过滤前不会读取。分析器仍固定 `experiment_allowed=false`，只有实际对象类型确认为 `snow.StmPlayerInput` 或 `snow.player.PlayerInput` 才进入下一层精确只读查询门禁。
 
 `0.41.0` 将指定出招菜单收敛为“精选起手目录”，按独立关键招式、固定派生起手和条件派生起手分组。每个入口仍必须先展示派生树，再开放开始按钮；训练顺序、分类和简介全部属于怪物数据包，通用 Controller 不写死轰龙招式。当前只公开已具备安全证据的咆哮和短距半回转钩咬，后续起手通过同一数据契约批量加入，不把未经验证的 Action 暴露给玩家。
 
@@ -150,7 +152,7 @@
 
 `0.49.26` 已在源码中完成只读语义输入元数据契约。它有界检查 `snow.StmInputManager`、`snow.StmPlayerInput`、`snow.player.PlayerInput`、`snow.StmInputManager.InputUI`，并单独列出 `CommandButton2` 与 `getOn/getTrg/getRel/getDelay/isOn/isTrg/isRel/isDelay` 查询签名。离线假 SDK 测试证明契约不会调用这些方法；本版暂不部署，因此所有运行时类型和单例结果仍保持候选。下一门禁是一次集中只读采集，随后才决定是否存在可成对实现“按下/释放”的更新入口；若不存在则停止游戏内注入路线，不再增加猜测轮次。
 
-`0.49.26` 随后完成一次集中只读验收：四个目标类型全部存在，`CommandButton2` 共 56 项；`snow.StmInputManager` 是唯一可直接取得的实例，具有四个位集 getter 和 `update/updateInGameFrame`，而带 `setButton/clearButton` 的 `snow.StmPlayerInput` 不是受管单例。该结果禁止直接调用后者。`0.49.27` 因此进入下一层有界只读方法契约：只调用四个已确认的 Manager getter，检查返回位集对象，不写入。真实报告与自动分析哈希见 `docs/evidence/SEMANTIC_INPUT_METADATA_ACCEPTANCE_2026-08-28.json`。
+`0.49.26` 随后完成一次集中只读验收：四个目标类型全部存在，`CommandButton2` 共 56 项；`snow.StmInputManager` 是唯一可直接取得的实例，具有四个位集 getter 和 `update/updateInGameFrame`，而带 `setButton/clearButton` 的 `snow.StmPlayerInput` 不是受管单例。该结果禁止直接调用后者。`0.49.27` 的四个 Manager getter 随后也以 4/4、零失败完成真实验收，但返回位集的精确类型无公开成员；因此 `0.49.28` 只检查继承层级和当前猎人中的实际输入对象，不写入。两层证据分别见 `docs/evidence/SEMANTIC_INPUT_METADATA_ACCEPTANCE_2026-08-28.json` 与 `docs/evidence/SEMANTIC_BITSET_ACCEPTANCE_2026-08-28.json`。
 
 当前主线已由“逐项强制 Action”收敛为“指定起手、原生续接、实时派生训练”。首个用户入口“执行：咆哮”已在 `0.33.0-specified-move-training` 由用户实机确认，`0.34.0-repeat-training` 又通过真实 Controller 自动完成 3/3 循环；小咬扩充仅完成 1/3 后出现 Action 不退出，证明一次注入成功不能代表可重复训练，入口已撤回。下一批先建立稳定空闲入口和 `native_branch` 路径追踪，再选择一个具有明确派生的根动作验证，后续不逐个强塞 Action。直接局内重置仍只接受引擎原生重建/重置接口，不恢复已证明会崩溃的 Transform 写回路径。古塔准备区到战斗区已采用坐标导航、一次性交互和战斗层判定自动完成，开发探针可在单项异常后通过 F7 恢复并继续采样。
 

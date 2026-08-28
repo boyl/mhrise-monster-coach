@@ -115,3 +115,5 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.26` 先建立只读语义输入元数据门禁，不把“枚举中存在 `Atk_R_A` 等名称”直接解释为见切输入。契约只覆盖四个精确类型、语义命令枚举、过滤后的字段/方法和八个明确查询方法，读取可能的受管单例存在性；它不调用查询方法、不 Hook 更新函数、不写命令位。源码离线测试以会在调用时立即报错的假方法验证零调用边界。探针完成后自动分析并归档实例所有者、查询签名和更新候选，分析结果固定为 `experiment_allowed=false`。只有后续一次集中只读采集能明确所有者、更新入口和签名，才允许在独立版本中设计可恢复的按下/释放实验；否则保持外部校准仅支持已验证的普通攻击与回避。
 
 `0.49.26` 的集中实机取证确认四个目标类型均存在、`CommandButton2` 共 56 项，且 `snow.StmInputManager` 是唯一直接可取得的实例。Manager 暴露 `getOn/getTrg/getRel/getDelay`，但真正含 `setButton/clearButton` 的 `snow.StmPlayerInput` 不是受管单例，故不能根据类型存在就直接调用。报告的元数据契约、Adapter 请求和写入均为零。`0.49.27` 只把四个已确认的 Manager getter 提升为有界只读调用，用于取得返回位集的实际类型与精确方法；四次调用后缓存，任何失败均阻止后续实验，位集修改方法在本版仍只记录不调用。
+
+`0.49.27` 的真实集中报告确认四个 getter 全部解析为同一 `snow.BitSetFlag<CommandButton2>` 对象，调用 4/4、失败 0、Adapter 请求与写入 0；但精确类型本身没有公开成员。外层归档第一次遇到 bootstrap ack 的瞬时 `AccessDenied`，游戏端终态此前已经完成；恢复工具随后复用匹配的 `completed` 报告完成归档、分析和请求清理，没有重放输入。`0.49.28` 因而一次性补查返回对象父类型和当前猎人字段层级。只有元数据已匹配的玩家字段才允许读取实际对象，任何 `StmPlayerInput` 候选仍只进入下一层只读查询，不直接调用 `setButton/clearButton`。

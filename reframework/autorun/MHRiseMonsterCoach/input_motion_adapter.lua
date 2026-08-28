@@ -48,6 +48,8 @@ local SEMANTIC_BITSET_TERMS = {
     "bit", "flag", "get", "is", "set", "clear", "reset", "add", "remove", "toggle",
 }
 
+local PLAYER_INPUT_OWNER_TERMS = { "input", "command", "button" }
+
 local MAX_CONTRACT_MEMBERS = 256
 local MAX_CONTRACT_LEVELS = 8
 local BINDING_DICTIONARY_FIELDS = {
@@ -94,12 +96,25 @@ local function primitive_value(field, instance)
 end
 
 local function field_contract(field, instance)
-    local value, is_static = primitive_value(field, instance)
+    local is_static = safe(function() return field:is_static() end) == true
+    local owner = is_static and nil or instance
+    local value = safe(function() return field:get_data(owner) end)
+    local primitive = nil
+    if type(value) == "number" or type(value) == "boolean" or type(value) == "string" then
+        primitive = value
+    end
+    local object_type = nil
+    if value ~= nil and primitive == nil then
+        object_type = type_name(safe(function() return value:get_type_definition() end))
+    end
     return {
         name = safe(function() return field:get_name() end),
         type = type_name(safe(function() return field:get_type() end)),
         is_static = is_static,
-        primitive_value = value,
+        value_available = value ~= nil,
+        primitive_value = primitive,
+        object_available = object_type ~= nil,
+        object_type = object_type,
     }
 end
 
@@ -183,9 +198,12 @@ local function filtered_type_contract(type_name_value, instance, terms)
             result.fields_truncated = true
             break
         end
-        local contract = field_contract(field, instance)
-        if mentions_any(contract.name, terms) or mentions_any(contract.type, terms) then
-            result.fields[#result.fields + 1] = contract
+        local field_name = safe(function() return field:get_name() end)
+        local field_type = type_name(safe(function() return field:get_type() end))
+        if mentions_any(field_name, terms) or mentions_any(field_type, terms) then
+            -- Read only a field whose metadata already matches the bounded terms.
+            -- This prevents unrelated current-player fields from being touched.
+            result.fields[#result.fields + 1] = field_contract(field, instance)
         end
     end
     for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
@@ -324,6 +342,8 @@ local function semantic_bitset_read_contract()
                 if object_type_name ~= nil then
                     entry.object_contract = filtered_type_contract(
                         object_type_name, object, SEMANTIC_BITSET_TERMS)
+                    entry.object_hierarchy = filtered_type_hierarchy_contract(
+                        object_type_name, object, SEMANTIC_BITSET_TERMS)
                 end
             end
         elseif method ~= nil and manager == nil then
@@ -333,6 +353,29 @@ local function semantic_bitset_read_contract()
             result.truncated = true
         end
         result.getters[#result.getters + 1] = entry
+    end
+    return result
+end
+
+-- The current master player is supplied by runtime composition.  This adapter
+-- only inspects matching input/command/button fields on its concrete type
+-- hierarchy; it does not discover players, invoke candidate methods, or retain
+-- the managed object in diagnostics.
+local function player_input_owner_contract(player)
+    local result = {
+        schema_version = 1,
+        policy = "read_only_current_player_input_fields",
+        gameplay_method_calls = 0,
+        gameplay_writes = 0,
+        player_available = player ~= nil,
+    }
+    if player == nil then return result end
+    local player_type = safe(function() return player:get_type_definition() end)
+    result.player_type = type_name(player_type)
+    result.player_type_available = player_type ~= nil
+    if result.player_type ~= nil then
+        result.hierarchy = filtered_type_hierarchy_contract(
+            result.player_type, player, PLAYER_INPUT_OWNER_TERMS)
     end
     return result
 end
@@ -530,6 +573,7 @@ function M.new()
         current_binding_snapshot = nil,
         semantic_input_snapshot = nil,
         semantic_bitset_snapshot = nil,
+        player_input_owner_snapshot = nil,
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
     }, { __index = M })
 end
@@ -583,7 +627,7 @@ function M:flush()
     return true
 end
 
-function M:diagnostics()
+function M:diagnostics(player)
     local device = nil
     local device_source = nil
     if self.singleton ~= nil and self.singleton_type ~= nil then
@@ -616,8 +660,13 @@ function M:diagnostics()
     if self.semantic_bitset_snapshot == nil then
         self.semantic_bitset_snapshot = semantic_bitset_read_contract()
     end
+    if self.player_input_owner_snapshot == nil and player ~= nil then
+        self.player_input_owner_snapshot = player_input_owner_contract(player)
+    end
+    local player_input_owner = self.player_input_owner_snapshot
+        or player_input_owner_contract(nil)
     return {
-        schema_version = 8,
+        schema_version = 9,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -638,6 +687,7 @@ function M:diagnostics()
         semantic_command_enum = enum_contract("snow.player.PlayerInput.CommandButton2"),
         semantic_input_contract = self.semantic_input_snapshot,
         semantic_bitset_contract = self.semantic_bitset_snapshot,
+        player_input_owner_contract = player_input_owner,
         input_enum_contracts = {
             enum_contract("snow.StmInputManager.ActiveGameDevice"),
             enum_contract("snow.StmInputManager.ActiveDevice"),
