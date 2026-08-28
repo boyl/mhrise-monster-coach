@@ -26,7 +26,7 @@ def complete_payload():
         method("updateCommand", "snow.player.PlayerInput.CommandButton2"),
         method("getInput"),
     ]
-    return {"input_motion": {"schema_version": 9, "semantic_input_contract": {
+    return {"input_motion": {"schema_version": 10, "semantic_input_contract": {
         "policy": "read_only_exact_semantic_input_metadata",
         "gameplay_method_calls": 0,
         "gameplay_writes": 0,
@@ -65,6 +65,16 @@ def complete_payload():
                 "object_type": "snow.StmPlayerInput",
             }],
         }]},
+    }, "player_input_instance_contract": {
+        "policy": "bounded_read_only_player_input_queries",
+        "max_calls": 4,
+        "call_count": 4,
+        "call_failures": 0,
+        "gameplay_writes": 0,
+        "instance_available": True,
+        "instance_type": "snow.StmPlayerInput",
+        "queries": [{"command": name, "status": "resolved", "result": False}
+                    for name in ("Atk_X", "Atk_A", "Atk_R_A", "Escape")],
     }}}
 
 
@@ -72,7 +82,7 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
     def test_finds_instance_owned_update_candidate_without_allowing_experiment(self):
         result = analyze(complete_payload())
 
-        self.assertEqual(result["status"], "player_input_instance_candidate_found")
+        self.assertEqual(result["status"], "player_input_read_contract_verified")
         self.assertFalse(result["experiment_allowed"])
         self.assertEqual(result["violations"], [])
         self.assertEqual(result["command_enum_count"], 2)
@@ -92,7 +102,7 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
         self.assertEqual(result["resolved_player_input_owners"][0]["field"],
                          "_stmPlayerInput")
         self.assertEqual(result["next_gate"],
-                         "verify_stm_player_input_instance_read_contract")
+                         "design_separate_guarded_semantic_press_release_experiment")
 
     def test_write_or_call_count_violation_fails_closed(self):
         payload = complete_payload()
@@ -159,6 +169,7 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
 
     def test_schema_nine_requires_read_only_player_owner_contract(self):
         payload = complete_payload()
+        payload["input_motion"]["schema_version"] = 9
         del payload["input_motion"]["player_input_owner_contract"]
 
         result = analyze(payload)
@@ -175,11 +186,13 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
                     "hierarchy"]["levels"][0]["fields"][0]
                 field["type"] = owner_type
                 field["object_type"] = owner_type
+                payload["input_motion"]["player_input_instance_contract"][
+                    "instance_type"] = owner_type
 
                 result = analyze(payload)
 
                 self.assertEqual(result["status"],
-                                 "player_input_instance_candidate_found")
+                                 "player_input_read_contract_verified")
                 self.assertEqual(result["resolved_player_input_owners"][0][
                     "object_type"], owner_type)
                 self.assertFalse(result["experiment_allowed"])
@@ -197,6 +210,29 @@ class SemanticInputContractAnalysisTests(unittest.TestCase):
         self.assertEqual(result["resolved_player_input_owners"], [])
         self.assertEqual(result["player_input_owner_fields"][0]["classification"],
                          "declared_owner_metadata_only")
+        self.assertFalse(result["experiment_allowed"])
+
+    def test_schema_ten_requires_bounded_player_instance_contract(self):
+        payload = complete_payload()
+        del payload["input_motion"]["player_input_instance_contract"]
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"], "invalid_read_only_contract")
+        self.assertIn("player_input_instance_contract_missing_or_changed",
+                      result["violations"])
+        self.assertFalse(result["experiment_allowed"])
+
+    def test_player_instance_query_failure_blocks_next_gate(self):
+        payload = complete_payload()
+        contract = payload["input_motion"]["player_input_instance_contract"]
+        contract["call_failures"] = 1
+        contract["queries"][0]["status"] = "call_failed"
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"], "invalid_read_only_contract")
+        self.assertIn("player_input_instance_query_failed", result["violations"])
         self.assertFalse(result["experiment_allowed"])
 
     def test_legacy_schema_eight_does_not_require_new_owner_contract(self):

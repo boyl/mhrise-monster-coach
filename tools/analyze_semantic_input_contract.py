@@ -166,9 +166,39 @@ def analyze(payload: dict) -> dict:
     player_owner_fields = _player_owner_fields(owner_contract)
     resolved_player_owners = [item for item in player_owner_fields
                               if item["classification"] == "resolved_current_player_owner"]
+    instance_contract = input_motion.get("player_input_instance_contract") or {}
+    if isinstance(input_schema, int) and input_schema >= 10:
+        if instance_contract.get("policy") != "bounded_read_only_player_input_queries":
+            violations.append("player_input_instance_contract_missing_or_changed")
+        if instance_contract.get("gameplay_writes") != 0:
+            violations.append("player_input_instance_writes_not_zero")
+        if instance_contract.get("call_failures") != 0:
+            violations.append("player_input_instance_query_failed")
+    instance_call_count = instance_contract.get("call_count")
+    instance_max_calls = instance_contract.get("max_calls")
+    if isinstance(input_schema, int) and input_schema >= 10 and (
+            not isinstance(instance_call_count, int)
+            or not isinstance(instance_max_calls, int)
+            or instance_call_count > instance_max_calls):
+        violations.append("player_input_instance_call_budget_invalid")
+    resolved_queries = [item for item in instance_contract.get("queries") or []
+                        if item.get("status") == "resolved"]
+    instance_read_verified = bool(
+        resolved_player_owners
+        and instance_contract.get("instance_available") is True
+        and instance_contract.get("instance_type") in PLAYER_INPUT_OWNER_TYPES
+        and isinstance(instance_call_count, int)
+        and isinstance(instance_max_calls, int)
+        and instance_call_count == instance_max_calls
+        and instance_call_count > 0
+        and instance_contract.get("call_failures") == 0
+        and len(resolved_queries) == instance_call_count
+    )
 
     if violations:
         status = "invalid_read_only_contract"
+    elif instance_read_verified:
+        status = "player_input_read_contract_verified"
     elif resolved_player_owners:
         status = "player_input_instance_candidate_found"
     elif bitset_mutator_candidates:
@@ -200,8 +230,15 @@ def analyze(payload: dict) -> dict:
         "player_type": owner_contract.get("player_type"),
         "player_input_owner_fields": player_owner_fields,
         "resolved_player_input_owners": resolved_player_owners,
+        "player_input_instance_type": instance_contract.get("instance_type"),
+        "player_input_query_call_count": instance_call_count,
+        "player_input_query_max_calls": instance_max_calls,
+        "player_input_queries": instance_contract.get("queries") or [],
         "next_gate": (
-            "verify_stm_player_input_instance_read_contract"
+            "design_separate_guarded_semantic_press_release_experiment"
+            if status == "player_input_read_contract_verified"
+            else
+            "verify_player_input_instance_read_contract"
             if status == "player_input_instance_candidate_found"
             else
             "separate_guarded_press_release_experiment_required"

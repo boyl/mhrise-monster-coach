@@ -117,3 +117,5 @@ pwsh -NoProfile -File tools/run_player_action_calibration.ps1
 `0.49.26` 的集中实机取证确认四个目标类型均存在、`CommandButton2` 共 56 项，且 `snow.StmInputManager` 是唯一直接可取得的实例。Manager 暴露 `getOn/getTrg/getRel/getDelay`，但真正含 `setButton/clearButton` 的 `snow.StmPlayerInput` 不是受管单例，故不能根据类型存在就直接调用。报告的元数据契约、Adapter 请求和写入均为零。`0.49.27` 只把四个已确认的 Manager getter 提升为有界只读调用，用于取得返回位集的实际类型与精确方法；四次调用后缓存，任何失败均阻止后续实验，位集修改方法在本版仍只记录不调用。
 
 `0.49.27` 的真实集中报告确认四个 getter 全部解析为同一 `snow.BitSetFlag<CommandButton2>` 对象，调用 4/4、失败 0、Adapter 请求与写入 0；但精确类型本身没有公开成员。外层归档第一次遇到 bootstrap ack 的瞬时 `AccessDenied`，游戏端终态此前已经完成；恢复工具随后复用匹配的 `completed` 报告完成归档、分析和请求清理，没有重放输入。`0.49.28` 因而一次性补查返回对象父类型和当前猎人字段层级。只有元数据已匹配的玩家字段才允许读取实际对象，任何 `StmPlayerInput` 候选仍只进入下一层只读查询，不直接调用 `setButton/clearButton`。
+
+`0.49.28` 实机确认修改成员位于 `snow.BitSetFlagBase` 父类，同时解析出 `PlayerBase.<RefPlayerInput>k__BackingField -> snow.player.PlayerInput` 的真实对象路径；声明类型与实际类型一致。四个位集 getter、所有者字段和 Adapter 写入均为零异常/零写入，游戏保持响应。`0.49.29` 只用该临时实例对四个明确 `CommandButton2` 执行 `isDelay` 查询；查询结果只验证读调用契约，不升级按键—动作关联。完整所有者证据见 `docs/evidence/PLAYER_INPUT_OWNER_ACCEPTANCE_2026-08-29.json`。

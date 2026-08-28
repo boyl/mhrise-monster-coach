@@ -44,9 +44,9 @@
 
 ## 当前推进批次
 
-当前源码候选版本为 `0.49.28-player-input-owner-contract`。`0.49.27` 已完成集中实机验收：Manager 的 `getOn/getTrg/getRel/getDelay` 四次有界只读调用全部成功，返回同一 `snow.BitSetFlag<CommandButton2>` 实际类型，零失败、零请求、零写入；该精确类型没有公开字段或方法，因此不能直接升级为输入入口。真实报告、分析哈希和恢复过程见 `docs/evidence/SEMANTIC_BITSET_ACCEPTANCE_2026-08-28.json`。
+当前源码候选版本为 `0.49.29-player-input-read-contract`。`0.49.28` 的集中实机报告已确认位集父类 `snow.BitSetFlagBase` 暴露 `clear()`、`set(UInt32)`、`setDatas(UInt32[])`，同时从 `snow.player.PlayerBase.<RefPlayerInput>k__BackingField` 取得声明与实际类型一致的 `snow.player.PlayerInput` 对象。探针保持零写入且游戏正常响应；完整证据见 `docs/evidence/PLAYER_INPUT_OWNER_ACCEPTANCE_2026-08-29.json`。
 
-`0.49.28` 将两个剩余未知点合并为一次只读取证：一是继续检查上述位集对象的父类型元数据，避免把继承成员误判为不存在；二是由 Runtime 把已取得的当前猎人实例作为只读依赖传给输入 Adapter，只读取类型层级中名称或声明类型匹配 `input/command/button` 的字段，并记录实际对象类型。Adapter 不负责查找玩家，不保存托管对象，不调用候选方法；无关玩家字段在元数据过滤前不会读取。分析器仍固定 `experiment_allowed=false`，只有实际对象类型确认为 `snow.StmPlayerInput` 或 `snow.player.PlayerInput` 才进入下一层精确只读查询门禁。
+`0.49.29` 只在该已验证实例上调用精确签名 `isDelay(CommandButton2)`，命令限定为 `Atk_X/Atk_A/Atk_R_A/Escape` 四项，全局上限 4 次；返回值只用于证明实例与调用约定有效，不解释为动作成功。任何方法缺失、命令缺失或调用异常均失败关闭。分析器仍固定 `experiment_allowed=false`；四项查询全部解析后，才允许在独立版本中设计可恢复、单帧、成对按下/释放实验。
 
 `0.41.0` 将指定出招菜单收敛为“精选起手目录”，按独立关键招式、固定派生起手和条件派生起手分组。每个入口仍必须先展示派生树，再开放开始按钮；训练顺序、分类和简介全部属于怪物数据包，通用 Controller 不写死轰龙招式。当前只公开已具备安全证据的咆哮和短距半回转钩咬，后续起手通过同一数据契约批量加入，不把未经验证的 Action 暴露给玩家。
 

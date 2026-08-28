@@ -68,8 +68,12 @@ local function enum_type(name, values)
     }
 end
 local command_enum = enum_type("snow.player.PlayerInput.CommandButton2", {
+    enum_field("Atk_X", 0),
+    enum_field("Atk_A", 1),
+    enum_field("Escape", 3),
     enum_field("Evade", 32),
     enum_field("Attack", 4),
+    enum_field("Atk_R_A", 41),
 })
 local active_device_enum = enum_type("snow.StmInputManager.ActiveGameDevice", {
     enum_field("GamePad", 3),
@@ -124,6 +128,7 @@ local semantic_method_calls = 0
 local semantic_read_calls = 0
 local bitset_mutator_calls = 0
 local unrelated_player_field_reads = 0
+local player_instance_query_calls = 0
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
     return {
@@ -247,24 +252,37 @@ local stm_player_input_type = {
     end,
 }
 function stm_player_input_instance:get_type_definition() return stm_player_input_type end
+local player_input_instance = nil
+local player_is_delay = semantic_metadata_method("isDelay", "System.Boolean", semantic_parameter)
+player_is_delay.call = function(_, owner, command)
+    assert(owner == player_input_instance, "player query must use resolved current-player input")
+    assert(command ~= nil, "player query requires a resolved command enum")
+    player_instance_query_calls = player_instance_query_calls + 1
+    return false
+end
 local player_input_type = {
     get_full_name = function() return "snow.player.PlayerInput" end,
     get_fields = function() return {} end,
     get_methods = function()
-        return { semantic_metadata_method("checkCommand", "System.Boolean", semantic_parameter) }
+        return {
+            semantic_metadata_method("checkCommand", "System.Boolean", semantic_parameter),
+            player_is_delay,
+        }
     end,
 }
+player_input_instance = {}
+function player_input_instance:get_type_definition() return player_input_type end
 local current_player = {}
 local current_player_base_type = {
     get_full_name = function() return "snow.player.PlayerBase" end,
     get_parent_type = function() return nil end,
     get_fields = function()
         return {{
-            get_name = function() return "_stmPlayerInput" end,
-            get_type = function() return named_type("snow.StmPlayerInput") end,
+            get_name = function() return "<RefPlayerInput>k__BackingField" end,
+            get_type = function() return named_type("snow.player.PlayerInput") end,
             get_data = function(_, owner)
                 assert(owner == current_player, "owner field must use current master player")
-                return stm_player_input_instance
+                return player_input_instance
             end,
             is_static = function() return false end,
         }}
@@ -436,7 +454,7 @@ Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics(current_player)
-assert(diagnostics.schema_version == 9)
+assert(diagnostics.schema_version == 10)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -455,15 +473,15 @@ for _, method in ipairs(diagnostics.stm_input_contract[1].methods) do
 end
 assert(active_input_device_method_found)
 assert(diagnostics.semantic_command_enum.available)
-assert(#diagnostics.semantic_command_enum.values == 2)
-assert(diagnostics.semantic_command_enum.values[1].name == "Attack")
-assert(diagnostics.semantic_command_enum.values[1].value == 4)
-assert(diagnostics.semantic_command_enum.values[2].name == "Evade")
+assert(#diagnostics.semantic_command_enum.values == 6)
+assert(diagnostics.semantic_command_enum.values[1].name == "Atk_X")
+assert(diagnostics.semantic_command_enum.values[1].value == 0)
+assert(diagnostics.semantic_command_enum.values[6].name == "Atk_R_A")
 local semantic = diagnostics.semantic_input_contract
 assert(semantic.schema_version == 1)
 assert(semantic.policy == "read_only_exact_semantic_input_metadata")
 assert(semantic.gameplay_method_calls == 0 and semantic.gameplay_writes == 0)
-assert(semantic.command_enum.available and #semantic.command_enum.values == 2)
+assert(semantic.command_enum.available and #semantic.command_enum.values == 6)
 assert(#semantic.types == 4)
 assert(semantic.types[1].type == "snow.StmInputManager")
 assert(semantic.types[1].singleton_lookup and semantic.types[1].instance_available)
@@ -509,12 +527,24 @@ assert(owner.player_available and owner.player_type_available)
 assert(owner.player_type == current_player_type:get_full_name())
 assert(#owner.hierarchy.levels == 2)
 assert(#owner.hierarchy.levels[1].fields == 0)
-assert(owner.hierarchy.levels[2].fields[1].name == "_stmPlayerInput")
-assert(owner.hierarchy.levels[2].fields[1].type == "snow.StmPlayerInput")
+assert(owner.hierarchy.levels[2].fields[1].name == "<RefPlayerInput>k__BackingField")
+assert(owner.hierarchy.levels[2].fields[1].type == "snow.player.PlayerInput")
 assert(owner.hierarchy.levels[2].fields[1].object_available)
-assert(owner.hierarchy.levels[2].fields[1].object_type == "snow.StmPlayerInput")
+assert(owner.hierarchy.levels[2].fields[1].object_type == "snow.player.PlayerInput")
 assert(unrelated_player_field_reads == 0,
     "only metadata-matching current-player fields may be read")
+local player_instance = diagnostics.player_input_instance_contract
+assert(player_instance.schema_version == 1)
+assert(player_instance.policy == "bounded_read_only_player_input_queries")
+assert(player_instance.instance_available)
+assert(player_instance.instance_type == "snow.player.PlayerInput")
+assert(player_instance.max_calls == 4 and player_instance.call_count == 4)
+assert(player_instance.call_failures == 0 and player_instance.gameplay_writes == 0)
+assert(#player_instance.queries == 4)
+assert(player_instance.queries[1].command == "Atk_X")
+assert(player_instance.queries[3].command == "Atk_R_A")
+assert(player_instance.queries[4].command == "Escape")
+assert(player_instance_query_calls == 4)
 assert(#diagnostics.input_enum_contracts == 9)
 assert(diagnostics.input_enum_contracts[1].values[2].name == "GamePad")
 assert(diagnostics.input_enum_contracts[2].available == false)

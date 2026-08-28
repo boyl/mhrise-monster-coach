@@ -49,6 +49,14 @@ local SEMANTIC_BITSET_TERMS = {
 }
 
 local PLAYER_INPUT_OWNER_TERMS = { "input", "command", "button" }
+local PLAYER_INPUT_INSTANCE_TERMS = {
+    "input", "command", "button", "pad", "flag", "now", "trg", "rel", "delay",
+}
+local PLAYER_INPUT_OWNER_TYPES = {
+    ["snow.StmPlayerInput"] = true,
+    ["snow.player.PlayerInput"] = true,
+}
+local PLAYER_INPUT_QUERY_COMMANDS = { "Atk_X", "Atk_A", "Atk_R_A", "Escape" }
 
 local MAX_CONTRACT_MEMBERS = 256
 local MAX_CONTRACT_LEVELS = 8
@@ -107,7 +115,7 @@ local function field_contract(field, instance)
     if value ~= nil and primitive == nil then
         object_type = type_name(safe(function() return value:get_type_definition() end))
     end
-    return {
+    local contract = {
         name = safe(function() return field:get_name() end),
         type = type_name(safe(function() return field:get_type() end)),
         is_static = is_static,
@@ -116,6 +124,7 @@ local function field_contract(field, instance)
         object_available = object_type ~= nil,
         object_type = object_type,
     }
+    return contract, value
 end
 
 local function method_metadata(method)
@@ -184,7 +193,7 @@ end
 
 -- Bounded metadata over an explicitly named type. It exposes signatures and
 -- primitive fields only; it neither scans the global TDB nor calls discovered methods.
-local function filtered_type_contract(type_name_value, instance, terms)
+local function filtered_type_contract(type_name_value, instance, terms, field_observer)
     local type_def = safe(function() return sdk.find_type_definition(type_name_value) end)
     local result = {
         type = type_name_value,
@@ -203,7 +212,9 @@ local function filtered_type_contract(type_name_value, instance, terms)
         if mentions_any(field_name, terms) or mentions_any(field_type, terms) then
             -- Read only a field whose metadata already matches the bounded terms.
             -- This prevents unrelated current-player fields from being touched.
-            result.fields[#result.fields + 1] = field_contract(field, instance)
+            local contract, value = field_contract(field, instance)
+            result.fields[#result.fields + 1] = contract
+            if field_observer ~= nil then field_observer(contract, value) end
         end
     end
     for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
@@ -226,7 +237,7 @@ local function filtered_type_contract(type_name_value, instance, terms)
     return result
 end
 
-local function filtered_type_hierarchy_contract(type_name_value, instance, terms)
+local function filtered_type_hierarchy_contract(type_name_value, instance, terms, field_observer)
     local type_def = safe(function() return sdk.find_type_definition(type_name_value) end)
     local result = { type = type_name_value, available = type_def ~= nil, levels = {} }
     local seen, depth = {}, 0
@@ -234,7 +245,9 @@ local function filtered_type_hierarchy_contract(type_name_value, instance, terms
         local current_name = type_name(type_def) or "unknown"
         if seen[current_name] then break end
         seen[current_name] = true
-        local level = filtered_type_contract(current_name, instance, terms)
+        local level = filtered_type_contract(current_name, instance, terms, function(contract, value)
+            if field_observer ~= nil then field_observer(current_name, contract, value) end
+        end)
         result.levels[#result.levels + 1] = level
         type_def = safe(function() return type_def:get_parent_type() end)
         depth = depth + 1
@@ -290,6 +303,16 @@ local function exact_zero_arg_method(type_def, name)
         if safe(function() return method:get_name() end) == name then
             local params = safe(function() return method:get_param_types() end) or {}
             if #params == 0 then return method end
+        end
+    end
+    return nil
+end
+
+local function exact_one_arg_method(type_def, name, param_type_name)
+    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+        if safe(function() return method:get_name() end) == name then
+            local params = safe(function() return method:get_param_types() end) or {}
+            if #params == 1 and type_name(params[1]) == param_type_name then return method end
         end
     end
     return nil
@@ -373,9 +396,68 @@ local function player_input_owner_contract(player)
     local player_type = safe(function() return player:get_type_definition() end)
     result.player_type = type_name(player_type)
     result.player_type_available = player_type ~= nil
+    local resolved_instance = nil
     if result.player_type ~= nil then
         result.hierarchy = filtered_type_hierarchy_contract(
-            result.player_type, player, PLAYER_INPUT_OWNER_TERMS)
+            result.player_type, player, PLAYER_INPUT_OWNER_TERMS,
+            function(level_type, contract, value)
+                if resolved_instance == nil and contract.object_available
+                    and PLAYER_INPUT_OWNER_TYPES[contract.object_type] then
+                    resolved_instance = value
+                    result.resolved_owner = {
+                        level_type = level_type,
+                        field = contract.name,
+                        declared_type = contract.type,
+                        object_type = contract.object_type,
+                    }
+                end
+            end)
+    end
+    return result, resolved_instance
+end
+
+-- The owner path is now proven, so this layer makes four exact Boolean read
+-- queries on that one instance.  It does not call update/set/clear methods and
+-- it never writes the returned values back into the game.
+local function player_input_instance_read_contract(instance, instance_type_name)
+    local result = {
+        schema_version = 1,
+        policy = "bounded_read_only_player_input_queries",
+        max_calls = #PLAYER_INPUT_QUERY_COMMANDS,
+        call_count = 0,
+        call_failures = 0,
+        gameplay_writes = 0,
+        instance_available = instance ~= nil,
+        instance_type = instance_type_name,
+        queries = {},
+    }
+    if instance == nil or instance_type_name == nil then return result end
+    result.hierarchy = filtered_type_hierarchy_contract(
+        instance_type_name, instance, PLAYER_INPUT_INSTANCE_TERMS)
+    local instance_type = safe(function() return instance:get_type_definition() end)
+    local method = exact_one_arg_method(
+        instance_type, "isDelay", "snow.player.PlayerInput.CommandButton2")
+    local commands = enum_contract("snow.player.PlayerInput.CommandButton2")
+    for _, name in ipairs(PLAYER_INPUT_QUERY_COMMANDS) do
+        local value = enum_value_by_name(commands, name)
+        local entry = {
+            command = name,
+            value = value,
+            method_available = method ~= nil,
+            status = method and "command_unavailable" or "method_unavailable",
+        }
+        if method ~= nil and value ~= nil and result.call_count < result.max_calls then
+            result.call_count = result.call_count + 1
+            local ok, query_value = pcall(function() return method:call(instance, value) end)
+            if ok then
+                entry.status = "resolved"
+                entry.result = query_value == true
+            else
+                result.call_failures = result.call_failures + 1
+                entry.status = "call_failed"
+            end
+        end
+        result.queries[#result.queries + 1] = entry
     end
     return result
 end
@@ -574,6 +656,7 @@ function M.new()
         semantic_input_snapshot = nil,
         semantic_bitset_snapshot = nil,
         player_input_owner_snapshot = nil,
+        player_input_instance_snapshot = nil,
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
     }, { __index = M })
 end
@@ -661,12 +744,16 @@ function M:diagnostics(player)
         self.semantic_bitset_snapshot = semantic_bitset_read_contract()
     end
     if self.player_input_owner_snapshot == nil and player ~= nil then
-        self.player_input_owner_snapshot = player_input_owner_contract(player)
+        local owner_contract, owner_instance = player_input_owner_contract(player)
+        self.player_input_owner_snapshot = owner_contract
+        self.player_input_instance_snapshot = player_input_instance_read_contract(
+            owner_instance,
+            owner_contract.resolved_owner and owner_contract.resolved_owner.object_type or nil)
     end
     local player_input_owner = self.player_input_owner_snapshot
         or player_input_owner_contract(nil)
     return {
-        schema_version = 9,
+        schema_version = 10,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -688,6 +775,8 @@ function M:diagnostics(player)
         semantic_input_contract = self.semantic_input_snapshot,
         semantic_bitset_contract = self.semantic_bitset_snapshot,
         player_input_owner_contract = player_input_owner,
+        player_input_instance_contract = self.player_input_instance_snapshot
+            or player_input_instance_read_contract(nil, nil),
         input_enum_contracts = {
             enum_contract("snow.StmInputManager.ActiveGameDevice"),
             enum_contract("snow.StmInputManager.ActiveDevice"),

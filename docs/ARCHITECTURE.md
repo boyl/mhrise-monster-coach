@@ -74,6 +74,8 @@ app (composition root)
 
 `player_input_owner_contract` 使用显式依赖方向：Runtime 负责通过既有 `PlayerManager.findMasterPlayer()` 生命周期取得当前猎人，输入 Adapter 只接受这个可空实例并生成序列化只读契约。它先按字段名和声明类型过滤 `input/command/button`，再读取命中的字段，避免为了找输入对象遍历或触碰猎人的所有状态。契约只记录字段声明类型、实际对象是否存在及实际类型，不持有游戏对象，不调用发现的方法。标题阶段的空玩家结果不会缓存，进入任务后可在同一 Adapter 中重新解析；成功快照才缓存，防止 Overlay 每帧反射。
 
+`player_input_instance_contract` 只消费上述同一次解析得到的临时实例，不把托管引用放进诊断结果。它对四个固定命令调用精确 `isDelay(CommandButton2)` Boolean 查询，调用预算为 4，结果随后缓存；不调用 `update`、`setSuccessCommand` 或位集修改方法。该层只证明对象、参数约定和只读查询可用，不证明任何输入写入路径，也不把查询结果解释为猎人动作。
+
 ### 离线怪物数据管线
 
 - `extract_monster_ai.py` 是 PAK/文件列表边界，只选择目标 `emXXX` 的 AI 入口并计算资源引用闭包；不同怪物 ID 和变体是输入值，不进入 Mod 业务代码。

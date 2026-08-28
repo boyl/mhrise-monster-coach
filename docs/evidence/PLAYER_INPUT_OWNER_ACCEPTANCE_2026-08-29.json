@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.28-player-input-owner-contract",
+  "captured_at": "2026-08-29",
+  "session_id": "91878763e5c24b77b6c2e8bfe1416f80",
+  "scope": "位集父类型与当前猎人语义输入所有者的集中只读验收",
+  "report": {
+    "artifact": "artifacts/probe_reports/91878763e5c24b77b6c2e8bfe1416f80.input_motion_metadata.completed.json",
+    "sha256": "28A76C3F729EFC2A068D7D2D6D51FDB102346A52AB601C8204BBE4AD90E57A59",
+    "status": "completed"
+  },
+  "analysis": {
+    "artifact": "artifacts/probe_reports/91878763e5c24b77b6c2e8bfe1416f80.input_motion_metadata.completed.analysis.json",
+    "sha256": "FB5DE87462DA17BF5EB9DE8F686D823F256571878300AD0754A99B8B43BB3AE9",
+    "status": "player_input_instance_candidate_found",
+    "experiment_allowed": false,
+    "violations": [],
+    "next_gate": "verify_stm_player_input_instance_read_contract"
+  },
+  "findings": {
+    "runtime_player_type": "snow.player.DualBlades",
+    "owner_level_type": "snow.player.PlayerBase",
+    "owner_field": "<RefPlayerInput>k__BackingField",
+    "owner_declared_type": "snow.player.PlayerInput",
+    "owner_actual_type": "snow.player.PlayerInput",
+    "owner_object_available": true,
+    "bitset_parent_type": "snow.BitSetFlagBase",
+    "bitset_parent_mutator_signatures": [
+      "clear()",
+      "set(System.UInt32)",
+      "setDatas(System.UInt32[])"
+    ],
+    "bitset_mutator_candidate_count": 12
+  },
+  "safety": {
+    "semantic_bitset_getter_calls": 4,
+    "semantic_bitset_getter_failures": 0,
+    "semantic_bitset_gameplay_writes": 0,
+    "player_owner_gameplay_method_calls": 0,
+    "player_owner_gameplay_writes": 0,
+    "adapter_request_count": 0,
+    "adapter_write_count": 0,
+    "game_responding_after_probe": true,
+    "game_crash": false
+  },
+  "interpretation": "已经取得真实 snow.player.PlayerInput 实例路径，也确认位集修改成员位于父类；但本版没有调用这些成员。下一层只在已验证实例上执行四个精确 Boolean 查询，查询完整通过前仍不设计写入。"
+}
