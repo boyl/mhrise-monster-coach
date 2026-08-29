@@ -135,6 +135,7 @@ local bitset_mutator_calls = 0
 local unrelated_player_field_reads = 0
 local player_instance_query_calls = 0
 local stm_component_query_calls = 0
+local stm_capture_hook_calls = 0
 local fake_semantic_trigger_active = false
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
@@ -288,6 +289,12 @@ stm_is_delay.call = function(_, owner, command)
     stm_component_query_calls = stm_component_query_calls + 1
     return false
 end
+local stm_update = semantic_metadata_method("update", "System.Void", {
+    { name = "System.Boolean[]" }, { name = "via.hid.MouseButton" },
+    { name = "System.Boolean[]" }, { name = "via.hid.MouseButton" },
+    { name = "System.Boolean[]" }, { name = "via.hid.MouseButton" },
+    { name = "System.Boolean[]" }, { name = "via.hid.MouseButton" },
+})
 local stm_player_input_type = {
     get_full_name = function() return "snow.StmPlayerInput" end,
     get_fields = function() return { stm_refinput_field } end,
@@ -297,6 +304,7 @@ local stm_player_input_type = {
             semantic_metadata_method("setButton", "System.Void", semantic_parameter),
             semantic_metadata_method("clearButton", "System.Void", semantic_parameter),
             stm_is_delay,
+            stm_update,
         }
     end,
 }
@@ -500,6 +508,12 @@ sdk = {
         if name == current_player_base_type:get_full_name() then return current_player_base_type end
     end,
     get_native_singleton = function() return {} end,
+    to_managed_object = function(value) return value end,
+    hook = function(method, pre_hook)
+        assert(method == stm_update)
+        stm_capture_hook_calls = stm_capture_hook_calls + 1
+        pre_hook({ nil, stm_player_input_instance })
+    end,
     call_native_func = function(_, _, name)
         if name == "get_LastInputDevice" then return device end
     end,
@@ -513,7 +527,7 @@ Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics(current_player)
-assert(diagnostics.schema_version == 13)
+assert(diagnostics.schema_version == 14)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -604,14 +618,13 @@ assert(player_instance.queries[1].command == "Atk_X")
 assert(player_instance.queries[3].command == "Atk_R_A")
 assert(player_instance.queries[4].command == "Escape")
 assert(player_instance_query_calls == 4)
-local stm_component = diagnostics.stm_player_input_component_contract
-assert(stm_component.policy == "bounded_read_only_stm_manager_sibling_component")
-assert(stm_component.lookup_source == "snow.StmInputManager.GameObject")
-assert(stm_component.input_manager_available)
+local stm_component = diagnostics.stm_player_input_capture_contract
+assert(stm_component.policy == "bounded_read_only_stm_player_input_hook_capture")
+assert(stm_component.install_attempted and stm_component.hook_installed)
+assert(stm_component.capture_count == 1 and stm_component.instance_available)
+assert(stm_component.instance_type == "snow.StmPlayerInput")
 assert(stm_component.max_calls == 1 and stm_component.call_count == 1)
 assert(stm_component.call_failures == 0 and stm_component.gameplay_writes == 0)
-assert(stm_component.game_object_available and stm_component.component_type_available)
-assert(stm_component.component_available and stm_component.component_type == "snow.StmPlayerInput")
 assert(stm_component.refinput_available and stm_component.refinput_matches_current)
 assert(stm_component.refinput_type == "snow.player.PlayerInput")
 assert(stm_component.methods.set_button.available
@@ -619,6 +632,7 @@ assert(stm_component.methods.set_button.available
     and stm_component.methods.is_delay.available)
 assert(stm_component.query.command == "Escape" and stm_component.query.status == "resolved")
 assert(stm_component_query_calls == 1)
+assert(stm_capture_hook_calls == 1)
 assert(#diagnostics.input_enum_contracts == 9)
 assert(diagnostics.input_enum_contracts[1].values[2].name == "GamePad")
 assert(diagnostics.input_enum_contracts[2].available == false)

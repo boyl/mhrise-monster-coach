@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.33-stm-manager-input-sibling",
+  "session_id": "acebf05886b84c9992642b71174117a8",
+  "runtime_scope": {
+    "game_name": "mhrise",
+    "tdb_version": 71
+  },
+  "result": "rejected_manager_gameobject_sibling_lookup",
+  "observations": {
+    "input_motion_schema_version": 13,
+    "stm_input_manager_available": true,
+    "manager_game_object_available": true,
+    "stm_player_input_type_available": true,
+    "stm_player_input_component_available": false,
+    "gameplay_writes": 0,
+    "analysis_status": "invalid_read_only_contract",
+    "analysis_violations": [
+      "stm_player_input_component_not_verified"
+    ]
+  },
+  "integrity": {
+    "report_sha256": "CA7A3C106D799FD3401C4915DDA239279931D906E145EE530924DA0F8A62DCB6",
+    "analysis_sha256": "174779CFA52F81AC7C9EA6922D121635D0660D4C46ED6EF8CE859B69446E98DE"
+  },
+  "conclusion": "snow.StmPlayerInput is not discoverable from either the current player or StmInputManager GameObject on this runtime. Stop component-location guesses. The final managed read-only gate captures the naturally executing snow.StmPlayerInput.update instance through sdk.hook and verifies Refinput identity without changing arguments, return values, or gameplay state."
+}

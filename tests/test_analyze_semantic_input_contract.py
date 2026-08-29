@@ -79,6 +79,60 @@ def complete_payload():
 
 
 class SemanticInputContractAnalysisTests(unittest.TestCase):
+    def test_schema_fourteen_requires_verified_hook_capture(self):
+        payload = complete_payload()
+        payload["input_motion"]["schema_version"] = 14
+        payload["input_motion"]["stm_player_input_capture_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_hook_capture",
+            "install_attempted": True,
+            "hook_installed": True,
+            "capture_count": 1,
+            "instance_available": True,
+            "instance_type": "snow.StmPlayerInput",
+            "refinput_available": True,
+            "refinput_type": "snow.player.PlayerInput",
+            "refinput_matches_current": True,
+            "max_calls": 1,
+            "call_count": 1,
+            "call_failures": 0,
+            "gameplay_writes": 0,
+            "methods": {
+                "set_button": {"available": True},
+                "clear_button": {"available": True},
+                "is_delay": {"available": True},
+            },
+            "query": {"command": "Escape", "status": "resolved", "result": False},
+        }
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"],
+                         "stm_player_input_hook_capture_read_contract_verified")
+        self.assertEqual(result["violations"], [])
+        self.assertEqual(result["next_gate"],
+                         "design_hook_captured_press_release_experiment")
+
+    def test_schema_fourteen_rejects_uncaptured_instance(self):
+        payload = complete_payload()
+        payload["input_motion"]["schema_version"] = 14
+        payload["input_motion"]["stm_player_input_capture_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_hook_capture",
+            "install_attempted": True,
+            "hook_installed": True,
+            "capture_count": 0,
+            "instance_available": False,
+            "max_calls": 1,
+            "call_count": 0,
+            "call_failures": 0,
+            "gameplay_writes": 0,
+        }
+
+        result = analyze(payload)
+
+        self.assertEqual(result["status"], "invalid_read_only_contract")
+        self.assertIn("stm_player_input_hook_capture_not_verified",
+                      result["violations"])
+
     def test_schema_thirteen_requires_manager_sibling_component_source(self):
         payload = complete_payload()
         payload["input_motion"]["schema_version"] = 13

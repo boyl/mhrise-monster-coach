@@ -195,8 +195,38 @@ def analyze(payload: dict) -> dict:
         and len(resolved_queries) == instance_call_count
     )
     component_contract = input_motion.get("stm_player_input_component_contract") or {}
+    capture_contract = input_motion.get("stm_player_input_capture_contract") or {}
     component_read_verified = False
-    if isinstance(input_schema, int) and input_schema >= 12:
+    capture_read_verified = False
+    if isinstance(input_schema, int) and input_schema >= 14:
+        if capture_contract.get("policy") \
+                != "bounded_read_only_stm_player_input_hook_capture":
+            violations.append("stm_player_input_capture_contract_missing_or_changed")
+        if capture_contract.get("gameplay_writes") != 0:
+            violations.append("stm_player_input_capture_writes_not_zero")
+        if capture_contract.get("call_failures") != 0:
+            violations.append("stm_player_input_capture_query_failed")
+        capture_methods = capture_contract.get("methods") or {}
+        capture_read_verified = bool(
+            capture_contract.get("install_attempted") is True
+            and capture_contract.get("hook_installed") is True
+            and isinstance(capture_contract.get("capture_count"), int)
+            and capture_contract.get("capture_count") >= 1
+            and capture_contract.get("instance_available") is True
+            and capture_contract.get("instance_type") == "snow.StmPlayerInput"
+            and capture_contract.get("refinput_available") is True
+            and capture_contract.get("refinput_type") == "snow.player.PlayerInput"
+            and capture_contract.get("refinput_matches_current") is True
+            and capture_contract.get("call_count") == 1
+            and capture_contract.get("max_calls") == 1
+            and capture_contract.get("call_failures") == 0
+            and (capture_contract.get("query") or {}).get("status") == "resolved"
+            and all((capture_methods.get(name) or {}).get("available") is True
+                    for name in ("set_button", "clear_button", "is_delay"))
+        )
+        if not capture_read_verified:
+            violations.append("stm_player_input_hook_capture_not_verified")
+    elif isinstance(input_schema, int) and input_schema >= 12:
         expected_policy = (
             "bounded_read_only_stm_manager_sibling_component"
             if input_schema >= 13
@@ -232,6 +262,8 @@ def analyze(payload: dict) -> dict:
 
     if violations:
         status = "invalid_read_only_contract"
+    elif capture_read_verified:
+        status = "stm_player_input_hook_capture_read_contract_verified"
     elif component_read_verified:
         status = "stm_player_input_component_read_contract_verified"
     elif instance_read_verified:
@@ -272,7 +304,11 @@ def analyze(payload: dict) -> dict:
         "player_input_query_max_calls": instance_max_calls,
         "player_input_queries": instance_contract.get("queries") or [],
         "stm_player_input_component": component_contract,
+        "stm_player_input_capture": capture_contract,
         "next_gate": (
+            "design_hook_captured_press_release_experiment"
+            if status == "stm_player_input_hook_capture_read_contract_verified"
+            else
             "design_component_scoped_press_release_experiment"
             if status == "stm_player_input_component_read_contract_verified"
             else "design_separate_guarded_semantic_press_release_experiment"

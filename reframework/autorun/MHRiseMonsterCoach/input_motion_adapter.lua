@@ -318,6 +318,20 @@ local function exact_one_arg_method(type_def, name, param_type_name)
     return nil
 end
 
+local function exact_method(type_def, name, expected_param_types)
+    for _, method in ipairs(safe(function() return type_def:get_methods() end) or {}) do
+        if safe(function() return method:get_name() end) == name then
+            local params = safe(function() return method:get_param_types() end) or {}
+            local matches = #params == #expected_param_types
+            for index, expected in ipairs(expected_param_types) do
+                if type_name(params[index]) ~= expected then matches = false break end
+            end
+            if matches then return method end
+        end
+    end
+    return nil
+end
+
 local function exact_one_arg_method_in_hierarchy(type_def, name, param_type_name)
     local seen, depth = {}, 0
     while type_def ~= nil and depth < MAX_CONTRACT_LEVELS do
@@ -488,45 +502,82 @@ local function object_key(object)
     return tostring(safe(function() return object:get_address() end) or object)
 end
 
--- StmPlayerInput is not a managed singleton or a player-entity component in MHR.
--- Resolve it as a sibling of the global StmInputManager component, then prove
--- that its Refinput points at the current player's verified PlayerInput object.
--- This gate performs one Boolean read and no set/clear call.
-local function stm_player_input_component_contract(input_manager, player_input)
+local stm_player_input_capture = {
+    install_attempted = false,
+    hook_installed = false,
+    capture_count = 0,
+    instance = nil,
+    error = nil,
+}
+
+local STM_PLAYER_INPUT_UPDATE_PARAMS = {
+    "System.Boolean[]", "via.hid.MouseButton",
+    "System.Boolean[]", "via.hid.MouseButton",
+    "System.Boolean[]", "via.hid.MouseButton",
+    "System.Boolean[]", "via.hid.MouseButton",
+}
+
+local function install_stm_player_input_capture_hook()
+    if stm_player_input_capture.install_attempted then return end
+    stm_player_input_capture.install_attempted = true
+    local type_def = safe(function() return sdk.find_type_definition("snow.StmPlayerInput") end)
+    local update = type_def and exact_method(
+        type_def, "update", STM_PLAYER_INPUT_UPDATE_PARAMS) or nil
+    if update == nil or sdk == nil or type(sdk.hook) ~= "function" then
+        stm_player_input_capture.error = "exact update hook unavailable"
+        return
+    end
+    local ok = pcall(function()
+        sdk.hook(update, function(args)
+            local instance = safe(function() return sdk.to_managed_object(args[2]) end)
+            local instance_type = instance and type_name(safe(function()
+                return instance:get_type_definition()
+            end)) or nil
+            if instance ~= nil and instance_type == "snow.StmPlayerInput" then
+                if object_key(stm_player_input_capture.instance) ~= object_key(instance) then
+                    stm_player_input_capture.instance = instance
+                    stm_player_input_capture.capture_count =
+                        stm_player_input_capture.capture_count + 1
+                end
+            end
+        end, function(retval) return retval end)
+    end)
+    stm_player_input_capture.hook_installed = ok
+    if not ok then stm_player_input_capture.error = "sdk.hook failed" end
+end
+
+-- Both obvious GameObject locations were rejected in real runtime. Capture the
+-- naturally executing StmPlayerInput.update `this` object without changing its
+-- arguments or return value, then prove Refinput identity. This gate performs
+-- one Boolean query and no set/clear call.
+local function stm_player_input_capture_contract(player_input)
     local result = {
-        schema_version = 2,
-        policy = "bounded_read_only_stm_manager_sibling_component",
-        lookup_source = "snow.StmInputManager.GameObject",
+        schema_version = 1,
+        policy = "bounded_read_only_stm_player_input_hook_capture",
+        capture_method = "snow.StmPlayerInput.update(Boolean[],MouseButton,Boolean[],MouseButton,Boolean[],MouseButton,Boolean[],MouseButton)",
         max_calls = 1,
         call_count = 0,
         call_failures = 0,
         gameplay_writes = 0,
-        input_manager_available = input_manager ~= nil,
-        component_type_available = false,
-        component_available = false,
+        install_attempted = stm_player_input_capture.install_attempted,
+        hook_installed = stm_player_input_capture.hook_installed,
+        capture_count = stm_player_input_capture.capture_count,
+        capture_error = stm_player_input_capture.error,
+        instance_available = false,
         refinput_available = false,
         refinput_matches_current = false,
         methods = {},
     }
-    if input_manager == nil then return result end
-    local game_object = safe(function() return input_manager:call("get_GameObject") end)
-    result.game_object_available = game_object ~= nil
-    local component_token = safe(function() return sdk.typeof("snow.StmPlayerInput") end)
-    result.component_type_available = component_token ~= nil
-    local component = game_object and component_token and safe(function()
-        return game_object:call("getComponent(System.Type)", component_token)
+    local instance = stm_player_input_capture.instance
+    result.instance_available = instance ~= nil
+    local instance_type = instance and safe(function()
+        return instance:get_type_definition()
     end) or nil
-    if component == nil and game_object ~= nil and component_token ~= nil then
-        component = safe(function() return game_object:call("getComponent", component_token) end)
-    end
-    result.component_available = component ~= nil
-    local component_type = component and safe(function()
-        return component:get_type_definition()
-    end) or nil
-    result.component_type = type_name(component_type)
-    local refinput_field = component_type and exact_field(component_type, "Refinput") or nil
+    result.instance_type = type_name(instance_type)
+    result.instance_key = object_key(instance)
+    local refinput_field = instance_type and exact_field(instance_type, "Refinput") or nil
     local refinput = refinput_field and safe(function()
-        return refinput_field:get_data(component)
+        return refinput_field:get_data(instance)
     end) or nil
     result.refinput_available = refinput ~= nil
     result.refinput_type = refinput and type_name(safe(function()
@@ -537,9 +588,9 @@ local function stm_player_input_component_contract(input_manager, player_input)
     result.refinput_matches_current = result.refinput_key ~= nil
         and result.refinput_key == result.current_player_input_key
     local command_type = "snow.player.PlayerInput.CommandButton2"
-    local set_button = exact_one_arg_method(component_type, "setButton", command_type)
-    local clear_button = exact_one_arg_method(component_type, "clearButton", command_type)
-    local is_delay = exact_one_arg_method(component_type, "isDelay", command_type)
+    local set_button = exact_one_arg_method(instance_type, "setButton", command_type)
+    local clear_button = exact_one_arg_method(instance_type, "clearButton", command_type)
+    local is_delay = exact_one_arg_method(instance_type, "isDelay", command_type)
     result.methods = {
         set_button = { available = set_button ~= nil, signature = "setButton(" .. command_type .. ")" },
         clear_button = { available = clear_button ~= nil, signature = "clearButton(" .. command_type .. ")" },
@@ -547,9 +598,9 @@ local function stm_player_input_component_contract(input_manager, player_input)
     }
     local value = enum_value_by_name(enum_contract(command_type), "Escape")
     result.query = { command = "Escape", value = value, status = "unavailable" }
-    if component ~= nil and is_delay ~= nil and value ~= nil then
+    if instance ~= nil and is_delay ~= nil and value ~= nil then
         result.call_count = 1
-        local ok, active = pcall(function() return is_delay:call(component, value) end)
+        local ok, active = pcall(function() return is_delay:call(instance, value) end)
         if ok and type(active) == "boolean" then
             result.query.status = "resolved"
             result.query.result = active
@@ -558,7 +609,7 @@ local function stm_player_input_component_contract(input_manager, player_input)
             result.query.status = "call_failed"
         end
     end
-    return result, component
+    return result, instance
 end
 
 local function binding_dictionary_field_contract(config_type, config_instance, spec)
@@ -740,6 +791,7 @@ local function input_contract_hierarchy(type_def, instance)
 end
 
 function M.new()
+    install_stm_player_input_capture_hook()
     local button_type = safe(function() return sdk.find_type_definition("via.hid.GamePadButton") end)
     local emu_up_field = button_type and safe(function() return button_type:get_field("EmuLup") end) or nil
     return setmetatable({
@@ -758,9 +810,9 @@ function M.new()
         player_input_instance_snapshot = nil,
         player_input_player_key = nil,
         player_input_instance = nil,
-        stm_player_input_component_snapshot = nil,
-        stm_player_input_component = nil,
-        stm_player_input_manager_key = nil,
+        stm_player_input_capture_snapshot = nil,
+        stm_player_input_instance = nil,
+        stm_player_input_capture_count = -1,
         semantic_trigger = {
             status = "idle",
             command = nil,
@@ -969,17 +1021,17 @@ function M:diagnostics(player)
             owner_instance,
             owner_contract.resolved_owner and owner_contract.resolved_owner.object_type or nil)
     end
-    local stm_key = object_key(stm)
-    if self.stm_player_input_manager_key ~= stm_key
-        or self.stm_player_input_component_snapshot == nil then
-        self.stm_player_input_manager_key = stm_key
-        self.stm_player_input_component_snapshot, self.stm_player_input_component =
-            stm_player_input_component_contract(stm, self.player_input_instance)
+    local capture_count = stm_player_input_capture.capture_count
+    if self.stm_player_input_capture_count ~= capture_count
+        or self.stm_player_input_capture_snapshot == nil then
+        self.stm_player_input_capture_count = capture_count
+        self.stm_player_input_capture_snapshot, self.stm_player_input_instance =
+            stm_player_input_capture_contract(self.player_input_instance)
     end
     local player_input_owner = self.player_input_owner_snapshot
         or player_input_owner_contract(nil)
     return {
-        schema_version = 13,
+        schema_version = 14,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -1003,8 +1055,8 @@ function M:diagnostics(player)
         player_input_owner_contract = player_input_owner,
         player_input_instance_contract = self.player_input_instance_snapshot
             or player_input_instance_read_contract(nil, nil),
-        stm_player_input_component_contract = self.stm_player_input_component_snapshot
-            or stm_player_input_component_contract(stm, nil),
+        stm_player_input_capture_contract = self.stm_player_input_capture_snapshot
+            or stm_player_input_capture_contract(nil),
         input_enum_contracts = {
             enum_contract("snow.StmInputManager.ActiveGameDevice"),
             enum_contract("snow.StmInputManager.ActiveDevice"),
