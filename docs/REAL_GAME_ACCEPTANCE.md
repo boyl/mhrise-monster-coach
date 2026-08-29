@@ -26,6 +26,7 @@
 | 2026-08-29 | 0.49.31-actionable-trigger-gate | 可操作中立态后的 `Escape` 复测 | `wait.main` 连续稳定 15 帧后注入；单写入和第 2 HID 周期自然释放再次通过，游戏保持响应 | 排除到达动画吞输入；分析器只认 `atk.esc_*`，不把其他节点冒充回避 | 60 帧内无动作变化；停止 Manager 位集入口，转为只读定位当前猎人的 `StmPlayerInput` 组件 |
 | 2026-08-29 | 0.49.32-stm-player-input-component | 当前猎人 GameObject 组件定位否证 | 自动进入任务并完成 schema 12 报告；玩家、GameObject 和目标类型均存在；写入为 0 | 明确确认 `StmPlayerInput` 不挂在玩家实体上，避免在错误对象上进行 set/clear 实验 | 改查全局 `StmInputManager` 所在 GameObject 的同级组件，并继续要求 `Refinput` 同址 |
 | 2026-08-29 | 0.49.33-stm-manager-input-sibling | 全局 InputManager GameObject 组件定位否证 | 自动进入任务并完成 schema 13 报告；Manager 与 GameObject 均存在；写入为 0 | 明确确认 `StmPlayerInput` 也不是 Manager 的可查询同级组件，停止位置枚举 | 最后一层托管调查改为只读 hook 自然执行的 `StmPlayerInput.update`，捕获真实实例后验证 `Refinput` |
+| 2026-08-29 | 0.49.34-stm-input-hook-capture | 自然执行的语义输入实例只读捕获 | hook 安装成功且只捕获 1 个 `snow.StmPlayerInput`；`Refinput` 与当前玩家同址；三项方法与一次查询全绿；写入为 0 | 首次取得经过对象归属验证的 MHR 语义输入 owner，不再依赖位置猜测 | 下一独立版本只允许一次 Escape set/clear 成对生命周期实验，结果不自动升级为产品能力 |
 
 `0.49.14-semantic-action-gate` 已完成部署，但自动语义校准由用户主动中止，故没有新的动作语义验收结论。中止后的只读检查确认无外部采集进程、临时 Quest ID `200032002` 不存在，随后删除了匹配失败报告的终态请求。`0.49.15` 完成玩家接管与清理门禁。`0.49.16` 证明 XBUTTON1 修正不足，并暴露固定七步忽略活动书替换技的问题。`0.49.25` 已取得本机真实绑定，并以两种 Windows 注入 API 得到同一失败结果；因此见切 `atk.atk_147.atk_147` 不再通过物理侧键猜测复测。下一阶段只允许有界调查 MHR 自身 `StmPlayerInput/CommandButton2` 语义入口；所有候选在实机确认前不升级为已验证映射。
 

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.34-stm-input-hook-capture",
+  "session_id": "ef6ec0f948554a07b6e18033e054b7b7",
+  "runtime_scope": {
+    "game_name": "mhrise",
+    "tdb_version": 71
+  },
+  "result": "verified_read_only_runtime_instance_capture",
+  "observations": {
+    "input_motion_schema_version": 14,
+    "hook_installed": true,
+    "capture_count": 1,
+    "instance_type": "snow.StmPlayerInput",
+    "refinput_type": "snow.player.PlayerInput",
+    "refinput_matches_current": true,
+    "set_button_available": true,
+    "clear_button_available": true,
+    "is_delay_available": true,
+    "query_status": "resolved",
+    "query_result": false,
+    "call_count": 1,
+    "call_failures": 0,
+    "gameplay_writes": 0,
+    "analysis_status": "stm_player_input_hook_capture_read_contract_verified",
+    "analysis_violations": []
+  },
+  "integrity": {
+    "report_sha256": "DCEE95BBBDE8ADD53A565FD2F9A1A0547EEE6015FFB1F63850FDCF8109DB560D",
+    "analysis_sha256": "ADDB03E652599BA6A3C7D1F2C3B7D7EBB68D8BB98AAC67BA5D6004E281FE7044"
+  },
+  "conclusion": "The naturally executing snow.StmPlayerInput.update hook exposes the real semantic input owner, and its Refinput is identical to the current player's verified PlayerInput. A separate experiment may issue exactly one Escape setButton followed by exactly one clearButton on the next HID cycle; this evidence alone does not authorize product input automation."
+}

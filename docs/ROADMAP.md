@@ -44,7 +44,7 @@
 
 ## 当前推进批次
 
-当前源码候选版本为 `0.49.34-stm-input-hook-capture`。`0.49.32` 与 `0.49.33` 的集中实机报告已证明当前猎人和全局 InputManager 的 GameObject 都不含 `snow.StmPlayerInput`，且全过程零写入；位置枚举到此停止。本版通过只读 pre-hook 捕获游戏自然执行的 `StmPlayerInput.update` 实例，并继续以 `Refinput` 同址作为硬门禁。否证见 `docs/evidence/PLAYER_GAMEOBJECT_STM_INPUT_REJECTION_2026-08-29.json`、`docs/evidence/MANAGER_GAMEOBJECT_STM_INPUT_REJECTION_2026-08-29.json`。
+当前源码候选版本为 `0.49.35-stm-input-paired-trigger`。`0.49.34` 已以零写入实机捕获游戏自然执行的 `StmPlayerInput.update` 实例，确认 `Refinput` 同址、三个精确方法和一次 Boolean 查询全部通过。本版在既有离线任务与稳定中立态门禁后，只允许一次 `setButton(Escape)` 和下一 HID 周期的一次 `clearButton(Escape)`，并记录动作节点；不开放 UI、不循环、不扩展到武器招式。完整门禁见 `docs/evidence/STM_PLAYER_INPUT_HOOK_CAPTURE_ACCEPTANCE_2026-08-29.json`。
 
 `0.49.29` 已在真实游戏中完成四项精确 `isDelay(CommandButton2)` 调用：`Atk_X=0`、`Atk_A=1`、`Atk_R_A=41`、`Escape=3` 均成功返回 Boolean，调用 4/4、失败 0、玩法写入 0，游戏继续正常响应。该结果只证明当前玩家实例、命令枚举和调用约定有效，不解释为动作成功；完整证据见 `docs/evidence/PLAYER_INPUT_READ_ACCEPTANCE_2026-08-29.json`。
 
@@ -52,7 +52,7 @@
 
 `0.49.30` 实机已经通过写入与释放门禁：`Escape=3` 只写入 1 次，在第 2 个 HID 周期自然释放，游戏持续响应。但触发前后猎人均处于古塔到达动画，未出现回避节点；因此命令范围保持不变。`0.49.31` 增加 15 帧已验证中立节点门禁，并把动作验收收紧为 `atk.esc_*`，任意节点变化不再触发下一命令解锁。完整证据见 `docs/evidence/SEMANTIC_TRIGGER_LIFECYCLE_ACCEPTANCE_2026-08-29.json`。
 
-`0.49.31` 的实机复测在 `wait.main` 连续稳定 15 帧后才注入，但 60 帧内仍无任何动作节点变化；单写入、自然释放和游戏稳定性继续通过。Manager `getTrg()` 位集路线由此停止，不再换帧位重复猜测。`0.49.32` 与 `0.49.33` 又排除两个 GameObject 位置。`0.49.34` 只读捕获自然执行的 `StmPlayerInput.update` 实例，校验 `Refinput` 与已验证玩家输入对象同址、三个精确方法签名及一次 `isDelay(Escape)` Boolean 调用。只有该捕获契约实机全绿后，下一独立版本才允许设计 `setButton/clearButton` 成对实验；若捕获失败，则结束托管语义写入路线。复测与否证见 `docs/evidence/ACTIONABLE_TRIGGER_ACCEPTANCE_2026-08-29.json`、`docs/evidence/PLAYER_GAMEOBJECT_STM_INPUT_REJECTION_2026-08-29.json`、`docs/evidence/MANAGER_GAMEOBJECT_STM_INPUT_REJECTION_2026-08-29.json`。
+`0.49.31` 的实机复测在 `wait.main` 连续稳定 15 帧后才注入，但 60 帧内仍无任何动作节点变化；单写入、自然释放和游戏稳定性继续通过。Manager `getTrg()` 位集路线由此停止，不再换帧位重复猜测。`0.49.32` 与 `0.49.33` 排除两个 GameObject 位置，`0.49.34` 则完成真实运行实例的只读捕获门禁。`0.49.35` 只验证一次 `setButton(Escape)`/`clearButton(Escape)` 成对生命周期；如果未形成 `atk.esc_*`，则停止该调用时点，不通过延长按住或扩大命令范围碰运气。证据见 `docs/evidence/ACTIONABLE_TRIGGER_ACCEPTANCE_2026-08-29.json`、`docs/evidence/PLAYER_GAMEOBJECT_STM_INPUT_REJECTION_2026-08-29.json`、`docs/evidence/MANAGER_GAMEOBJECT_STM_INPUT_REJECTION_2026-08-29.json`、`docs/evidence/STM_PLAYER_INPUT_HOOK_CAPTURE_ACCEPTANCE_2026-08-29.json`。
 
 `0.41.0` 将指定出招菜单收敛为“精选起手目录”，按独立关键招式、固定派生起手和条件派生起手分组。每个入口仍必须先展示派生树，再开放开始按钮；训练顺序、分类和简介全部属于怪物数据包，通用 Controller 不写死轰龙招式。当前只公开已具备安全证据的咆哮和短距半回转钩咬，后续起手通过同一数据契约批量加入，不把未经验证的 Action 暴露给玩家。
 

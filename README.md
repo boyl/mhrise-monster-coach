@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：源码候选版 `0.49.34-stm-input-hook-capture`。`0.49.32` 与 `0.49.33` 已以零写入实机证明 `snow.StmPlayerInput` 不在当前猎人或全局 InputManager 的 GameObject 上，因此停止位置枚举。本版只读钩取游戏自然执行的 `StmPlayerInput.update`，捕获真实 `this` 实例，要求其 `Refinput` 与当前猎人的输入对象同址，并执行一次 `isDelay(Escape)` 查询；不改变参数/返回值，也不调用 `setButton/clearButton`。轰龙核心闭环已有多项实机证据，但尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
+> 当前状态：源码候选版 `0.49.35-stm-input-paired-trigger`。`0.49.34` 已以零写入实机捕获真实 `snow.StmPlayerInput`，确认其 `Refinput` 与当前猎人输入对象同址，且 set/clear/query 契约完整。本版仅在离线陪练任务和 15 帧稳定中立态中，执行一次 `Escape` 的 `setButton`，并在下一 HID 周期执行一次 `clearButton`；失败或脚本退出时也优先释放。实验仍不暴露到普通 UI，也不会自动扩大到武器招式。轰龙核心闭环已有多项实机证据，但尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 

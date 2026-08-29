@@ -136,6 +136,8 @@ local unrelated_player_field_reads = 0
 local player_instance_query_calls = 0
 local stm_component_query_calls = 0
 local stm_capture_hook_calls = 0
+local stm_trigger_set_calls = 0
+local stm_trigger_clear_calls = 0
 local fake_semantic_trigger_active = false
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
@@ -289,6 +291,16 @@ stm_is_delay.call = function(_, owner, command)
     stm_component_query_calls = stm_component_query_calls + 1
     return false
 end
+local stm_set_button = semantic_metadata_method("setButton", "System.Void", semantic_parameter)
+stm_set_button.call = function(_, owner, command)
+    assert(owner == stm_player_input_instance and command == 3)
+    stm_trigger_set_calls = stm_trigger_set_calls + 1
+end
+local stm_clear_button = semantic_metadata_method("clearButton", "System.Void", semantic_parameter)
+stm_clear_button.call = function(_, owner, command)
+    assert(owner == stm_player_input_instance and command == 3)
+    stm_trigger_clear_calls = stm_trigger_clear_calls + 1
+end
 local stm_update = semantic_metadata_method("update", "System.Void", {
     { name = "System.Boolean[]" }, { name = "via.hid.MouseButton" },
     { name = "System.Boolean[]" }, { name = "via.hid.MouseButton" },
@@ -301,8 +313,8 @@ local stm_player_input_type = {
     get_methods = function()
         return {
             semantic_metadata_method("updateCommand", "System.Void", {}),
-            semantic_metadata_method("setButton", "System.Void", semantic_parameter),
-            semantic_metadata_method("clearButton", "System.Void", semantic_parameter),
+            stm_set_button,
+            stm_clear_button,
             stm_is_delay,
             stm_update,
         }
@@ -707,11 +719,14 @@ assert(trigger_adapter:semantic_trigger_diagnostics().status == "pending")
 assert(trigger_adapter:flush_semantic_trigger())
 assert(trigger_adapter:semantic_trigger_diagnostics().status == "injected")
 assert(trigger_adapter:semantic_trigger_diagnostics().write_count == 1)
-assert(bitset_mutator_calls == 1, "exactly one allowlisted trigger bit is written")
-fake_semantic_trigger_active = false
+assert(trigger_adapter:semantic_trigger_diagnostics().set_count == 1)
+assert(stm_trigger_set_calls == 1, "exactly one allowlisted semantic set is issued")
 assert(trigger_adapter:flush_semantic_trigger())
 assert(trigger_adapter:semantic_trigger_diagnostics().status == "released")
 assert(trigger_adapter:semantic_trigger_diagnostics().released_after_hid_cycles == 2)
+assert(trigger_adapter:semantic_trigger_diagnostics().write_count == 2)
+assert(trigger_adapter:semantic_trigger_diagnostics().clear_count == 1)
+assert(stm_trigger_clear_calls == 1, "paired semantic trigger is explicitly released")
 assert(not trigger_adapter:arm_semantic_trigger("Atk_R_A"),
     "non-allowlisted semantic commands fail closed")
 local cancelled_trigger_adapter = Adapter.new()
@@ -720,7 +735,9 @@ assert(cancelled_trigger_adapter:arm_semantic_trigger("Escape"))
 assert(cancelled_trigger_adapter:cancel_semantic_trigger())
 assert(cancelled_trigger_adapter:semantic_trigger_diagnostics().status == "cancelled")
 assert(cancelled_trigger_adapter:flush_semantic_trigger())
-assert(bitset_mutator_calls == 1, "cancellation before UpdateHID must prevent injection")
+assert(stm_trigger_set_calls == 1 and stm_trigger_clear_calls == 1,
+    "cancellation before UpdateHID must prevent injection")
+assert(bitset_mutator_calls == 0, "retired manager bitset mutator is never called")
 local adapter = Adapter.new()
 assert(adapter:write_axis(0, 1))
 assert(adapter:diagnostics().owned and adapter:diagnostics().request_count == 1)

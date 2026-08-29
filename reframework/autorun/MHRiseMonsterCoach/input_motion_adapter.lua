@@ -819,7 +819,9 @@ function M.new()
             command_value = nil,
             hid_cycles = 0,
             write_count = 0,
-            read_count = 0,
+            set_count = 0,
+            clear_count = 0,
+            clear_attempts = 0,
             error = nil,
         },
         emu_up = emu_up_field and safe(function() return emu_up_field:get_data(nil) end) or nil,
@@ -833,24 +835,29 @@ function M:arm_semantic_trigger(command)
         and self.semantic_trigger.status ~= "failed" then
         return false, "A semantic trigger is already active"
     end
-    local contract = self.player_input_instance_snapshot
+    local contract = self.stm_player_input_capture_snapshot
     if contract == nil or contract.instance_available ~= true
+        or contract.instance_type ~= "snow.StmPlayerInput"
+        or contract.refinput_matches_current ~= true
+        or contract.hook_installed ~= true
         or tonumber(contract.call_failures or 0) ~= 0
         or tonumber(contract.call_count or 0) ~= tonumber(contract.max_calls or -1) then
-        return false, "Player input read contract is not verified"
+        return false, "Captured StmPlayerInput read contract is not verified"
     end
     local value = enum_value_by_name(
         enum_contract("snow.player.PlayerInput.CommandButton2"), command)
     if value == nil then return false, "Semantic command is unavailable" end
     self.semantic_trigger = {
         schema_version = 1,
-        policy = "single_frame_trigger_only",
+        policy = "paired_stm_player_input_set_clear",
         status = "pending",
         command = command,
         command_value = value,
         hid_cycles = 0,
         write_count = 0,
-        read_count = 0,
+        set_count = 0,
+        clear_count = 0,
+        clear_attempts = 0,
         error = nil,
     }
     return true
@@ -860,57 +867,54 @@ function M:flush_semantic_trigger()
     local trigger = self.semantic_trigger
     if trigger.status ~= "pending" and trigger.status ~= "injected" then return true end
     trigger.hid_cycles = trigger.hid_cycles + 1
-    local manager_type = safe(function() return sdk.find_type_definition("snow.StmInputManager") end)
-    local manager = safe(function() return sdk.get_managed_singleton("snow.StmInputManager") end)
-    if manager_type == nil or manager == nil then
+    local instance = self.stm_player_input_instance
+    local instance_type = instance and safe(function()
+        return instance:get_type_definition()
+    end) or nil
+    if instance == nil or type_name(instance_type) ~= "snow.StmPlayerInput" then
         trigger.status = "failed"
-        trigger.error = "StmInputManager unavailable"
+        trigger.error = "Captured StmPlayerInput unavailable"
         return false, trigger.error
     end
     if trigger.status == "pending" then
-        local getter = exact_zero_arg_method(manager_type, "getTrg")
-        local bitset = getter and safe(function() return getter:call(manager) end) or nil
-        local bitset_type = bitset and safe(function() return bitset:get_type_definition() end) or nil
-        local setter, declaring_type = exact_one_arg_method_in_hierarchy(
-            bitset_type, "set", "System.UInt32")
-        if setter == nil or bitset == nil then
+        local setter = exact_one_arg_method(
+            instance_type, "setButton", "snow.player.PlayerInput.CommandButton2")
+        if setter == nil then
             trigger.status = "failed"
-            trigger.error = "Semantic trigger setter unavailable"
+            trigger.error = "StmPlayerInput.setButton unavailable"
             return false, trigger.error
         end
-        local ok = pcall(function() setter:call(bitset, trigger.command_value) end)
+        local ok = pcall(function() setter:call(instance, trigger.command_value) end)
         if not ok then
             trigger.status = "failed"
-            trigger.error = "Semantic trigger write failed"
+            trigger.error = "StmPlayerInput.setButton failed"
             return false, trigger.error
         end
         trigger.status = "injected"
-        trigger.setter_declaring_type = declaring_type
+        trigger.setter_declaring_type = type_name(instance_type)
         trigger.write_count = trigger.write_count + 1
+        trigger.set_count = trigger.set_count + 1
         return true
     end
-    local query = exact_one_arg_method(
-        manager_type, "isTrg", "snow.player.PlayerInput.CommandButton2")
-    if query == nil then
+    local clearer = exact_one_arg_method(
+        instance_type, "clearButton", "snow.player.PlayerInput.CommandButton2")
+    if clearer == nil then
         trigger.status = "failed"
-        trigger.error = "Semantic trigger release query unavailable"
+        trigger.error = "StmPlayerInput.clearButton unavailable"
         return false, trigger.error
     end
-    local ok, active = pcall(function() return query:call(manager, trigger.command_value) end)
-    trigger.read_count = trigger.read_count + 1
-    if not ok or type(active) ~= "boolean" then
-        trigger.status = "failed"
-        trigger.error = "Semantic trigger release query failed"
-        return false, trigger.error
-    end
-    if active ~= true then
+    trigger.clear_attempts = trigger.clear_attempts + 1
+    local ok = pcall(function() clearer:call(instance, trigger.command_value) end)
+    if ok then
+        trigger.write_count = trigger.write_count + 1
+        trigger.clear_count = trigger.clear_count + 1
         trigger.status = "released"
         trigger.released_after_hid_cycles = trigger.hid_cycles
         return true
     end
-    if trigger.hid_cycles >= 3 then
+    if trigger.clear_attempts >= 3 then
         trigger.status = "failed"
-        trigger.error = "Semantic trigger did not release naturally"
+        trigger.error = "StmPlayerInput.clearButton failed after retries"
         return false, trigger.error
     end
     return true
@@ -921,8 +925,27 @@ function M:cancel_semantic_trigger()
     if trigger.status == "pending" then
         trigger.status = "cancelled"
         trigger.error = "Cancelled before injection"
+    elseif trigger.status == "injected" then
+        local instance = self.stm_player_input_instance
+        local instance_type = instance and safe(function()
+            return instance:get_type_definition()
+        end) or nil
+        local clearer = exact_one_arg_method(
+            instance_type, "clearButton", "snow.player.PlayerInput.CommandButton2")
+        local ok = clearer ~= nil and pcall(function()
+            clearer:call(instance, trigger.command_value)
+        end)
+        if ok then
+            trigger.write_count = trigger.write_count + 1
+            trigger.clear_count = trigger.clear_count + 1
+            trigger.status = "cancelled"
+            trigger.error = "Released during cancellation"
+        else
+            trigger.status = "failed"
+            trigger.error = "Cancellation release failed"
+        end
     end
-    return trigger.status ~= "pending"
+    return trigger.status ~= "pending" and trigger.status ~= "injected"
 end
 
 function M:semantic_trigger_diagnostics()

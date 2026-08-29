@@ -40,6 +40,53 @@ def payload():
 
 
 class SemanticTriggerAnalysisTests(unittest.TestCase):
+    def test_accepts_paired_captured_stm_player_trigger(self):
+        data = payload()
+        trigger = data["input_motion"]["semantic_trigger"]
+        trigger.update({
+            "policy": "paired_stm_player_input_set_clear",
+            "write_count": 2,
+            "set_count": 1,
+            "clear_count": 1,
+        })
+        data["input_motion"]["preflight"]["stm_player_input_capture_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_hook_capture",
+            "hook_installed": True,
+            "instance_type": "snow.StmPlayerInput",
+            "refinput_matches_current": True,
+            "call_failures": 0,
+        }
+
+        result = analyze(data)
+
+        self.assertEqual(result["status"], "verified_paired_stm_player_trigger")
+        self.assertEqual(result["violations"], [])
+        self.assertEqual(result["set_count"], 1)
+        self.assertEqual(result["clear_count"], 1)
+
+    def test_rejects_unpaired_captured_stm_player_trigger(self):
+        data = payload()
+        trigger = data["input_motion"]["semantic_trigger"]
+        trigger.update({
+            "policy": "paired_stm_player_input_set_clear",
+            "write_count": 1,
+            "set_count": 1,
+            "clear_count": 0,
+        })
+        data["input_motion"]["preflight"]["stm_player_input_capture_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_hook_capture",
+            "hook_installed": True,
+            "instance_type": "snow.StmPlayerInput",
+            "refinput_matches_current": True,
+            "call_failures": 0,
+        }
+
+        result = analyze(data)
+
+        self.assertEqual(result["status"], "invalid_trigger_experiment")
+        self.assertIn("write_count_out_of_policy", result["violations"])
+        self.assertIn("paired_set_clear_count_invalid", result["violations"])
+
     def test_accepts_one_write_natural_release_and_action_change(self):
         result = analyze(payload())
         self.assertEqual(result["status"], "verified_single_frame_trigger")
@@ -56,7 +103,7 @@ class SemanticTriggerAnalysisTests(unittest.TestCase):
         result = analyze(data)
         self.assertEqual(result["status"], "invalid_trigger_experiment")
         self.assertIn("trigger_release_not_verified", result["violations"])
-        self.assertIn("write_count_not_one", result["violations"])
+        self.assertIn("write_count_out_of_policy", result["violations"])
 
     def test_no_action_change_keeps_write_scope_closed(self):
         data = payload()
