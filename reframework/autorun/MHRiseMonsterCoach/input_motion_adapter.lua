@@ -84,6 +84,7 @@ local BINDING_TARGETS = {
 }
 
 local MAX_BINDING_LOOKUP_CALLS = 24
+local SEMANTIC_TRIGGER_EXPERIMENT_ENABLED = false
 
 local function mentions_any(value, terms)
     local lower = string.lower(tostring(value or ""))
@@ -531,15 +532,19 @@ local function install_stm_player_input_capture_hook()
     end
     local ok = pcall(function()
         sdk.hook(update, function(args)
-            local instance = safe(function() return sdk.to_managed_object(args[2]) end)
-            local instance_type = instance and type_name(safe(function()
-                return instance:get_type_definition()
-            end)) or nil
-            if instance ~= nil and instance_type == "snow.StmPlayerInput" then
-                if object_key(stm_player_input_capture.instance) ~= object_key(instance) then
-                    stm_player_input_capture.instance = instance
-                    stm_player_input_capture.capture_count =
-                        stm_player_input_capture.capture_count + 1
+            local instance = nil
+            if stm_player_input_capture.instance == nil
+                or stm_player_input_active_trigger ~= nil then
+                instance = safe(function() return sdk.to_managed_object(args[2]) end)
+                local instance_type = instance and type_name(safe(function()
+                    return instance:get_type_definition()
+                end)) or nil
+                if instance ~= nil and instance_type == "snow.StmPlayerInput" then
+                    if object_key(stm_player_input_capture.instance) ~= object_key(instance) then
+                        stm_player_input_capture.instance = instance
+                        stm_player_input_capture.capture_count =
+                            stm_player_input_capture.capture_count + 1
+                    end
                 end
             end
             stm_player_input_update_instance = instance
@@ -842,6 +847,9 @@ function M.new()
 end
 
 function M:arm_semantic_trigger(command)
+    if not SEMANTIC_TRIGGER_EXPERIMENT_ENABLED then
+        return false, "Semantic trigger experiment retired after verified non-consumption"
+    end
     if command ~= "Escape" then return false, "Only Escape is allowlisted" end
     if self.semantic_trigger.status ~= "idle"
         and self.semantic_trigger.status ~= "released"

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.36-stm-input-hook-window",
+  "session_id": "d3cbb96c0c66433cb77b8980b8e4e024",
+  "runtime_scope": {
+    "game_name": "mhrise",
+    "tdb_version": 71
+  },
+  "result": "verified_lifecycle_but_rejected_as_action_input_entry",
+  "observations": {
+    "neutral_node": "wait.main",
+    "neutral_stable_frames": 15,
+    "policy": "hook_scoped_stm_player_input_set_clear",
+    "set_location": "StmPlayerInput.update post-hook",
+    "clear_location": "next StmPlayerInput.update pre-hook",
+    "set_count": 1,
+    "clear_count": 1,
+    "write_count": 2,
+    "released_after_hid_cycles": 2,
+    "expected_escape_observed": false,
+    "semantic_action_observed": false,
+    "observed_nodes": [],
+    "game_responding": true,
+    "analysis_status": "verified_hook_scoped_stm_player_trigger",
+    "analysis_violations": []
+  },
+  "integrity": {
+    "report_sha256": "22DA395A897AE5628BE54895C121CD7C4B0033232625D118D5ECE61DF7D09AE6",
+    "analysis_sha256": "0AD6446A4F90F1EE961A8FF27BE23C438F32721E8709024484BFA50267185A30"
+  },
+  "conclusion": "Even the native StmPlayerInput.update post/pre window does not drive the player FSM. Retire all managed semantic trigger writes. Keep the read-only instance capture as evidence and fail closed on future arm requests. Product controller support remains limited to verified physical bindings and conflict detection; developer acceptance continues to use normal external input where safe."
+}
