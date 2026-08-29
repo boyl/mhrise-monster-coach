@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.35-stm-input-paired-trigger",
+  "session_id": "b11b3d9d924f49ab8a8c48c72431a0ec",
+  "runtime_scope": {
+    "game_name": "mhrise",
+    "tdb_version": 71
+  },
+  "result": "verified_lifecycle_without_player_action",
+  "observations": {
+    "neutral_node": "wait.main",
+    "neutral_stable_frames": 15,
+    "policy": "paired_stm_player_input_set_clear",
+    "set_count": 1,
+    "clear_count": 1,
+    "write_count": 2,
+    "released_after_hid_cycles": 2,
+    "expected_escape_observed": false,
+    "semantic_action_observed": false,
+    "observed_nodes": [],
+    "game_responding": true,
+    "analysis_status": "verified_paired_stm_player_trigger",
+    "analysis_violations": []
+  },
+  "integrity": {
+    "report_sha256": "95E3EA45D096FA87B9EB7D03BE26D32192A549C7B0E06BB5C75659AE5023E1D6",
+    "analysis_sha256": "ADF04FB69D5937B0F322A49A9649D798DAF7B7D8A5D63D388FF7EFC8A9FD6CBB"
+  },
+  "conclusion": "The captured owner and paired release lifecycle are safe, but setButton after the overall UpdateHID application entry is too late for the player action consumer. The final timing attempt sets in StmPlayerInput.update post-hook and clears in the next update pre-hook without increasing command scope or write count."
+}

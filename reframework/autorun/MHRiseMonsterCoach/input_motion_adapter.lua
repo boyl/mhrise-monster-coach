@@ -509,6 +509,8 @@ local stm_player_input_capture = {
     instance = nil,
     error = nil,
 }
+local stm_player_input_active_trigger = nil
+local stm_player_input_update_instance = nil
 
 local STM_PLAYER_INPUT_UPDATE_PARAMS = {
     "System.Boolean[]", "via.hid.MouseButton",
@@ -540,7 +542,18 @@ local function install_stm_player_input_capture_hook()
                         stm_player_input_capture.capture_count + 1
                 end
             end
-        end, function(retval) return retval end)
+            stm_player_input_update_instance = instance
+            if stm_player_input_active_trigger ~= nil then
+                stm_player_input_active_trigger:_semantic_hook_before_update(instance)
+            end
+        end, function(retval)
+            local instance = stm_player_input_update_instance
+            stm_player_input_update_instance = nil
+            if stm_player_input_active_trigger ~= nil then
+                stm_player_input_active_trigger:_semantic_hook_after_update(instance)
+            end
+            return retval
+        end)
     end)
     stm_player_input_capture.hook_installed = ok
     if not ok then stm_player_input_capture.error = "sdk.hook failed" end
@@ -849,7 +862,7 @@ function M:arm_semantic_trigger(command)
     if value == nil then return false, "Semantic command is unavailable" end
     self.semantic_trigger = {
         schema_version = 1,
-        policy = "paired_stm_player_input_set_clear",
+        policy = "hook_scoped_stm_player_input_set_clear",
         status = "pending",
         command = command,
         command_value = value,
@@ -860,42 +873,25 @@ function M:arm_semantic_trigger(command)
         clear_attempts = 0,
         error = nil,
     }
+    stm_player_input_active_trigger = self
     return true
 end
 
-function M:flush_semantic_trigger()
+function M:_semantic_hook_before_update(instance)
     local trigger = self.semantic_trigger
     if trigger.status ~= "pending" and trigger.status ~= "injected" then return true end
     trigger.hid_cycles = trigger.hid_cycles + 1
-    local instance = self.stm_player_input_instance
     local instance_type = instance and safe(function()
         return instance:get_type_definition()
     end) or nil
-    if instance == nil or type_name(instance_type) ~= "snow.StmPlayerInput" then
+    if instance == nil or type_name(instance_type) ~= "snow.StmPlayerInput"
+        or object_key(instance) ~= object_key(self.stm_player_input_instance) then
         trigger.status = "failed"
-        trigger.error = "Captured StmPlayerInput unavailable"
+        trigger.error = "Hooked StmPlayerInput no longer matches captured instance"
+        stm_player_input_active_trigger = nil
         return false, trigger.error
     end
-    if trigger.status == "pending" then
-        local setter = exact_one_arg_method(
-            instance_type, "setButton", "snow.player.PlayerInput.CommandButton2")
-        if setter == nil then
-            trigger.status = "failed"
-            trigger.error = "StmPlayerInput.setButton unavailable"
-            return false, trigger.error
-        end
-        local ok = pcall(function() setter:call(instance, trigger.command_value) end)
-        if not ok then
-            trigger.status = "failed"
-            trigger.error = "StmPlayerInput.setButton failed"
-            return false, trigger.error
-        end
-        trigger.status = "injected"
-        trigger.setter_declaring_type = type_name(instance_type)
-        trigger.write_count = trigger.write_count + 1
-        trigger.set_count = trigger.set_count + 1
-        return true
-    end
+    if trigger.status == "pending" then return true end
     local clearer = exact_one_arg_method(
         instance_type, "clearButton", "snow.player.PlayerInput.CommandButton2")
     if clearer == nil then
@@ -910,11 +906,59 @@ function M:flush_semantic_trigger()
         trigger.clear_count = trigger.clear_count + 1
         trigger.status = "released"
         trigger.released_after_hid_cycles = trigger.hid_cycles
+        stm_player_input_active_trigger = nil
         return true
     end
     if trigger.clear_attempts >= 3 then
         trigger.status = "failed"
         trigger.error = "StmPlayerInput.clearButton failed after retries"
+        stm_player_input_active_trigger = nil
+        return false, trigger.error
+    end
+    return true
+end
+
+function M:_semantic_hook_after_update(instance)
+    local trigger = self.semantic_trigger
+    if trigger.status ~= "pending" then return true end
+    local instance_type = instance and safe(function()
+        return instance:get_type_definition()
+    end) or nil
+    if instance == nil or type_name(instance_type) ~= "snow.StmPlayerInput"
+        or object_key(instance) ~= object_key(self.stm_player_input_instance) then
+        trigger.status = "failed"
+        trigger.error = "Hooked StmPlayerInput no longer matches captured instance"
+        stm_player_input_active_trigger = nil
+        return false, trigger.error
+    end
+    local setter = exact_one_arg_method(
+        instance_type, "setButton", "snow.player.PlayerInput.CommandButton2")
+    if setter == nil then
+        trigger.status = "failed"
+        trigger.error = "StmPlayerInput.setButton unavailable"
+        stm_player_input_active_trigger = nil
+        return false, trigger.error
+    end
+    local ok = pcall(function() setter:call(instance, trigger.command_value) end)
+    if not ok then
+        trigger.status = "failed"
+        trigger.error = "StmPlayerInput.setButton failed"
+        stm_player_input_active_trigger = nil
+        return false, trigger.error
+    end
+    trigger.status = "injected"
+    trigger.setter_declaring_type = type_name(instance_type)
+    trigger.write_count = trigger.write_count + 1
+    trigger.set_count = trigger.set_count + 1
+    return true
+end
+
+function M:flush_semantic_trigger()
+    local trigger = self.semantic_trigger
+    if trigger.status ~= "pending" and trigger.status ~= "injected" then return true end
+    if stm_player_input_active_trigger ~= self then
+        trigger.status = "failed"
+        trigger.error = "Semantic update-hook ownership was lost"
         return false, trigger.error
     end
     return true
@@ -925,6 +969,9 @@ function M:cancel_semantic_trigger()
     if trigger.status == "pending" then
         trigger.status = "cancelled"
         trigger.error = "Cancelled before injection"
+        if stm_player_input_active_trigger == self then
+            stm_player_input_active_trigger = nil
+        end
     elseif trigger.status == "injected" then
         local instance = self.stm_player_input_instance
         local instance_type = instance and safe(function()
@@ -940,9 +987,15 @@ function M:cancel_semantic_trigger()
             trigger.clear_count = trigger.clear_count + 1
             trigger.status = "cancelled"
             trigger.error = "Released during cancellation"
+            if stm_player_input_active_trigger == self then
+                stm_player_input_active_trigger = nil
+            end
         else
             trigger.status = "failed"
             trigger.error = "Cancellation release failed"
+            if stm_player_input_active_trigger == self then
+                stm_player_input_active_trigger = nil
+            end
         end
     end
     return trigger.status ~= "pending" and trigger.status ~= "injected"

@@ -138,6 +138,8 @@ local stm_component_query_calls = 0
 local stm_capture_hook_calls = 0
 local stm_trigger_set_calls = 0
 local stm_trigger_clear_calls = 0
+local stm_update_pre_hook = nil
+local stm_update_post_hook = nil
 local fake_semantic_trigger_active = false
 local input_config_instance = {}
 local function metadata_method(name, return_type, param_types, is_static, call_handler)
@@ -521,10 +523,13 @@ sdk = {
     end,
     get_native_singleton = function() return {} end,
     to_managed_object = function(value) return value end,
-    hook = function(method, pre_hook)
+    hook = function(method, pre_hook, post_hook)
         assert(method == stm_update)
         stm_capture_hook_calls = stm_capture_hook_calls + 1
+        stm_update_pre_hook = pre_hook
+        stm_update_post_hook = post_hook
         pre_hook({ nil, stm_player_input_instance })
+        post_hook(nil)
     end,
     call_native_func = function(_, _, name)
         if name == "get_LastInputDevice" then return device end
@@ -716,11 +721,15 @@ local trigger_adapter = Adapter.new()
 trigger_adapter:diagnostics(current_player)
 assert(trigger_adapter:arm_semantic_trigger("Escape"))
 assert(trigger_adapter:semantic_trigger_diagnostics().status == "pending")
+stm_update_pre_hook({ nil, stm_player_input_instance })
+stm_update_post_hook(nil)
 assert(trigger_adapter:flush_semantic_trigger())
 assert(trigger_adapter:semantic_trigger_diagnostics().status == "injected")
 assert(trigger_adapter:semantic_trigger_diagnostics().write_count == 1)
 assert(trigger_adapter:semantic_trigger_diagnostics().set_count == 1)
 assert(stm_trigger_set_calls == 1, "exactly one allowlisted semantic set is issued")
+stm_update_pre_hook({ nil, stm_player_input_instance })
+stm_update_post_hook(nil)
 assert(trigger_adapter:flush_semantic_trigger())
 assert(trigger_adapter:semantic_trigger_diagnostics().status == "released")
 assert(trigger_adapter:semantic_trigger_diagnostics().released_after_hid_cycles == 2)

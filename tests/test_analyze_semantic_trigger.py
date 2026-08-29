@@ -40,6 +40,28 @@ def payload():
 
 
 class SemanticTriggerAnalysisTests(unittest.TestCase):
+    def test_accepts_hook_scoped_captured_stm_player_trigger(self):
+        data = payload()
+        trigger = data["input_motion"]["semantic_trigger"]
+        trigger.update({
+            "policy": "hook_scoped_stm_player_input_set_clear",
+            "write_count": 2,
+            "set_count": 1,
+            "clear_count": 1,
+        })
+        data["input_motion"]["preflight"]["stm_player_input_capture_contract"] = {
+            "policy": "bounded_read_only_stm_player_input_hook_capture",
+            "hook_installed": True,
+            "instance_type": "snow.StmPlayerInput",
+            "refinput_matches_current": True,
+            "call_failures": 0,
+        }
+
+        result = analyze(data)
+
+        self.assertEqual(result["status"], "verified_hook_scoped_stm_player_trigger")
+        self.assertEqual(result["violations"], [])
+
     def test_accepts_paired_captured_stm_player_trigger(self):
         data = payload()
         trigger = data["input_motion"]["semantic_trigger"]

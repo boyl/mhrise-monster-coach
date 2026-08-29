@@ -70,7 +70,7 @@ app (composition root)
 
 `input_motion_adapter` 把语义输入分为三个逐级解锁的契约：元数据发现、当前玩家实例有界读取、单帧触发实验。前两层只检查明确类型、枚举、精确签名和当前玩家字段，保持玩法写入为零。第三层也不提供通用写接口：开发探针只能在受支持的离线普通陪练任务中把 allowlist 内的一个 `CommandButton2` 写入 `StmInputManager.getTrg()` 位集一次，随后停止写入，并用精确 `isTrg(CommandButton2)` 在最多 3 个 HID 周期内确认游戏自然释放。任务与战斗层就绪不等于猎人可操作；注入前还必须在已验证中立节点 `wait.main`、`wait.wait_pre_mot_end` 或太刀拔刀待机上连续稳定 15 帧。注入前取消只把 `pending` 改为 `cancelled`；不得用 `clear()` 或整组 `setDatas()` 恢复，以免破坏玩家同帧真实输入。每次扩大命令 allowlist 都必须作为独立版本取得预期动作节点、释放和崩溃隔离证据，任意节点变化不能冒充命令成功，产品 Controller 不能直接调用实验接口。
 
-两次 Manager `getTrg()` 单帧实验都未被玩家动作层消费后，该入口停止重复尝试。`0.49.32` 与 `0.49.33` 又分别以零写入证明当前猎人和全局 InputManager 的 GameObject 均不含 `snow.StmPlayerInput`，位置枚举到此停止。最后一层托管调查只读钩取游戏自然执行的 `StmPlayerInput.update`，从 pre-hook 的 `this` 参数捕获真实实例，不改变调用参数与返回值；`0.49.34` 已确认其 `Refinput` 与当前玩家输入对象同址，三个精确方法存在且一次 Boolean 查询成功。后续实验只允许在离线陪练任务、稳定中立态中调用一次 `setButton(Escape)`，下一 HID 周期调用一次 `clearButton(Escape)`；取消和脚本退出也必须优先释放。该实验结果仍不能自动升级为产品输入能力。
+两次 Manager `getTrg()` 单帧实验都未被玩家动作层消费后，该入口停止重复尝试。`0.49.32` 与 `0.49.33` 又分别以零写入证明当前猎人和全局 InputManager 的 GameObject 均不含 `snow.StmPlayerInput`，位置枚举到此停止。最后一层托管调查只读钩取游戏自然执行的 `StmPlayerInput.update`，从 pre-hook 的 `this` 参数捕获真实实例，不改变调用参数与返回值；`0.49.34` 已确认其 `Refinput` 与当前玩家输入对象同址，三个精确方法存在且一次 Boolean 查询成功。`0.49.35` 在整个 `UpdateHID` 后执行的成对 set/clear 生命周期安全但未被动作层消费；最后一次时序实验改为 `StmPlayerInput.update` post-hook 按下、下一次 pre-hook 释放，正好覆盖一个原生输入更新周期。离线任务、稳定中立态、单命令、成对释放和退出清理门禁不变；实验结果仍不能自动升级为产品输入能力。
 
 上一层元数据在实机确认后，`semantic_bitset_contract` 才允许对 `snow.StmInputManager` 的 `getOn/getTrg/getRel/getDelay` 四个精确零参数 getter 各调用一次。全局上限固定为 4；调用失败、对象缺失和类型不可读分别记录。返回对象只做元数据检查，禁止调用其 `set/clear/add/remove/reset/toggle` 候选方法。结果按 Adapter 实例缓存，避免 Overlay 每帧重复读取；自动分析即使发现修改候选也保持 `experiment_allowed=false`。
 

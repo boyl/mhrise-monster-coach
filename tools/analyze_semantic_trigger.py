@@ -20,6 +20,7 @@ def analyze(payload: dict) -> dict:
     supported_policies = {
         "single_frame_trigger_only",
         "paired_stm_player_input_set_clear",
+        "hook_scoped_stm_player_input_set_clear",
     }
     if policy not in supported_policies:
         violations.append("trigger_policy_missing_or_changed")
@@ -27,17 +28,21 @@ def analyze(payload: dict) -> dict:
         violations.append("command_not_allowlisted")
     if trigger.get("status") != "released":
         violations.append("trigger_release_not_verified")
-    expected_writes = 2 if policy == "paired_stm_player_input_set_clear" else 1
+    paired_policies = {
+        "paired_stm_player_input_set_clear",
+        "hook_scoped_stm_player_input_set_clear",
+    }
+    expected_writes = 2 if policy in paired_policies else 1
     if trigger.get("write_count") != expected_writes:
         violations.append("write_count_out_of_policy")
-    if policy == "paired_stm_player_input_set_clear" and (
+    if policy in paired_policies and (
             trigger.get("set_count") != 1 or trigger.get("clear_count") != 1):
         violations.append("paired_set_clear_count_invalid")
     if not isinstance(trigger.get("released_after_hid_cycles"), int) \
             or not 2 <= trigger["released_after_hid_cycles"] <= 3:
         violations.append("release_cycle_out_of_bounds")
     preflight = motion.get("preflight") or {}
-    if policy == "paired_stm_player_input_set_clear":
+    if policy in paired_policies:
         capture = preflight.get("stm_player_input_capture_contract") or {}
         if capture.get("policy") \
                 != "bounded_read_only_stm_player_input_hook_capture" \
@@ -81,7 +86,9 @@ def analyze(payload: dict) -> dict:
     return {
         "schema_version": 2,
         "status": (
-            "verified_paired_stm_player_trigger"
+            "verified_hook_scoped_stm_player_trigger"
+            if not violations and policy == "hook_scoped_stm_player_input_set_clear"
+            else "verified_paired_stm_player_trigger"
             if not violations and policy == "paired_stm_player_input_set_clear"
             else "verified_single_frame_trigger"
             if not violations
