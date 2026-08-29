@@ -488,27 +488,28 @@ local function object_key(object)
     return tostring(safe(function() return object:get_address() end) or object)
 end
 
--- StmPlayerInput is not a managed singleton in MHR.  Resolve only the component
--- attached to the current player's GameObject, then prove that its Refinput
--- points at the same snow.player.PlayerInput object already verified above.
+-- StmPlayerInput is not a managed singleton or a player-entity component in MHR.
+-- Resolve it as a sibling of the global StmInputManager component, then prove
+-- that its Refinput points at the current player's verified PlayerInput object.
 -- This gate performs one Boolean read and no set/clear call.
-local function stm_player_input_component_contract(player, player_input)
+local function stm_player_input_component_contract(input_manager, player_input)
     local result = {
-        schema_version = 1,
-        policy = "bounded_read_only_stm_player_input_component",
+        schema_version = 2,
+        policy = "bounded_read_only_stm_manager_sibling_component",
+        lookup_source = "snow.StmInputManager.GameObject",
         max_calls = 1,
         call_count = 0,
         call_failures = 0,
         gameplay_writes = 0,
-        player_available = player ~= nil,
+        input_manager_available = input_manager ~= nil,
         component_type_available = false,
         component_available = false,
         refinput_available = false,
         refinput_matches_current = false,
         methods = {},
     }
-    if player == nil then return result end
-    local game_object = safe(function() return player:call("get_GameObject") end)
+    if input_manager == nil then return result end
+    local game_object = safe(function() return input_manager:call("get_GameObject") end)
     result.game_object_available = game_object ~= nil
     local component_token = safe(function() return sdk.typeof("snow.StmPlayerInput") end)
     result.component_type_available = component_token ~= nil
@@ -759,6 +760,7 @@ function M.new()
         player_input_instance = nil,
         stm_player_input_component_snapshot = nil,
         stm_player_input_component = nil,
+        stm_player_input_manager_key = nil,
         semantic_trigger = {
             status = "idle",
             command = nil,
@@ -957,7 +959,7 @@ function M:diagnostics(player)
     if self.semantic_bitset_snapshot == nil then
         self.semantic_bitset_snapshot = semantic_bitset_read_contract()
     end
-    local player_key = player and tostring(player) or nil
+    local player_key = object_key(player)
     if player ~= nil and self.player_input_player_key ~= player_key then
         local owner_contract, owner_instance = player_input_owner_contract(player)
         self.player_input_player_key = player_key
@@ -966,13 +968,18 @@ function M:diagnostics(player)
         self.player_input_instance_snapshot = player_input_instance_read_contract(
             owner_instance,
             owner_contract.resolved_owner and owner_contract.resolved_owner.object_type or nil)
+    end
+    local stm_key = object_key(stm)
+    if self.stm_player_input_manager_key ~= stm_key
+        or self.stm_player_input_component_snapshot == nil then
+        self.stm_player_input_manager_key = stm_key
         self.stm_player_input_component_snapshot, self.stm_player_input_component =
-            stm_player_input_component_contract(player, owner_instance)
+            stm_player_input_component_contract(stm, self.player_input_instance)
     end
     local player_input_owner = self.player_input_owner_snapshot
         or player_input_owner_contract(nil)
     return {
-        schema_version = 12,
+        schema_version = 13,
         policy = "read_only_known_hid_contract_probe",
         gamepad_singleton_available = self.singleton ~= nil,
         gamepad_type_available = self.singleton_type ~= nil,
@@ -997,7 +1004,7 @@ function M:diagnostics(player)
         player_input_instance_contract = self.player_input_instance_snapshot
             or player_input_instance_read_contract(nil, nil),
         stm_player_input_component_contract = self.stm_player_input_component_snapshot
-            or stm_player_input_component_contract(nil, nil),
+            or stm_player_input_component_contract(stm, nil),
         input_enum_contracts = {
             enum_contract("snow.StmInputManager.ActiveGameDevice"),
             enum_contract("snow.StmInputManager.ActiveDevice"),

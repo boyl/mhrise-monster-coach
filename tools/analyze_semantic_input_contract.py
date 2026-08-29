@@ -197,9 +197,18 @@ def analyze(payload: dict) -> dict:
     component_contract = input_motion.get("stm_player_input_component_contract") or {}
     component_read_verified = False
     if isinstance(input_schema, int) and input_schema >= 12:
-        if component_contract.get("policy") \
-                != "bounded_read_only_stm_player_input_component":
+        expected_policy = (
+            "bounded_read_only_stm_manager_sibling_component"
+            if input_schema >= 13
+            else "bounded_read_only_stm_player_input_component"
+        )
+        if component_contract.get("policy") != expected_policy:
             violations.append("stm_player_input_component_contract_missing_or_changed")
+        if input_schema >= 13 and (
+                component_contract.get("lookup_source")
+                != "snow.StmInputManager.GameObject"
+                or component_contract.get("input_manager_available") is not True):
+            violations.append("stm_player_input_manager_sibling_lookup_not_verified")
         if component_contract.get("gameplay_writes") != 0:
             violations.append("stm_player_input_component_writes_not_zero")
         if component_contract.get("call_failures") != 0:

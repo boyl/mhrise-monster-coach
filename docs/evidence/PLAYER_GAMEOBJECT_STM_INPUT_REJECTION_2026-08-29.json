@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.32-stm-player-input-component",
+  "session_id": "13f7d71c635c49de81e2ed2a77a3898b",
+  "runtime_scope": {
+    "game_name": "mhrise",
+    "tdb_version": 71
+  },
+  "result": "rejected_player_gameobject_component_lookup",
+  "observations": {
+    "input_motion_schema_version": 12,
+    "player_available": true,
+    "player_game_object_available": true,
+    "stm_player_input_type_available": true,
+    "stm_player_input_component_available": false,
+    "refinput_available": false,
+    "gameplay_writes": 0,
+    "analysis_status": "invalid_read_only_contract",
+    "analysis_violations": [
+      "stm_player_input_component_not_verified"
+    ]
+  },
+  "integrity": {
+    "report_sha256": "7BA6113D1B7CF33290963A38C34D92D33000811B4B6C76BF76B70A693C51FC56",
+    "analysis_sha256": "5F43F4A8ADB2510E827A6DBF8381E2C5F5B4A4797F509C16ED50E5608FE4A136"
+  },
+  "conclusion": "snow.StmPlayerInput is not attached to the current player GameObject on this runtime. Do not design a player-entity component write. The next read-only gate resolves it as a sibling component on snow.StmInputManager.GameObject and requires Refinput identity equality before any write experiment."
+}

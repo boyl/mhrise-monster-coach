@@ -70,7 +70,7 @@ app (composition root)
 
 `input_motion_adapter` 把语义输入分为三个逐级解锁的契约：元数据发现、当前玩家实例有界读取、单帧触发实验。前两层只检查明确类型、枚举、精确签名和当前玩家字段，保持玩法写入为零。第三层也不提供通用写接口：开发探针只能在受支持的离线普通陪练任务中把 allowlist 内的一个 `CommandButton2` 写入 `StmInputManager.getTrg()` 位集一次，随后停止写入，并用精确 `isTrg(CommandButton2)` 在最多 3 个 HID 周期内确认游戏自然释放。任务与战斗层就绪不等于猎人可操作；注入前还必须在已验证中立节点 `wait.main`、`wait.wait_pre_mot_end` 或太刀拔刀待机上连续稳定 15 帧。注入前取消只把 `pending` 改为 `cancelled`；不得用 `clear()` 或整组 `setDatas()` 恢复，以免破坏玩家同帧真实输入。每次扩大命令 allowlist 都必须作为独立版本取得预期动作节点、释放和崩溃隔离证据，任意节点变化不能冒充命令成功，产品 Controller 不能直接调用实验接口。
 
-两次 Manager `getTrg()` 单帧实验都未被玩家动作层消费后，该入口停止重复尝试。下一层先通过当前猎人 `get_GameObject() -> getComponent(snow.StmPlayerInput)` 取得非单例组件，要求组件的 `Refinput` 对象地址与 `PlayerBase.<RefPlayerInput>k__BackingField` 完全一致，并确认 `setButton(CommandButton2)`、`clearButton(CommandButton2)`、`isDelay(CommandButton2)` 三个精确签名。该组件契约最多调用一次只读 `isDelay(Escape)`，写入固定为零；只有实机验证对象归属和调用约定后，才能在独立版本设计组件级成对按下/释放实验。
+两次 Manager `getTrg()` 单帧实验都未被玩家动作层消费后，该入口停止重复尝试。`0.49.32` 又以零写入证明当前猎人 GameObject 不含 `snow.StmPlayerInput`，排除把它误当玩家实体组件。下一层改由全局 `snow.StmInputManager:get_GameObject()` 取得同级 `StmPlayerInput`，要求组件的 `Refinput` 对象地址与 `PlayerBase.<RefPlayerInput>k__BackingField` 完全一致，并确认 `setButton(CommandButton2)`、`clearButton(CommandButton2)`、`isDelay(CommandButton2)` 三个精确签名。该组件契约最多调用一次只读 `isDelay(Escape)`，写入固定为零；只有实机验证对象归属和调用约定后，才能在独立版本设计组件级成对按下/释放实验。
 
 上一层元数据在实机确认后，`semantic_bitset_contract` 才允许对 `snow.StmInputManager` 的 `getOn/getTrg/getRel/getDelay` 四个精确零参数 getter 各调用一次。全局上限固定为 4；调用失败、对象缺失和类型不可读分别记录。返回对象只做元数据检查，禁止调用其 `set/clear/add/remove/reset/toggle` 候选方法。结果按 Adapter 实例缓存，避免 Overlay 每帧重复读取；自动分析即使发现修改候选也保持 `experiment_allowed=false`。
 

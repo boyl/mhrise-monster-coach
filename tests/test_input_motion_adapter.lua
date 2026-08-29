@@ -10,6 +10,7 @@ function device:call(name)
     if name == "get_AxisL" then return { x = 0.25, y = -0.5 } end
 end
 local stm = {}
+local stm_game_object = {}
 local stm_type = {}
 function stm_type:get_full_name() return "snow.StmInputManager" end
 function stm_type:get_parent_type() return nil end
@@ -34,6 +35,10 @@ function stm_type:get_methods()
 end
 function stm:get_type_definition()
     return stm_type
+end
+function stm:call(name)
+    assert(name == "get_GameObject")
+    return stm_game_object
 end
 function stm:get_field(name)
     if name == "_ActiveDevice" then
@@ -316,8 +321,7 @@ local player_input_type = {
 player_input_instance = {}
 function player_input_instance:get_type_definition() return player_input_type end
 local current_player = {}
-local player_game_object = {}
-function player_game_object:call(name, component_type)
+function stm_game_object:call(name, component_type)
     assert(name == "getComponent(System.Type)" or name == "getComponent")
     assert(component_type == stm_player_input_type)
     return stm_player_input_instance
@@ -356,8 +360,7 @@ local current_player_type = {
 }
 function current_player:get_type_definition() return current_player_type end
 function current_player:call(name)
-    assert(name == "get_GameObject")
-    return player_game_object
+    error("StmPlayerInput must not be resolved from the player GameObject: " .. tostring(name))
 end
 local input_ui_type = {
     get_full_name = function() return "snow.StmInputManager.InputUI" end,
@@ -510,7 +513,7 @@ Vector2f = { new = function(x, y) return { x = x, y = y } end }
 
 local Adapter = require("MHRiseMonsterCoach.input_motion_adapter")
 local diagnostics = Adapter.new():diagnostics(current_player)
-assert(diagnostics.schema_version == 12)
+assert(diagnostics.schema_version == 13)
 assert(diagnostics.policy == "read_only_known_hid_contract_probe")
 assert(diagnostics.device_available and diagnostics.device_source == "get_LastInputDevice")
 assert(diagnostics.device_type == "via.hid.MergedGamePadDevice")
@@ -602,7 +605,9 @@ assert(player_instance.queries[3].command == "Atk_R_A")
 assert(player_instance.queries[4].command == "Escape")
 assert(player_instance_query_calls == 4)
 local stm_component = diagnostics.stm_player_input_component_contract
-assert(stm_component.policy == "bounded_read_only_stm_player_input_component")
+assert(stm_component.policy == "bounded_read_only_stm_manager_sibling_component")
+assert(stm_component.lookup_source == "snow.StmInputManager.GameObject")
+assert(stm_component.input_manager_available)
 assert(stm_component.max_calls == 1 and stm_component.call_count == 1)
 assert(stm_component.call_failures == 0 and stm_component.gameplay_writes == 0)
 assert(stm_component.game_object_available and stm_component.component_type_available)
