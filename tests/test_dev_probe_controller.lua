@@ -276,6 +276,42 @@ assert(training_reports[#training_reports].status == "completed"
     "product-path acceptance reports the controller's exact completed repeat count")
 assert(training_api.finished == true, "acceptance restores temporary training configuration")
 
+function training_api:input_motion_diagnostics()
+    return { current_bindings = {
+        policy = "read_only_exact_dictionary_lookup", call_failures = 0,
+        value_failures = 0, truncated = false,
+    } }
+end
+function training_api:player_action_diagnostics()
+    return { weapon_type = "long_sword", player_type = "snow.player.LongSword" }
+end
+local response_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
+response_probe.request = {
+    session_id = "training-response", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_rotate_attack_right_single", training_repeat_count = 1,
+    training_response_step = "dodge",
+}
+function training_api:start_training_acceptance(id, count)
+    assert(id == "tigrex_rotate_attack_right_single" and count == 1)
+    return true
+end
+training_status = { state = "waiting", status = "waiting",
+    scenario_id = "tigrex_rotate_attack_right_single", completed_rounds = 0, target_rounds = 1 }
+response_probe:set_state("wait_stable")
+response_probe:update()
+assert(response_probe.state == "training_acceptance_wait"
+    and response_probe.input_motion.current_bindings.policy == "read_only_exact_dictionary_lookup"
+    and response_probe.player_action.weapon_type == "long_sword",
+    "response acceptance captures current bindings and loadout before training starts")
+
+local invalid_response_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
+assert(invalid_response_probe:accept_request({
+    session_id = "invalid-training-response", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_roar_single", training_repeat_count = 1,
+    training_response_step = "dodge",
+}, forced_context) == false and training_reports[#training_reports].status == "failed",
+    "response acceptance rejects an unverified scenario before sending input")
+
 local ui_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
 assert(ui_probe:accept_request({ session_id = "ui-contract", kind = "ui_contract_snapshot",
     auto_load_save = false, ui_requested_repeats = 5 }, {

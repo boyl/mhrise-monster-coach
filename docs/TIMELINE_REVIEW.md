@@ -40,3 +40,5 @@
 训练场景终态报告由 `tools/analyze_training_timeline_acceptance.py` 自动复核。完整门禁要求：轮次全部完成、时间轴 schema 3、单轮事件无丢失且序号连续、首尾分别为 `action_start/result`、至少一组有序 `hitbox_open/hitbox_close`、结果由 `behavior_tree_attack_exit` 结算，以及结果分类与原始事件一致。结构错误进入 `invalid_training_timeline`；仅缺判定窗或强退出证据时降级为 `verified_partial_training_timeline`，不得伪装成完整验收。
 
 历史实机报告已用于回归：咆哮 5/5 被识别为完整时间轴和 `observed_failure`，仍保持不可计分；右回旋的完整判定窗报告被识别为完整时间轴但结果 `unclassified`，因此不会被升级为成功。旧版缺失时间轴或仍处于 active 的报告会失败关闭。报告哈希和精确输出见 [`docs/evidence/TRAINING_TIMELINE_ANALYZER_ACCEPTANCE_2026-08-30.json`](evidence/TRAINING_TIMELINE_ANALYZER_ACCEPTANCE_2026-08-30.json)。
+
+`0.49.38` 为开发验收增加可选的玩家应对侧车，不改变产品训练输入。首个契约只允许 `tigrex_rotate_attack_right_single + dodge + 1`：外部工具在活动轮唯一 Action 26 起点后最多发送一次由 `snow.StmInputConfig` 只读解析出的闪避键；侧车记录轮次、动作序号、键位来源、发送结果和失焦策略。分析器只有在同一终态轮观察到 `player_status.escape=true` 时才把响应标为 `verified`；“操作系统接受输入”本身不能通过门禁。

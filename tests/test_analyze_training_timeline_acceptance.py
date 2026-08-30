@@ -53,6 +53,23 @@ def payload(outcome="observed_hit"):
     }
 
 
+def response_evidence():
+    return {
+        "schema_version": 1,
+        "session_id": None,
+        "scenario_id": "tigrex_roar_single",
+        "response_step": "dodge",
+        "status": "sent",
+        "policy": "external_allowlisted_player_input_with_runtime_binding",
+        "binding": {
+            "policy": "read_only_exact_dictionary_lookup",
+            "source_name": "Space",
+        },
+        "expected_timeline_event": {"kind": "player_status", "flag": "escape"},
+        "attempts": [{"round_id": 5, "status": "sent"}],
+    }
+
+
 class TrainingTimelineAcceptanceAnalysisTests(unittest.TestCase):
     def test_accepts_complete_observed_hit_without_scoring_success(self):
         result = analyze(payload())
@@ -147,6 +164,34 @@ class TrainingTimelineAcceptanceAnalysisTests(unittest.TestCase):
         events[-1]["data"]["classification"] = copy.deepcopy(classification)
         result = analyze(data)
         self.assertIn("classification_score_mismatch", result["violations"])
+
+    def test_correlates_external_dodge_with_timeline_escape(self):
+        data = payload("evade_attempt")
+        data["session_id"] = "response-session"
+        classification = data["training_timeline"]["last_round"]["classification"]
+        classification.update({
+            "score": "unclassified", "label": "观察到回避动作，结果待确认",
+            "tone": "muted", "reason": "escape_status_without_success_evidence",
+        })
+        events = data["training_timeline"]["last_round"]["events"]
+        events[2] = {"sequence": 3, "kind": "player_status", "data": {
+            "escape": True, "damage": False, "guard": False}}
+        events[-1]["data"]["classification"] = copy.deepcopy(classification)
+        response = response_evidence()
+        response["session_id"] = "response-session"
+        result = analyze(data, response)
+        self.assertEqual(result["response"]["status"], "verified")
+        self.assertTrue(result["response"]["timeline_event_observed"])
+        self.assertEqual(result["violations"], [])
+
+    def test_rejects_sent_response_without_runtime_escape_event(self):
+        data = payload()
+        data["session_id"] = "response-session"
+        response = response_evidence()
+        response["session_id"] = "response-session"
+        result = analyze(data, response)
+        self.assertEqual(result["response"]["status"], "invalid")
+        self.assertIn("response_timeline_event_not_observed", result["violations"])
 
 
 if __name__ == "__main__":

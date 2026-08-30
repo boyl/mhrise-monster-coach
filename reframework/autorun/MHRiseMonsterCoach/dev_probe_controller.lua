@@ -237,6 +237,15 @@ function M:accept_request(request, context)
             or tonumber(request.training_repeat_count) < 1 or tonumber(request.training_repeat_count) > 20 then
             return self:fail("Training acceptance requires a scenario ID and 1-20 repeats")
         end
+        local response_step = tostring(request.training_response_step or "none")
+        if response_step ~= "none" and response_step ~= "dodge" then
+            return self:fail("Training response is not allowlisted")
+        end
+        if response_step == "dodge"
+            and (request.training_scenario_id ~= "tigrex_rotate_attack_right_single"
+                or tonumber(request.training_repeat_count) ~= 1) then
+            return self:fail("Dodge response requires the single-repeat right-spin scenario")
+        end
     end
     if request.kind == "behavior_path_survey" then
         local frames = tonumber(request.behavior_survey_frames)
@@ -362,6 +371,24 @@ function M:update()
             if self.stable_frames >= self.stable_required then
                 if self.request.allow_spawn_probe ~= true then
                     if self.request.kind == "training_scenario_acceptance" then
+                        if self.request.training_response_step == "dodge" then
+                            self.input_motion = self.api.input_motion_diagnostics
+                                and self.api:input_motion_diagnostics() or nil
+                            self.player_action = self.api.player_action_diagnostics
+                                and self.api:player_action_diagnostics() or nil
+                            local bindings = self.input_motion and self.input_motion.current_bindings
+                            if type(bindings) ~= "table"
+                                or bindings.policy ~= "read_only_exact_dictionary_lookup"
+                                or tonumber(bindings.call_failures or 0) ~= 0
+                                or tonumber(bindings.value_failures or 0) ~= 0
+                                or bindings.truncated == true then
+                                return self:fail("Training response current bindings are unavailable")
+                            end
+                            if type(self.player_action) ~= "table"
+                                or self.player_action.weapon_type ~= "long_sword" then
+                                return self:fail("Training response requires the current Long Sword loadout")
+                            end
+                        end
                         local ok, reason = self.api:start_training_acceptance(
                             self.request.training_scenario_id, self.request.training_repeat_count)
                         if not ok then return self:fail(reason) end

@@ -155,9 +155,11 @@ function M:update()
     end
 
     if self.state == "wait_hub" then
-        if view.save_menu_active == true and self.state_frames > 240 then
-            self:request_key("choose_first_save_retry", 0x46, 500)
-            return
+        -- The save confirmation crosses an asynchronous native load boundary.
+        -- A second F can land in a different FSM after the first click was
+        -- accepted, so this state is strictly observe-only and at-most-once.
+        if view.save_menu_active == true and self.state_frames > 3600 then
+            return self:fail("First save confirmation did not leave the save menu")
         end
         self:write_status("running")
         return

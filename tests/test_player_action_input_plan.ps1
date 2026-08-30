@@ -224,6 +224,20 @@ $inputProbeSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\run_player_action_input_probe.ps1') -Raw
 $probeSessionSource = Get-Content -LiteralPath `
     (Join-Path $PSScriptRoot '..\tools\run_probe_session.ps1') -Raw
+if ($probeSessionSource -notmatch "\[ValidateSet\('none', 'dodge'\)\]\[string\]\`$TrainingResponseStep" `
+    -or $probeSessionSource -notmatch 'TrainingResponseAcceptance\.psm1' `
+    -or $probeSessionSource -notmatch 'PlayerActionInput\.psm1') {
+    throw 'The probe runner must expose the bounded response mode through the shared input adapter.'
+}
+if ($probeSessionSource -notmatch 'external_allowlisted_player_input_with_runtime_binding' `
+    -or $probeSessionSource -notmatch 'reuse_automation_focus_abort_on_player_takeover' `
+    -or $probeSessionSource -notmatch 'MonsterCoachPlayerInputBridge\]::OwnsForeground') {
+    throw 'Training response evidence must preserve binding provenance and fail closed on focus takeover.'
+}
+if ($probeSessionSource -notmatch '--response-evidence' `
+    -or $probeSessionSource -notmatch 'responseAnalysisInvalid') {
+    throw 'A sent response must be correlated with the game timeline before acceptance passes.'
+}
 if ($probeSessionSource -match '(?m)^\s*Move-Item -LiteralPath \$temporaryPath' `
     -or $probeSessionSource -notmatch '\[IO\.File\]::Move\(\$temporaryPath, \$Path, \$true\)') {
     throw 'Probe request replacement must use the overwrite-capable atomic file move.'

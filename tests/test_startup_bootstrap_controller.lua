@@ -55,6 +55,13 @@ assert(statuses[#statuses].action.delay_ms == 2000, "save confirmation waits for
 ack = { session_id = "bootstrap-1", action_id = statuses[#statuses].action.id }
 bootstrap:update()
 ack = nil
+local save_input_sequence = bootstrap.input_sequence
+bootstrap.state_frames = 241
+bootstrap:update()
+assert(bootstrap.state == "wait_hub" and bootstrap.pending_action == nil,
+    "save loading must become observe-only after the first acknowledged confirmation")
+assert(bootstrap.input_sequence == save_input_sequence,
+    "save confirmation must never be retried across the native load boundary")
 view = { build_supported = true, in_hub = true }
 bootstrap:update()
 assert(statuses[#statuses].status == "completed")

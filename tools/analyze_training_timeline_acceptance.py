@@ -108,7 +108,58 @@ def _hitbox_windows(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]],
     return windows, list(dict.fromkeys(gaps))
 
 
-def analyze(payload: dict[str, Any]) -> dict[str, Any]:
+def _analyze_response(
+        payload: dict[str, Any], last_round: dict[str, Any], events: list[dict[str, Any]],
+        response_evidence: dict[str, Any] | None) -> tuple[dict[str, Any] | None, list[str]]:
+    if response_evidence is None:
+        return None, []
+    violations: list[str] = []
+    if response_evidence.get("schema_version") != 1:
+        violations.append("response_schema_invalid")
+    if response_evidence.get("session_id") != payload.get("session_id"):
+        violations.append("response_session_mismatch")
+    if response_evidence.get("scenario_id") \
+            != (payload.get("training_acceptance") or {}).get("scenario_id"):
+        violations.append("response_scenario_mismatch")
+    if response_evidence.get("policy") \
+            != "external_allowlisted_player_input_with_runtime_binding":
+        violations.append("response_policy_invalid")
+    if response_evidence.get("response_step") != "dodge":
+        violations.append("response_step_not_allowlisted")
+    if response_evidence.get("status") != "sent":
+        violations.append("response_not_sent")
+    attempts = response_evidence.get("attempts")
+    attempts = attempts if isinstance(attempts, list) else []
+    sent_attempts = [item for item in attempts if item.get("status") == "sent"]
+    if len(attempts) != 1 or len(sent_attempts) != 1:
+        violations.append("response_attempt_count_invalid")
+    elif str(sent_attempts[0].get("round_id")) != str(last_round.get("round_id")):
+        violations.append("response_round_mismatch")
+    binding = response_evidence.get("binding") or {}
+    if binding.get("policy") != "read_only_exact_dictionary_lookup" \
+            or not binding.get("source_name"):
+        violations.append("response_binding_unverified")
+    expected = response_evidence.get("expected_timeline_event") or {}
+    if expected != {"kind": "player_status", "flag": "escape"}:
+        violations.append("response_expected_event_contract_invalid")
+    observed = any(
+        event.get("kind") == "player_status"
+        and (event.get("data") or {}).get("escape") is True
+        for event in events
+    )
+    if not observed:
+        violations.append("response_timeline_event_not_observed")
+    return {
+        "status": "verified" if not violations else "invalid",
+        "step": response_evidence.get("response_step"),
+        "binding_source": binding.get("source_name"),
+        "attempt_count": len(attempts),
+        "timeline_event_observed": observed,
+    }, violations
+
+
+def analyze(
+        payload: dict[str, Any], response_evidence: dict[str, Any] | None = None) -> dict[str, Any]:
     violations: list[str] = []
     coverage_gaps: list[str] = []
 
@@ -183,6 +234,10 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
             else "completion_basis_not_behavior_tree_exit"
         )
 
+    response, response_violations = _analyze_response(
+        payload, last_round, events, response_evidence)
+    violations.extend(response_violations)
+
     violations = list(dict.fromkeys(violations))
     coverage_gaps = list(dict.fromkeys(coverage_gaps))
     contract_valid = not violations
@@ -225,6 +280,7 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
             "evidence_consistent": evidence_consistent,
             "scoreable": scoreable,
         },
+        "response": response,
     }
 
 
@@ -232,9 +288,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("evidence", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--response-evidence", type=Path)
     args = parser.parse_args()
     payload = json.loads(args.evidence.read_text(encoding="utf-8-sig"))
-    result = analyze(payload)
+    response_evidence = json.loads(args.response_evidence.read_text(encoding="utf-8-sig")) \
+        if args.response_evidence else None
+    result = analyze(payload, response_evidence)
     text = json.dumps(result, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

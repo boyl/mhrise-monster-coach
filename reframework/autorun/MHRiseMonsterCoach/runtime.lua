@@ -1368,13 +1368,11 @@ function M.startup_bootstrap_observation(self)
     end
     local slot_array = save_menu and safe(function() return save_menu:get_field("_SlotArray") end) or nil
     local phase = self.startup_flow and self.startup_flow.phase or nil
-    local game_start_fsm = sdk.get_managed_singleton(
-        "snow.gui.fsm.title.GuiGameStartFsmManager")
-    local game_start_node = game_start_fsm and safe(function()
-        return game_start_fsm:getCurrentNodeName()
-    end) or nil
+    -- GuiFsmBaseManager.getCurrentNodeName requires a UInt32 layer on TDB 71.
+    -- The exact title phase is already captured by the verified action hooks;
+    -- do not guess a layer merely to populate an optional diagnostic string.
+    local game_start_node = nil
     local autosave_notice_active = phase == "autosave_notice"
-        or string.find(string.lower(tostring(game_start_node or "")), "autosavecaution", 1, true) ~= nil
     if self.startup_flow.transition_action then
         if phase == "save_menu" then
             safe(function() self.startup_flow.transition_arg:release() end)
@@ -1409,11 +1407,7 @@ end
 
 function M.startup_bootstrap_diagnostics(self)
     local title = sdk.get_managed_singleton("snow.gui.fsm.title.GuiTitleMenuFsmManager")
-    local game_start_fsm = sdk.get_managed_singleton(
-        "snow.gui.fsm.title.GuiGameStartFsmManager")
-    local game_start_node = game_start_fsm and safe(function()
-        return game_start_fsm:getCurrentNodeName()
-    end) or nil
+    local game_start_node = nil
     return {
         phase = self.startup_flow and self.startup_flow.phase or nil,
         hooks = self.startup_flow and self.startup_flow.hooks or {},

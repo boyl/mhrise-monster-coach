@@ -9,6 +9,7 @@ param(
     [string[]]$ForcedActions = @(),
     [string]$TrainingScenarioId = '',
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
+    [ValidateSet('none', 'dodge')][string]$TrainingResponseStep = 'none',
     [switch]$BehaviorSurvey,
     [switch]$BehaviorDistanceSweep,
     [ValidateRange(1, 60)][double]$BehaviorSweepNearDistance = 7.0,
@@ -57,6 +58,21 @@ $resolvedArchiveRoot = if ([string]::IsNullOrWhiteSpace($ProbeArchiveRoot)) {
     [IO.Path]::GetFullPath($ProbeArchiveRoot)
 }
 Import-Module (Join-Path $PSScriptRoot 'ArenaNavigation.psm1') -Force
+$responseEnabled = $TrainingResponseStep -ne 'none'
+$responseContract = $null
+if ($responseEnabled) {
+    if ([string]::IsNullOrWhiteSpace($TrainingScenarioId)) {
+        throw '-TrainingResponseStep requires -TrainingScenarioId.'
+    }
+    if ($ResumeExisting) {
+        throw '-TrainingResponseStep cannot resume a historical session because at-most-once input state is process-local.'
+    }
+    Import-Module (Join-Path $PSScriptRoot 'TrainingResponseAcceptance.psm1') -Force
+    Import-Module (Join-Path $PSScriptRoot 'PlayerActionInput.psm1') -Force
+    $responseContract = Get-MonsterCoachTrainingResponseContract `
+        -ScenarioId $TrainingScenarioId -ResponseStep $TrainingResponseStep `
+        -RepeatCount $TrainingRepeatCount
+}
 $resolvedGameRoot = [IO.Path]::GetFullPath($GameRoot)
 $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
 $requestPath = Join-Path $dataRoot 'dev_probe_request.json'
@@ -110,6 +126,7 @@ function Invoke-ProbeAnalysis {
     param(
         [Parameter(Mandatory)]$Report,
         [Parameter(Mandatory)][string]$ArchivePath,
+        [string]$ResponseEvidencePath = '',
         [switch]$Recovered
     )
     $analysis = switch ([string]$Report.kind) {
@@ -131,7 +148,12 @@ function Invoke-ProbeAnalysis {
 
     $analysisPath = [IO.Path]::ChangeExtension($ArchivePath, '.analysis.json')
     $python = Resolve-VerifiedPython
-    & $python (Join-Path $PSScriptRoot $analysis.Script) $ArchivePath --output $analysisPath
+    $analysisArguments = @($ArchivePath, '--output', $analysisPath)
+    if ($Report.kind -eq 'training_scenario_acceptance' -and
+        -not [string]::IsNullOrWhiteSpace($ResponseEvidencePath)) {
+        $analysisArguments += @('--response-evidence', $ResponseEvidencePath)
+    }
+    & $python (Join-Path $PSScriptRoot $analysis.Script) @analysisArguments
     if ($LASTEXITCODE -ne 0) {
         throw "$($analysis.Label) analysis failed with exit code $LASTEXITCODE."
     }
@@ -219,6 +241,7 @@ if ($ResumeExisting) {
         forced_actions = @($ForcedActions)
         training_scenario_id = $TrainingScenarioId
         training_repeat_count = $TrainingRepeatCount
+        training_response_step = $TrainingResponseStep
         behavior_survey_frames = $BehaviorSurveyFrames
         target_root = if ($ConditionBranch) { 5000 } else { $null }
         target_distance = if ($ConditionBranch) { 7 } else { $null }
@@ -424,6 +447,10 @@ $combatRunHeld = $false
 $combatRunKeys = $null
 $lastDistanceSweepBand = $null
 $distanceSweepPlan = $null
+$responseAttemptedRounds = [Collections.Generic.HashSet[string]]::new()
+$responseAttempts = [Collections.Generic.List[object]]::new()
+$responseDefinition = $null
+$responseFailure = $null
 
 $virtualKeys = @{ W = [byte]0x57; A = [byte]0x41; S = [byte]0x53; D = [byte]0x44 }
 
@@ -524,6 +551,84 @@ do {
             $report.state -eq 'training_acceptance_wait' -and
             $report.training_acceptance.execution_mode -eq 'natural_condition' -and
             $report.training_acceptance.state -eq 'positioning'
+        $isResponseReport = $responseEnabled -and $report -and
+            $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -eq 'training_acceptance_wait'
+        if ($isResponseReport -and $null -eq $responseFailure) {
+            if ($null -eq $responseDefinition -and $report.input_motion -and $report.player_action) {
+                try {
+                    if ([string]$report.player_action.weapon_type -ne
+                        [string]$responseContract.supported_weapon) {
+                        throw "Training response requires weapon '$($responseContract.supported_weapon)', observed '$([string]$report.player_action.weapon_type)'."
+                    }
+                    $responseDefinition = @(Get-LongSwordCurrentInputPlan `
+                        -Step $TrainingResponseStep -ActiveSwitchSkill @() `
+                        -BindingContract $report.input_motion.current_bindings)[0]
+                    if ($null -eq $responseDefinition) {
+                        throw "No current input definition was resolved for '$TrainingResponseStep'."
+                    }
+                    Initialize-MonsterCoachInputBridge
+                    Write-Host "Training response armed: $TrainingResponseStep via $($responseDefinition.operations[0].binding_name)"
+                } catch {
+                    $responseFailure = "response_preflight_failed:$($_.Exception.Message)"
+                    [void]$responseAttempts.Add([pscustomobject][ordered]@{
+                        round_id = $null; status = 'failed'; reason = $responseFailure
+                        failed_at = [DateTimeOffset]::Now.ToString('o')
+                    })
+                    Write-Warning $responseFailure
+                }
+            }
+            if ($responseDefinition -and $null -eq $responseFailure) {
+                $decision = Get-MonsterCoachTrainingResponseDecision -Report $report `
+                    -Contract $responseContract `
+                    -AttemptedRoundIds @($responseAttemptedRounds)
+                if ($decision.action -eq 'fail') {
+                    $responseFailure = "response_decision_failed:$($decision.reason)"
+                    [void]$responseAttempts.Add([pscustomobject][ordered]@{
+                        round_id = $decision.round_id; status = 'failed'; reason = $responseFailure
+                        observed_action = $decision.observed_action
+                        failed_at = [DateTimeOffset]::Now.ToString('o')
+                    })
+                    Write-Warning $responseFailure
+                } elseif ($decision.action -eq 'send') {
+                    $roundId = [string]$decision.round_id
+                    [void]$responseAttemptedRounds.Add($roundId)
+                    Stop-ArenaMovement
+                    $game = Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue |
+                        Select-Object -First 1
+                    try {
+                        if (-not $game) { throw 'Game process disappeared before response input.' }
+                        $game.Refresh()
+                        if (-not [MonsterCoachPlayerInputBridge]::OwnsForeground($game.MainWindowHandle)) {
+                            throw [System.OperationCanceledException]::new(
+                                'Player took over game focus before the training response.')
+                        }
+                        Invoke-LongSwordInputStep -GameWindow $game.MainWindowHandle `
+                            -Definition $responseDefinition
+                        [void]$responseAttempts.Add([pscustomobject][ordered]@{
+                            round_id = [int]$roundId
+                            action = [string]$decision.observed_action
+                            action_sequence = [int]$decision.action_sequence
+                            status = 'sent'
+                            sent_at = [DateTimeOffset]::Now.ToString('o')
+                            binding_name = [string]$responseDefinition.operations[0].binding_name
+                            report_frame = [int]($report.frames ?? 0)
+                        })
+                        Write-Host "Training response sent once: $TrainingResponseStep during Action $($decision.observed_action), round $roundId"
+                    } catch {
+                        $responseFailure = "response_input_failed:$($_.Exception.GetType().Name):$($_.Exception.Message)"
+                        [void]$responseAttempts.Add([pscustomobject][ordered]@{
+                            round_id = [int]$roundId
+                            action = [string]$decision.observed_action
+                            action_sequence = [int]$decision.action_sequence
+                            status = 'failed'; reason = $responseFailure
+                            failed_at = [DateTimeOffset]::Now.ToString('o')
+                        })
+                        Write-Warning $responseFailure
+                    }
+                }
+            }
+        }
         if (-not $isNavigationReport -and -not $isDistanceSweepReport -and
             -not $isConditionBranchReport -and -not $isConditionTrainingReport) {
             Stop-ArenaMovement
@@ -796,7 +901,50 @@ do {
             Copy-Item -LiteralPath $reportPath -Destination $archivePath -Force
             Write-Host "Probe report archived: $archivePath"
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
-            $analysisPath = Invoke-ProbeAnalysis -Report $report -ArchivePath $archivePath
+            $responseEvidencePath = ''
+            if ($responseEnabled) {
+                $sentAttempts = @($responseAttempts | Where-Object status -eq 'sent')
+                $responseEvidencePath = [IO.Path]::ChangeExtension(
+                    $archivePath, '.response.json')
+                $bindingPolicy = [string]$report.input_motion.current_bindings.policy
+                $bindingName = if ($responseDefinition) {
+                    [string]$responseDefinition.operations[0].binding_name
+                } else { $null }
+                $responseEvidence = [ordered]@{
+                    schema_version = 1
+                    session_id = $sessionId
+                    scenario_id = $TrainingScenarioId
+                    response_step = $TrainingResponseStep
+                    status = if ($null -eq $responseFailure -and $sentAttempts.Count -eq 1) {
+                        'sent'
+                    } else { 'failed' }
+                    failure_reason = $responseFailure
+                    policy = 'external_allowlisted_player_input_with_runtime_binding'
+                    focus_policy = 'reuse_automation_focus_abort_on_player_takeover'
+                    binding = [ordered]@{
+                        policy = $bindingPolicy
+                        source_name = $bindingName
+                    }
+                    expected_timeline_event = [ordered]@{
+                        kind = [string]$responseContract.expected_event_kind
+                        flag = [string]$responseContract.expected_event_flag
+                    }
+                    attempts = @($responseAttempts)
+                    equipment_writes = $false
+                    save_writes = $false
+                }
+                Write-AtomicJson -Value $responseEvidence -Path $responseEvidencePath -Depth 12
+                Write-Host "Training response evidence archived: $responseEvidencePath"
+            }
+            $analysisPath = Invoke-ProbeAnalysis -Report $report -ArchivePath $archivePath `
+                -ResponseEvidencePath $responseEvidencePath
+            $responseAnalysisInvalid = $false
+            if ($responseEnabled) {
+                $analysisResult = Get-Content -LiteralPath $analysisPath -Raw | ConvertFrom-Json
+                $responseAnalysisInvalid = $analysisResult.contract_valid -ne $true -or
+                    $analysisResult.response.status -ne 'verified' -or
+                    $analysisResult.ready_for_product_acceptance -ne $true
+            }
             if ($FullReport) {
                 $report | ConvertTo-Json -Depth 12
             } else {
@@ -812,6 +960,7 @@ do {
                     input_motion = $report.input_motion
                     player_action = $report.player_action
                     analysis = $analysisPath
+                    response_evidence = $responseEvidencePath
                     behavior_survey = if ($report.behavior_survey) { [ordered]@{
                         samples = $report.behavior_survey.samples
                         events = @($report.behavior_survey.events).Count
@@ -821,6 +970,7 @@ do {
                 } | ConvertTo-Json -Depth 8
             }
             if ($report.status -eq 'failed') { exit 2 }
+            if ($responseAnalysisInvalid) { exit 2 }
             exit 0
         }
     }
@@ -834,4 +984,7 @@ throw "Probe session timed out after $TimeoutSeconds seconds. Request retained a
 }
 finally {
     Stop-ArenaMovement
+    if ('MonsterCoachPlayerInputBridge' -as [type]) {
+        [MonsterCoachPlayerInputBridge]::ReleaseAllowlistedInputs()
+    }
 }

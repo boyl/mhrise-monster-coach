@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-31",
+  "scope": "automated training response startup boundary",
+  "result": "response_not_executed_bootstrap_failed",
+  "attempts": [
+    {
+      "session_id": "e21affac11db43d19c6ff116d047c926",
+      "version": "0.49.38-training-response-acceptance",
+      "terminal_stage": "choose_first_save_retry",
+      "report_status": "pending"
+    },
+    {
+      "session_id": "f0336d7b12ea4c789af652a3aa94fb84",
+      "version": "0.49.38-training-response-acceptance",
+      "terminal_stage": "choose_first_save_retry",
+      "report_status": "pending"
+    },
+    {
+      "session_id": "7df2b00633a249a6b6a6d748ff78c0e1",
+      "version": "0.49.39-training-response-acceptance",
+      "title_getter_argument_warnings": 0,
+      "epv_dictionary_errors": 8,
+      "terminal_stage": "choose_first_save_retry",
+      "report_status": "pending"
+    },
+    {
+      "session_id": "5308b68db1df407684593403033a5235",
+      "version": "0.49.39-training-response-acceptance",
+      "third_party_epv_preflight_temporarily_isolated": true,
+      "third_party_epv_preflight_restored": true,
+      "title_getter_argument_warnings": 0,
+      "epv_dictionary_errors": 0,
+      "terminal_stage": "choose_first_save_retry",
+      "report_status": "pending",
+      "exception": "c0000005",
+      "game_relative_offset": "0x4d807ba"
+    }
+  ],
+  "invariants": {
+    "training_response_armed": false,
+    "training_response_sent": false,
+    "monster_action_requested": false,
+    "equipment_writes": false,
+    "save_writes": false
+  },
+  "bounded_diagnosis": {
+    "confirmed_project_defect_removed": "TDB 71 getCurrentNodeName requires UInt32; optional zero-argument polling removed",
+    "third_party_epv_preflight_is_root_cause": false,
+    "remaining_common_trigger": "the acknowledged first-save confirmation was replayed twice while the native load boundary remained asynchronous",
+    "remediation": "save confirmation is now at-most-once; wait_hub is observe-only and fails closed after 3600 frames"
+  },
+  "last_attempt_artifacts": {
+    "reframework_log_sha256": "47FC5BC3EA23A316986A91F8406F701424B3B4CA7127B8DCCF4E61ABEA9D61BC",
+    "crash_dump_sha256": "26F4B0C86D8CDB7A606440D7262F08B62CCE1A0CB07904518CD2EA6B1226AFDD"
+  }
+}

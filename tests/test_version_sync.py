@@ -16,6 +16,13 @@ class VersionSyncTests(unittest.TestCase):
         self.assertIsNotNone(match, "runtime load log must expose an auditable version")
         self.assertEqual(match.group(1), version)
 
+    def test_title_flow_does_not_call_parameterized_node_getter_without_layer(self):
+        runtime = (REPOSITORY / "reframework/autorun/MHRiseMonsterCoach/runtime.lua").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn(":getCurrentNodeName()", runtime)
+        self.assertIn('phase == "autosave_notice"', runtime)
+
 
 if __name__ == "__main__":
     unittest.main()
