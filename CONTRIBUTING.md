@@ -65,6 +65,7 @@ pwsh -NoProfile -File .\tools\deploy_dev.ps1 `
 
 ## 架构与证据规则
 
+- 实质功能开发与问题处理遵循仓库内 [`feature-development-and-problem-solving` Skill](codex-skills/feature-development-and-problem-solving/SKILL.md)：先全局建模与根因诊断，再比对成熟方案；无方案时仅做 2–4 次有界、尽量自动化的验证，最后回顾路线并沉淀证据。
 - 保持 MVC 边界，详见 `docs/ARCHITECTURE.md`；
 - 通用代码不得写死新的怪物 Action ID，逐怪知识放入独立数据包；
 - 固定、条件、随机、仅观察和未解析派生必须保持区分；
