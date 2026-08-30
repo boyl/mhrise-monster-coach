@@ -36,3 +36,7 @@
 - 中文字体仍复用现有加载、已加载状态和样本文本宽度门禁；字体测量不可用时退回既有字符上限。
 - 重置清除未完成轮但保留上一完整轮；离开任务不产生伪造结果。
 - 此门禁目前仅完成离线自动测试，真实分辨率、UI 缩放、窗口/全屏和超宽屏必须等用户允许部署后集中验收。
+
+训练场景终态报告由 `tools/analyze_training_timeline_acceptance.py` 自动复核。完整门禁要求：轮次全部完成、时间轴 schema 3、单轮事件无丢失且序号连续、首尾分别为 `action_start/result`、至少一组有序 `hitbox_open/hitbox_close`、结果由 `behavior_tree_attack_exit` 结算，以及结果分类与原始事件一致。结构错误进入 `invalid_training_timeline`；仅缺判定窗或强退出证据时降级为 `verified_partial_training_timeline`，不得伪装成完整验收。
+
+历史实机报告已用于回归：咆哮 5/5 被识别为完整时间轴和 `observed_failure`，仍保持不可计分；右回旋的完整判定窗报告被识别为完整时间轴但结果 `unclassified`，因此不会被升级为成功。旧版缺失时间轴或仍处于 active 的报告会失败关闭。报告哈希和精确输出见 [`docs/evidence/TRAINING_TIMELINE_ANALYZER_ACCEPTANCE_2026-08-30.json`](evidence/TRAINING_TIMELINE_ANALYZER_ACCEPTANCE_2026-08-30.json)。

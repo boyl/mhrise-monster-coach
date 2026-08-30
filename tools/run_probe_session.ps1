@@ -106,6 +106,40 @@ function Resolve-VerifiedPython {
     throw 'No real Python interpreter was found. Create .venv from requirements-dev.txt; the WindowsApps alias is not accepted.'
 }
 
+function Invoke-ProbeAnalysis {
+    param(
+        [Parameter(Mandatory)]$Report,
+        [Parameter(Mandatory)][string]$ArchivePath,
+        [switch]$Recovered
+    )
+    $analysis = switch ([string]$Report.kind) {
+        'input_motion_metadata' { [ordered]@{
+            Script = 'analyze_semantic_input_contract.py'
+            Label = 'Semantic input'
+        }; break }
+        'semantic_input_trigger' { [ordered]@{
+            Script = 'analyze_semantic_trigger.py'
+            Label = 'Semantic trigger'
+        }; break }
+        'training_scenario_acceptance' { [ordered]@{
+            Script = 'analyze_training_timeline_acceptance.py'
+            Label = 'Training timeline'
+        }; break }
+        default { $null }
+    }
+    if ($null -eq $analysis) { return $null }
+
+    $analysisPath = [IO.Path]::ChangeExtension($ArchivePath, '.analysis.json')
+    $python = Resolve-VerifiedPython
+    & $python (Join-Path $PSScriptRoot $analysis.Script) $ArchivePath --output $analysisPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "$($analysis.Label) analysis failed with exit code $LASTEXITCODE."
+    }
+    $suffix = if ($Recovered) { ' recovered' } else { '' }
+    Write-Host "$($analysis.Label) analysis$suffix`: $analysisPath"
+    return $analysisPath
+}
+
 function Test-ProbeTerminal {
     try {
         $latest = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
@@ -230,24 +264,8 @@ if ($resumedTerminalReport) {
     Copy-Item -LiteralPath $reportPath -Destination $archivePath -Force
     Write-Host "Terminal probe report recovered: $archivePath"
     Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
-    if ($resumedTerminalReport.kind -eq 'input_motion_metadata') {
-        $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
-        $python = Resolve-VerifiedPython
-        & $python (Join-Path $PSScriptRoot 'analyze_semantic_input_contract.py') `
-            $archivePath --output $analysisPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "Semantic input metadata analysis failed with exit code $LASTEXITCODE."
-        }
-        Write-Host "Semantic input analysis recovered: $analysisPath"
-    }
-    if ($resumedTerminalReport.kind -eq 'semantic_input_trigger') {
-        $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
-        $python = Resolve-VerifiedPython
-        & $python (Join-Path $PSScriptRoot 'analyze_semantic_trigger.py') `
-            $archivePath --output $analysisPath
-        if ($LASTEXITCODE -ne 0) { throw 'Semantic trigger analysis recovery failed.' }
-        Write-Host "Semantic trigger analysis recovered: $analysisPath"
-    }
+    $analysisPath = Invoke-ProbeAnalysis -Report $resumedTerminalReport `
+        -ArchivePath $archivePath -Recovered
     if ($FullReport) {
         $resumedTerminalReport | ConvertTo-Json -Depth 12
     } else {
@@ -257,6 +275,7 @@ if ($resumedTerminalReport) {
             status = $resumedTerminalReport.status
             reason = $resumedTerminalReport.reason
             recovered_terminal = $true
+            analysis = $analysisPath
         } | ConvertTo-Json
     }
     if ($resumedTerminalReport.status -eq 'failed') { exit 2 }
@@ -777,24 +796,7 @@ do {
             Copy-Item -LiteralPath $reportPath -Destination $archivePath -Force
             Write-Host "Probe report archived: $archivePath"
             Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
-            if ($InputMotionMetadata) {
-                $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
-                $python = Resolve-VerifiedPython
-                & $python (Join-Path $PSScriptRoot 'analyze_semantic_input_contract.py') `
-                    $archivePath --output $analysisPath
-                if ($LASTEXITCODE -ne 0) {
-                    throw "Semantic input metadata analysis failed with exit code $LASTEXITCODE."
-                }
-                Write-Host "Semantic input analysis: $analysisPath"
-            }
-            if ($SemanticInputTrigger) {
-                $analysisPath = [IO.Path]::ChangeExtension($archivePath, '.analysis.json')
-                $python = Resolve-VerifiedPython
-                & $python (Join-Path $PSScriptRoot 'analyze_semantic_trigger.py') `
-                    $archivePath --output $analysisPath
-                if ($LASTEXITCODE -ne 0) { throw 'Semantic trigger analysis failed.' }
-                Write-Host "Semantic trigger analysis: $analysisPath"
-            }
+            $analysisPath = Invoke-ProbeAnalysis -Report $report -ArchivePath $archivePath
             if ($FullReport) {
                 $report | ConvertTo-Json -Depth 12
             } else {
@@ -809,6 +811,7 @@ do {
                     ui_contract = $report.ui_contract
                     input_motion = $report.input_motion
                     player_action = $report.player_action
+                    analysis = $analysisPath
                     behavior_survey = if ($report.behavior_survey) { [ordered]@{
                         samples = $report.behavior_survey.samples
                         events = @($report.behavior_survey.events).Count

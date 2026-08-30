@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""自动审核训练场景的结果分类与单轮判定时间轴证据。"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+
+VERIFIED_MAPPINGS = {"verified", "verified_runtime", "product_verified"}
+KNOWN_OUTCOMES = {
+    "hit",
+    "observed_hit",
+    "counter_success",
+    "no_damage",
+    "response_success_candidate",
+    "response_attempt",
+    "guard_attempt",
+    "evade_attempt",
+    "unclassified",
+    "interrupted",
+}
+
+
+def _events_of_kind(events: list[dict[str, Any]], kind: str) -> list[dict[str, Any]]:
+    return [event for event in events if event.get("kind") == kind]
+
+
+def _has_damage(events: list[dict[str, Any]]) -> bool:
+    for event in events:
+        data = event.get("data") or {}
+        if event.get("kind") == "damage":
+            return True
+        if event.get("kind") == "player_status" and data.get("damage") is True:
+            return True
+    return False
+
+
+def _classification_evidence(
+        outcome: str, events: list[dict[str, Any]], result_data: dict[str, Any]) -> tuple[bool, str, bool]:
+    player_actions = [event.get("data") or {} for event in _events_of_kind(events, "player_action")]
+    player_status = [event.get("data") or {} for event in _events_of_kind(events, "player_status")]
+    damage = _has_damage(events)
+    verified_success = any(
+        item.get("role") == "success" and item.get("mapping_status") in VERIFIED_MAPPINGS
+        for item in player_actions
+    )
+    candidate_success = any(
+        item.get("role") == "success" and item.get("mapping_status") not in VERIFIED_MAPPINGS
+        for item in player_actions
+    )
+
+    if outcome == "hit":
+        return damage and result_data.get("outcome_tracking") is True, "verified_failure", True
+    if outcome == "observed_hit":
+        return damage, "observed_failure", False
+    if outcome == "counter_success":
+        return verified_success and not damage, "verified_success", True
+    if outcome == "no_damage":
+        return result_data.get("outcome_tracking") is True and not damage, "health_tracked_no_damage", True
+    if outcome == "response_success_candidate":
+        return candidate_success and not damage, "candidate_success", False
+    if outcome == "response_attempt":
+        return any(item.get("role") == "attempt" for item in player_actions), "response_attempt", False
+    if outcome == "guard_attempt":
+        return any(item.get("guard") is True for item in player_status), "guard_attempt", False
+    if outcome == "evade_attempt":
+        return any(item.get("escape") is True for item in player_status), "evade_attempt", False
+    if outcome == "interrupted":
+        return True, "interrupted", False
+    return outcome == "unclassified", "unclassified", False
+
+
+def _hitbox_windows(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+    windows: list[dict[str, Any]] = []
+    gaps: list[str] = []
+    open_event: dict[str, Any] | None = None
+    for event in events:
+        if event.get("kind") == "hitbox_open":
+            if open_event is not None:
+                gaps.append("overlapping_hitbox_open")
+            open_event = event
+        elif event.get("kind") == "hitbox_close":
+            if open_event is None:
+                gaps.append("hitbox_close_without_open")
+                continue
+            start = (open_event.get("data") or {}).get("motion_frame")
+            end = (event.get("data") or {}).get("motion_frame")
+            if not isinstance(start, (int, float)) or not isinstance(end, (int, float)) or end < start:
+                gaps.append("invalid_hitbox_motion_frames")
+            else:
+                windows.append({
+                    "open_sequence": open_event.get("sequence"),
+                    "close_sequence": event.get("sequence"),
+                    "start_motion_frame": start,
+                    "end_motion_frame": end,
+                    "duration_frames": end - start,
+                    "active_count": (open_event.get("data") or {}).get("active_count"),
+                    "source": (open_event.get("data") or {}).get("source"),
+                })
+            open_event = None
+    if open_event is not None:
+        gaps.append("hitbox_open_without_close")
+    if not windows:
+        gaps.append("complete_hitbox_window_missing")
+    return windows, list(dict.fromkeys(gaps))
+
+
+def analyze(payload: dict[str, Any]) -> dict[str, Any]:
+    violations: list[str] = []
+    coverage_gaps: list[str] = []
+
+    if payload.get("kind") != "training_scenario_acceptance":
+        violations.append("unexpected_probe_kind")
+    if payload.get("status") != "completed":
+        violations.append("probe_not_completed")
+
+    acceptance = payload.get("training_acceptance") or {}
+    completed_rounds = acceptance.get("completed_rounds")
+    target_rounds = acceptance.get("target_rounds")
+    if acceptance.get("state") != "completed":
+        violations.append("training_not_completed")
+    if not isinstance(target_rounds, int) or target_rounds < 1 \
+            or completed_rounds != target_rounds:
+        violations.append("training_round_count_mismatch")
+
+    timeline = payload.get("training_timeline") or {}
+    last_round = timeline.get("last_round") or {}
+    if timeline.get("schema_version") != 3 or last_round.get("schema_version") != 3:
+        violations.append("unsupported_timeline_schema")
+    if timeline.get("active") is not False:
+        violations.append("timeline_still_active")
+    dropped_events = last_round.get("dropped_events", timeline.get("dropped_events", 0))
+    if dropped_events != 0:
+        violations.append("timeline_events_dropped")
+
+    events = last_round.get("events")
+    if not isinstance(events, list) or not events:
+        events = []
+        violations.append("timeline_events_missing")
+    else:
+        sequences = [event.get("sequence") for event in events]
+        if any(not isinstance(value, int) for value in sequences) \
+                or sequences != list(range(sequences[0], sequences[0] + len(sequences))):
+            violations.append("event_sequence_not_contiguous")
+        if events[0].get("kind") != "action_start":
+            violations.append("action_start_not_first")
+        if events[-1].get("kind") != "result" or len(_events_of_kind(events, "result")) != 1:
+            violations.append("terminal_result_invalid")
+
+    result_data = (events[-1].get("data") or {}) if events and events[-1].get("kind") == "result" else {}
+    outcome = last_round.get("outcome")
+    classification = last_round.get("classification") or result_data.get("classification") or {}
+    if outcome not in KNOWN_OUTCOMES:
+        violations.append("unknown_outcome")
+    if result_data.get("outcome") != outcome:
+        violations.append("result_outcome_mismatch")
+    if classification.get("outcome") != outcome:
+        violations.append("classification_outcome_mismatch")
+    if result_data.get("classification") != classification:
+        violations.append("result_classification_mismatch")
+    expected_score = (
+        "failure" if outcome == "hit"
+        else "success" if outcome in {"counter_success", "no_damage"}
+        else "unclassified"
+    )
+    if classification.get("score") != expected_score:
+        violations.append("classification_score_mismatch")
+
+    evidence_consistent, evidence_level, scoreable = _classification_evidence(
+        outcome, events, result_data)
+    if not evidence_consistent:
+        violations.append("classification_evidence_mismatch")
+
+    windows, hitbox_gaps = _hitbox_windows(events)
+    coverage_gaps.extend(hitbox_gaps)
+    completion_basis = result_data.get("completion_basis")
+    if completion_basis != "behavior_tree_attack_exit":
+        coverage_gaps.append(
+            "completion_basis_missing" if completion_basis is None
+            else "completion_basis_not_behavior_tree_exit"
+        )
+
+    violations = list(dict.fromkeys(violations))
+    coverage_gaps = list(dict.fromkeys(coverage_gaps))
+    contract_valid = not violations
+    complete_timeline = contract_valid and not coverage_gaps
+    return {
+        "schema_version": 1,
+        "status": (
+            "verified_complete_training_timeline" if complete_timeline
+            else "verified_partial_training_timeline" if contract_valid
+            else "invalid_training_timeline"
+        ),
+        "contract_valid": contract_valid,
+        "ready_for_product_acceptance": complete_timeline and evidence_level != "unclassified",
+        "violations": violations,
+        "coverage_gaps": coverage_gaps,
+        "training": {
+            "scenario_id": acceptance.get("scenario_id"),
+            "execution_mode": acceptance.get("execution_mode"),
+            "completed_rounds": completed_rounds,
+            "target_rounds": target_rounds,
+        },
+        "timeline": {
+            "schema_version": timeline.get("schema_version"),
+            "round_id": last_round.get("round_id"),
+            "event_count": len(events),
+            "event_kinds": [event.get("kind") for event in events],
+            "dropped_events": dropped_events,
+            "completion_basis": completion_basis,
+            "hitbox_windows": windows,
+            "player_action_events": len(_events_of_kind(events, "player_action")),
+            "player_status_events": len(_events_of_kind(events, "player_status")),
+        },
+        "outcome": {
+            "value": outcome,
+            "label": classification.get("label"),
+            "score": classification.get("score"),
+            "tone": classification.get("tone"),
+            "reason": classification.get("reason"),
+            "evidence_level": evidence_level,
+            "evidence_consistent": evidence_consistent,
+            "scoreable": scoreable,
+        },
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("evidence", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+    payload = json.loads(args.evidence.read_text(encoding="utf-8-sig"))
+    result = analyze(payload)
+    text = json.dumps(result, ensure_ascii=False, indent=2)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+
+
+if __name__ == "__main__":
+    main()

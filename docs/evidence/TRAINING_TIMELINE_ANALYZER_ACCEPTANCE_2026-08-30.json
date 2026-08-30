@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-30",
+  "source_version": "0.49.37-semantic-trigger-retired",
+  "purpose": "使用统一离线契约复核既有真实训练报告中的轮次、判定窗、行为树退出和结果证据等级。",
+  "analyzer": {
+    "path": "tools/analyze_training_timeline_acceptance.py",
+    "sha256": "9484F5F26C18D778265D694611DF8D3AB4271D67254F00EF0876C0170312EA77",
+    "test_path": "tests/test_analyze_training_timeline_acceptance.py",
+    "test_sha256": "22C0275973AA80B00852CE3AA0796BEFF9A50527544F1D03BFFAB51DB3854F4D"
+  },
+  "automatic_gates": {
+    "lua_behavior": "34/34 PASS",
+    "lua_syntax": "70/70 PASS",
+    "python": "74/74 PASS",
+    "powershell": [
+      "test_deploy_dev.ps1 PASS",
+      "test_arena_navigation.ps1 PASS",
+      "test_player_action_input_plan.ps1 PASS"
+    ]
+  },
+  "reports": [
+    {
+      "path": "artifacts/probe_reports/490168dfcab548fd95ce23bc8918862f.training_scenario_acceptance.completed.json",
+      "sha256": "6B635E7695348A307E1773199F8C6306003AA7D95E61AF26773E0F3A70C47C09",
+      "scenario_id": "tigrex_roar_single",
+      "rounds": "5/5",
+      "analysis_status": "verified_complete_training_timeline",
+      "outcome": "observed_hit",
+      "evidence_level": "observed_failure",
+      "scoreable": false,
+      "hitbox_window": {
+        "start_motion_frame": 38.39132308959961,
+        "end_motion_frame": 45.39134979248047,
+        "source": "monster_coach_native"
+      },
+      "completion_basis": "behavior_tree_attack_exit",
+      "violations": [],
+      "coverage_gaps": []
+    },
+    {
+      "path": "artifacts/probe_reports/42b54ec438204f4d84fa0e448a11ec14.training_scenario_acceptance.completed.json",
+      "sha256": "67D1503C3482CB204B6CFE8B1395DF43AFC50884FE5E0DBB24B59533691543C1",
+      "scenario_id": "tigrex_rotate_attack_right_single",
+      "rounds": "1/1",
+      "analysis_status": "verified_complete_training_timeline",
+      "outcome": "unclassified",
+      "evidence_level": "unclassified",
+      "scoreable": false,
+      "hitbox_window": {
+        "start_motion_frame": 121.55035400390625,
+        "end_motion_frame": 172.16160583496094,
+        "source": "monster_coach_native"
+      },
+      "completion_basis": "behavior_tree_attack_exit",
+      "violations": [],
+      "coverage_gaps": []
+    },
+    {
+      "path": "artifacts/probe_reports/68f4af665c024baa9913d54cf8ff69b4.training_scenario_acceptance.completed.json",
+      "sha256": "4BA42BA234552A4C4458F2B1D66C5A9776D5E08D4DB969586312BA187F2B93F2",
+      "scenario_id": "tigrex_rotate_attack_right_single",
+      "rounds": "1/1",
+      "analysis_status": "invalid_training_timeline",
+      "outcome": "unclassified",
+      "scoreable": false,
+      "violations": [
+        "timeline_still_active"
+      ],
+      "coverage_gaps": [
+        "complete_hitbox_window_missing",
+        "completion_basis_missing"
+      ]
+    }
+  ],
+  "conclusion": {
+    "accepted": true,
+    "scope": "分析与归档自动化已通过；不代表太刀见切、居合或其他应对动作已完成实机语义验收。",
+    "safety": "本批不修改游戏运行文件，不发送输入，不修改装备或存档；候选和只读结果不会升级为成功。",
+    "next_gate": "一次集中训练会话同时采集真实玩家应对、Native 判定窗、结果和行为树退出，再由同一分析器自动审核。"
+  }
+}

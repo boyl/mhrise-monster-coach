@@ -304,5 +304,11 @@ if ($probeSessionSource -notmatch '\[switch\]\$SemanticInputTrigger' `
     -or $probeSessionSource -notmatch 'SemanticInputTrigger is an isolated probe mode') {
     throw 'Semantic input trigger automation must remain an explicit Escape-only probe mode.'
 }
+if ($probeSessionSource -notmatch 'function Invoke-ProbeAnalysis' `
+    -or $probeSessionSource -notmatch "'training_scenario_acceptance'" `
+    -or $probeSessionSource -notmatch 'analyze_training_timeline_acceptance\.py' `
+    -or $probeSessionSource -notmatch 'analysis = \$analysisPath') {
+    throw 'Training reports must automatically produce and expose consolidated timeline analysis.'
+}
 
 Write-Host 'test_player_action_input_plan.ps1: PASS'
