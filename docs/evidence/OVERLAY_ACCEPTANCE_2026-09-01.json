@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.49-overlay-probe-surface",
+  "status": "verified_measured_overlay",
+  "contract_valid": true,
+  "runtime": {
+    "game": "Monster Hunter Rise 16.0.2.0",
+    "screen_width": 2560,
+    "screen_height": 1440,
+    "font_path": "NotoSansSC-Regular.otf",
+    "cjk_sample_width": 53.0
+  },
+  "reports": [
+    {
+      "session_id": "06a8888218d140a8b19afdf288cf4ad9",
+      "scenario_id": "tigrex_rotate_attack_right_single",
+      "training_status": "completed",
+      "overlay_status": "verified_measured_overlay",
+      "panel": {
+        "width": 720,
+        "height": 290,
+        "line_count": 14,
+        "clipped_line_count": 0,
+        "horizontal_overflow": false,
+        "vertical_overflow": false
+      },
+      "required_text_complete": true,
+      "optional_weapon_response_hidden": true
+    },
+    {
+      "session_id": "d23488ab1eac42c3a9e67a55a0416bde",
+      "scenario_id": "tigrex_straight_rush_branches",
+      "training_status": "failed",
+      "training_reason": "目标起手未进入已收录派生",
+      "overlay_status": "verified_measured_overlay",
+      "panel": {
+        "width": 720,
+        "height": 309,
+        "line_count": 15,
+        "clipped_line_count": 0,
+        "horizontal_overflow": false,
+        "vertical_overflow": false
+      },
+      "prediction_surface": "Next (condition)",
+      "required_text_complete": true,
+      "optional_weapon_response_hidden": true
+    }
+  ],
+  "preference_restoration": {
+    "overlay_enabled_before": false,
+    "overlay_enabled_after": false,
+    "configuration_file_overwritten": false
+  },
+  "post_probe_runtime": {
+    "game_running": true,
+    "game_responding": true,
+    "new_windows_application_error_observed": false
+  },
+  "boundaries": [
+    "结构化布局证据不能判断 Overlay 与所有原生 UI 的最终层级。",
+    "条件派生报告的 UI 合同有效不改变业务训练失败结论。",
+    "武器技能 Response 是默认关闭的可选扩展，不属于本门禁。"
+  ],
+  "raw_artifacts": [
+    "artifacts/overlay_acceptance/06a8888218d140a8b19afdf288cf4ad9.training_scenario_acceptance.completed.json",
+    "artifacts/overlay_acceptance/d23488ab1eac42c3a9e67a55a0416bde.training_scenario_acceptance.failed.json"
+  ]
+}

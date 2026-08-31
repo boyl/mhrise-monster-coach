@@ -82,6 +82,14 @@ class AnalyzeOverlayAcceptanceTests(unittest.TestCase):
         self.assertFalse(result["contract_valid"])
         self.assertIn("optional_weapon_response_visible", result["violations"])
 
+    def test_layout_contract_is_independent_from_training_outcome(self):
+        report = valid_report()
+        report["status"] = "failed"
+        report["reason"] = "目标起手未进入已收录派生"
+        result = analyze(report)
+        self.assertTrue(result["contract_valid"])
+        self.assertEqual(result["training_report_status"], "failed")
+
 
 if __name__ == "__main__":
     unittest.main()

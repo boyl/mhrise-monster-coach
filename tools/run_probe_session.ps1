@@ -164,10 +164,11 @@ function Invoke-ProbeAnalysis {
     if ($Report.kind -eq 'training_scenario_acceptance') {
         $overlayAnalysisPath = [IO.Path]::ChangeExtension(
             $ArchivePath, '.overlay.analysis.json')
-        & $python (Join-Path $PSScriptRoot 'analyze_overlay_acceptance.py') `
+        $null = & $python (Join-Path $PSScriptRoot 'analyze_overlay_acceptance.py') `
             $ArchivePath '--output' $overlayAnalysisPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "Measured overlay analysis failed with exit code $LASTEXITCODE."
+        $overlayExitCode = $LASTEXITCODE
+        if ($overlayExitCode -ne 0) {
+            throw "Measured overlay analysis failed with exit code $overlayExitCode."
         }
         Write-Host "Measured overlay analysis$suffix`: $overlayAnalysisPath"
     }

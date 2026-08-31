@@ -26,8 +26,11 @@ def analyze(report: dict[str, Any]) -> dict[str, Any]:
     text = layout.get("text") if isinstance(layout.get("text"), list) else []
     widths = layout.get("text_widths") if isinstance(layout.get("text_widths"), list) else []
 
-    if report.get("kind") != "training_scenario_acceptance" or report.get("status") != "completed":
-        violations.append("completed_training_report_required")
+    if report.get("kind") != "training_scenario_acceptance" or report.get("status") not in {
+        "completed",
+        "failed",
+    }:
+        violations.append("terminal_training_report_required")
     if not layout:
         violations.append("overlay_layout_missing")
 
@@ -93,6 +96,7 @@ def analyze(report: dict[str, Any]) -> dict[str, Any]:
         "contract_valid": valid,
         "violations": violations,
         "scenario_id": training.get("scenario_id"),
+        "training_report_status": report.get("status"),
         "screen": {
             "width": layout.get("screen_width"),
             "height": layout.get("screen_height"),
