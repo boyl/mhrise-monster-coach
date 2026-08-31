@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.47-behavior-tree-readiness",
+  "batch_id": "b572cccf1e29466fb31e1226b2ef6ec6",
+  "scope": "轰龙 MVP 单启动、同任务集中自动实机验收",
+  "action_analysis_status": "ready_for_release_gate",
+  "overall_status": "post_batch_stability_failed",
+  "overall_release_ready": false,
+  "core_contract_valid": true,
+  "scenario_count": 8,
+  "complete_timeline_count": 5,
+  "explicit_result_count": 8,
+  "coverage_gaps": [],
+  "categories": [
+    "independent",
+    "fixed_branch",
+    "conditional_branch"
+  ],
+  "safety": {
+    "game_starts": 1,
+    "quest_sessions": 1,
+    "manual_inputs": 0,
+    "equipment_writes": 0,
+    "switch_skill_writes": 0,
+    "save_configuration_writes": 0
+  },
+  "post_batch_lifecycle": {
+    "game_process_survived": false,
+    "windows_event_time": "2026-08-31T22:32:29+08:00",
+    "fault_module": "D3D12Core.dll",
+    "exception_code": "c0000409",
+    "exception_offset": "00000000000cf155",
+    "reframework_crash_dump_updated": false,
+    "same_windows_error_bucket_observed_in_prior_runs": true,
+    "attribution": "unresolved_render_runtime_or_third_party_interaction"
+  },
+  "scenarios": [
+    {
+      "id": "tigrex_roar_single",
+      "contract_valid": true,
+      "timeline_status": "verified_complete_training_timeline",
+      "completion_basis": "behavior_tree_attack_exit",
+      "hitbox_window_count": 1,
+      "evidence_level": "unclassified"
+    },
+    {
+      "id": "tigrex_mr_rock_launcher_left",
+      "contract_valid": true,
+      "timeline_status": "verified_partial_training_timeline",
+      "completion_basis": "behavior_tree_attack_exit",
+      "hitbox_window_count": 0,
+      "evidence_level": "unclassified"
+    },
+    {
+      "id": "tigrex_check_bite_single",
+      "contract_valid": true,
+      "timeline_status": "verified_complete_training_timeline",
+      "completion_basis": "behavior_tree_attack_exit",
+      "hitbox_window_count": 1,
+      "evidence_level": "unclassified"
+    },
+    {
+      "id": "tigrex_max_bite_single",
+      "contract_valid": true,
+      "timeline_status": "verified_complete_training_timeline",
+      "completion_basis": "behavior_tree_attack_exit",
+      "hitbox_window_count": 1,
+      "evidence_level": "unclassified"
+    },
+    {
+      "id": "tigrex_rotate_attack_right_single",
+      "contract_valid": true,
+      "timeline_status": "verified_complete_training_timeline",
+      "completion_basis": "behavior_tree_attack_exit",
+      "hitbox_window_count": 1,
+      "evidence_level": "observed_failure"
+    },
+    {
+      "id": "tigrex_half_turn_bite_short",
+      "contract_valid": true,
+      "timeline_status": "verified_partial_training_timeline",
+      "completion_basis": "action_transition",
+      "actual_branch_action": 5001,
+      "evidence_level": "unclassified"
+    },
+    {
+      "id": "tigrex_half_turn_bite_long",
+      "contract_valid": true,
+      "timeline_status": "verified_partial_training_timeline",
+      "completion_basis": "action_transition",
+      "actual_branch_action": 5001,
+      "evidence_level": "unclassified"
+    },
+    {
+      "id": "tigrex_straight_rush_branches",
+      "contract_valid": true,
+      "timeline_status": "verified_complete_training_timeline",
+      "completion_basis": "action_transition",
+      "hitbox_window_count": 2,
+      "actual_branch_action": 15,
+      "actual_branch_name": "漂移转向并再次冲锋",
+      "evidence_level": "observed_failure"
+    }
+  ],
+  "raw_artifact_directory": "artifacts/core_acceptance/b572cccf1e29466fb31e1226b2ef6ec6",
+  "notes": [
+    "unclassified 表示没有足够玩家应对证据，不等同于成功或失败。",
+    "MR 左投石及两个固定派生缺少怪物本体完整 Native 判定窗，但 Action/FSM 与派生合同有效。",
+    "武器技能 Response 默认关闭，且不属于本次核心验收。",
+    "动作与派生合同通过不代表整轮稳定性通过；批次后 D3D12 退出仍阻塞发布。"
+  ]
+}

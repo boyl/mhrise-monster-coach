@@ -6,9 +6,12 @@ param(
     [string]$ArchiveRoot = '',
     [ValidateRange(60, 1800)][int]$ScenarioTimeoutSeconds = 900,
     [ValidateRange(10, 120)][int]$NavigationTimeoutSeconds = 60,
+    [ValidateRange(1, 60)][int]$PostBatchStabilitySeconds = 15,
     [switch]$SkipDeployment,
     [switch]$PlanOnly,
-    [Parameter(DontShow = $true)][string]$WorkerPath = ''
+    [Parameter(DontShow = $true)][string]$WorkerPath = '',
+    [Parameter(DontShow = $true)][switch]$SkipPostBatchStabilityCheck,
+    [Parameter(DontShow = $true)][string]$GameProcessName = 'MonsterHunterRise'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -109,6 +112,7 @@ if ($PlanOnly) {
         coverage_gate = $plan.coverage_gate
         scenarios = @($plan.scenarios)
         weapon_response_required = $false
+        post_batch_stability_seconds = $PostBatchStabilitySeconds
     } | ConvertTo-Json -Depth 8
     exit 0
 }
@@ -241,15 +245,52 @@ $analysisOutputPath = [IO.Path]::ChangeExtension($summaryPath, '.analysis.json')
 if ($LASTEXITCODE -ne 0) { throw 'Core acceptance analysis process failed.' }
 $batchAnalysis = Get-Content -LiteralPath $analysisOutputPath -Raw | ConvertFrom-Json
 
+$postBatchStable = $null
+$postBatchReason = if ($SkipPostBatchStabilityCheck) { 'skipped_for_offline_worker' } else { $null }
+if (-not $SkipPostBatchStabilityCheck -and $batchAnalysis.ready_for_release_gate -eq $true) {
+    $postBatchStable = $true
+    $stabilityDeadline = (Get-Date).AddSeconds($PostBatchStabilitySeconds)
+    do {
+        $game = Get-Process -Name $GameProcessName -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($null -eq $game) {
+            $postBatchStable = $false
+            $postBatchReason = 'game_process_exited'
+            break
+        }
+        if (-not $game.Responding) {
+            $postBatchStable = $false
+            $postBatchReason = 'game_process_not_responding'
+            break
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $stabilityDeadline)
+    if ($postBatchStable) { $postBatchReason = 'stable_after_batch' }
+}
+$lifecyclePath = Join-Path $batchDirectory "$batchId.core_acceptance.lifecycle.json"
+Write-AtomicJson -Value ([ordered]@{
+    schema_version = 1
+    batch_id = $batchId
+    source_version = $sourceVersion
+    checked = -not [bool]$SkipPostBatchStabilityCheck
+    stability_seconds = $PostBatchStabilitySeconds
+    stable = $postBatchStable
+    reason = $postBatchReason
+}) -Path $lifecyclePath
+
 [ordered]@{
     batch_id = $batchId
     status = [string]$batchAnalysis.status
     scenario_count = [int]$batchAnalysis.scenario_count
     ready_for_release_gate = [bool]$batchAnalysis.ready_for_release_gate
     coverage_gaps = @($batchAnalysis.coverage_gaps)
+    post_batch_stable = $postBatchStable
+    post_batch_reason = $postBatchReason
     summary = $summaryPath
     analysis = $analysisOutputPath
+    lifecycle = $lifecyclePath
 } | ConvertTo-Json -Depth 8
 
 if ($batchAnalysis.ready_for_release_gate -ne $true) { exit 2 }
+if ($postBatchStable -eq $false) { exit 3 }
 exit 0

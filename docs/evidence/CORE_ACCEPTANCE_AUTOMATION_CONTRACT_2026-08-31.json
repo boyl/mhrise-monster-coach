@@ -23,7 +23,9 @@
     "stop_on_first_failure": true,
     "automatic_retry": false,
     "preserve_completed_evidence": true,
-    "leave_game_running_after_batch": true
+    "leave_game_running_after_batch": true,
+    "post_batch_stability_seconds": 15,
+    "post_batch_process_exit_is_failure": true
   },
   "safety": {
     "multiplayer_allowed": false,
@@ -41,7 +43,9 @@
     "每个场景结果具有明确证据等级；未分类合法但不可计分",
     "完成依据仅允许 action_transition 或 behavior_tree_attack_exit",
     "目标轮结束后允许观察不同 state_key 的后续动作；同目标仍活动时拒绝",
-    "ActionNo 滞留时仅允许主行为树明确为 Normal、Wait 或 Move 后开始下一项；Attack、未知或读取失败时拒绝"
+    "ActionNo 滞留时仅允许主行为树明确为 Normal、Wait 或 Move 后开始下一项；Attack、未知或读取失败时拒绝",
+    "结构化分析完成后游戏进程必须继续运行并响应至少 15 秒；退出或无响应时总发布门禁失败"
   ],
-  "status": "offline_contract_verified_real_game_batch_pending"
+  "status": "real_game_action_gate_passed_post_batch_stability_failed",
+  "accepted_evidence": "docs/evidence/CORE_ACCEPTANCE_REAL_GAME_2026-08-31.json"
 }

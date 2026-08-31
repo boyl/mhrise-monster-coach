@@ -10,6 +10,9 @@ $output = & $pwsh -NoProfile -File $runner -PlanOnly | Out-String
 if ($LASTEXITCODE -ne 0) { throw 'The checked-in core acceptance plan was rejected.' }
 $contract = $output | ConvertFrom-Json
 if ($contract.scenario_count -ne 8) { throw 'The MVP batch must contain all eight scenarios.' }
+if ($contract.post_batch_stability_seconds -ne 15) {
+    throw 'Real core acceptance must retain its post-batch stability observation gate.'
+}
 if ($contract.weapon_response_required -ne $false) {
     throw 'Weapon-specific Response must remain optional for core acceptance.'
 }
@@ -100,7 +103,7 @@ exit 0
 
     $batchRoot = Join-Path $temporaryRoot 'batch'
     $null = & $pwsh -NoProfile -File $runner -ArchiveRoot $batchRoot `
-        -WorkerPath $mockWorkerPath 2>&1
+        -WorkerPath $mockWorkerPath -SkipPostBatchStabilityCheck 2>&1
     if ($LASTEXITCODE -ne 0) { throw 'The offline end-to-end core batch failed.' }
     $batchDirectory = Get-ChildItem -LiteralPath $batchRoot -Directory | Select-Object -First 1
     if ($null -eq $batchDirectory) { throw 'The core batch did not create an artifact directory.' }
@@ -118,6 +121,32 @@ exit 0
     if ($batchAnalysis.ready_for_release_gate -ne $true -or
         $batchAnalysis.scenario_count -ne 8) {
         throw 'The offline end-to-end batch did not reach the release gate.'
+    }
+    $lifecyclePath = Get-ChildItem -LiteralPath $batchDirectory.FullName -File |
+        Where-Object Name -Match '\.core_acceptance\.lifecycle\.json$' |
+        Select-Object -First 1 -ExpandProperty FullName
+    $lifecycle = Get-Content -LiteralPath $lifecyclePath -Raw | ConvertFrom-Json
+    if ($lifecycle.checked -ne $false -or $lifecycle.reason -ne 'skipped_for_offline_worker') {
+        throw 'Offline worker did not explicitly record why runtime stability was skipped.'
+    }
+
+    $unstableBatchRoot = Join-Path $temporaryRoot 'unstable-batch'
+    $missingProcessName = "MissingMonsterCoach$([Guid]::NewGuid().ToString('N'))"
+    $null = & $pwsh -NoProfile -File $runner -ArchiveRoot $unstableBatchRoot `
+        -WorkerPath $mockWorkerPath -GameProcessName $missingProcessName `
+        -PostBatchStabilitySeconds 1 2>&1
+    if ($LASTEXITCODE -ne 3) {
+        throw 'A completed action batch with a missing game process did not fail stability.'
+    }
+    $unstableDirectory = Get-ChildItem -LiteralPath $unstableBatchRoot -Directory |
+        Select-Object -First 1
+    $unstableLifecyclePath = Get-ChildItem -LiteralPath $unstableDirectory.FullName -File |
+        Where-Object Name -Match '\.core_acceptance\.lifecycle\.json$' |
+        Select-Object -First 1 -ExpandProperty FullName
+    $unstableLifecycle = Get-Content -LiteralPath $unstableLifecyclePath -Raw | ConvertFrom-Json
+    if ($unstableLifecycle.checked -ne $true -or $unstableLifecycle.stable -ne $false -or
+        $unstableLifecycle.reason -ne 'game_process_exited') {
+        throw 'Post-batch process failure did not produce explicit lifecycle evidence.'
     }
 } finally {
     Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
