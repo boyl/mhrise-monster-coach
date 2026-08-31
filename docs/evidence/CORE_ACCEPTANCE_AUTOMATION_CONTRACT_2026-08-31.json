@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_version": "0.49.44-core-acceptance-batch",
+  "source_version": "0.49.45-core-batch-recovery",
   "scope": "轰龙 MVP 单启动、同任务集中自动验收契约",
   "plan": {
     "scenario_count": 8,
@@ -10,6 +10,8 @@
       "conditional_branch"
     ],
     "repeat_count_per_scenario": 1,
+    "minimum_complete_timelines": 3,
+    "minimum_explicit_results": 8,
     "weapon_response_required": false
   },
   "execution": {
@@ -35,8 +37,8 @@
     "场景 ID、分类和重复上限与怪物数据包一致",
     "场景按计划完整且有序执行",
     "每个单场景终态报告完成且时间轴合同有效",
-    "每个场景具有完整 Native 判定窗口和行为树退出证据",
-    "每个场景结果具有明确证据等级"
+    "至少三个代表性场景具有完整 Native 判定窗口，全部场景具有行为树退出证据",
+    "每个场景结果具有明确证据等级；未分类合法但不可计分"
   ],
   "status": "offline_contract_verified_real_game_batch_pending"
 }

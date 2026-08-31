@@ -57,6 +57,14 @@ function Read-CoreAcceptancePlan {
             throw "Core acceptance plan is missing required category '$category'."
         }
     }
+    $minimumCompleteTimelines = [int]$plan.coverage_gate.minimum_complete_timelines
+    $minimumExplicitResults = [int]$plan.coverage_gate.minimum_explicit_results
+    if ($minimumCompleteTimelines -lt 1 -or $minimumCompleteTimelines -gt $scenarios.Count) {
+        throw 'Core acceptance coverage requires 1-scenario_count complete timelines.'
+    }
+    if ($minimumExplicitResults -lt 1 -or $minimumExplicitResults -gt $scenarios.Count) {
+        throw 'Core acceptance coverage requires 1-scenario_count explicit results.'
+    }
 
     $pack = Get-Content -LiteralPath $staticPackPath -Raw | ConvertFrom-Json
     $catalog = @{}
@@ -98,6 +106,7 @@ if ($PlanOnly) {
         source_version = $sourceVersion
         scenario_count = @($plan.scenarios).Count
         required_categories = @($plan.required_categories)
+        coverage_gate = $plan.coverage_gate
         scenarios = @($plan.scenarios)
         weapon_response_required = $false
     } | ConvertTo-Json -Depth 8
@@ -215,6 +224,7 @@ $summary = [ordered]@{
         plan_id = [string]$plan.plan_id
         monster = [string]$plan.monster
         required_categories = @($plan.required_categories)
+        coverage_gate = $plan.coverage_gate
         scenarios = @($plan.scenarios)
     }
     scenarios = @($results)

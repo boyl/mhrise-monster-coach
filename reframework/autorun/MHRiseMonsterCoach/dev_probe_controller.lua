@@ -556,10 +556,44 @@ function M:update()
             return self:fail("Training acceptance stopped: "
                 .. tostring(self.training_acceptance.status or self.training_acceptance.state))
         end
+        local areas = self.api:area_snapshot()
+        if self.request.require_combat_area == true and not combat_area_ready(areas) then
+            self.stable_frames = 0
+            self:set_state("training_acceptance_reenter")
+            self:report("running")
+            return true
+        end
         local target_rounds = math.max(1,
             tonumber(self.training_acceptance.target_rounds) or 1)
         if self.state_frames > 3600 * target_rounds then
             return self:fail("Training acceptance timed out")
+        end
+    elseif self.state == "training_acceptance_reenter" then
+        self.training_acceptance = self.api:training_acceptance_status()
+        if self.training_acceptance.state == "completed" then
+            return self:complete()
+        end
+        if self.training_acceptance.state == "failed"
+            or self.training_acceptance.state == "unavailable"
+            or self.training_acceptance.state == "cancelled" then
+            return self:fail("Training acceptance stopped during hunter recovery: "
+                .. tostring(self.training_acceptance.status or self.training_acceptance.state))
+        end
+        local areas = self.api:area_snapshot()
+        if target_quest(context, self.quest_id) and context.target_found
+            and combat_area_ready(areas) then
+            self.stable_frames = self.stable_frames + 1
+            if self.stable_frames >= self.stable_required then
+                self:set_state("training_acceptance_wait")
+                self:report("running")
+                return true
+            end
+        else
+            self.stable_frames = 0
+        end
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if self.state_frames > 1800 then
+            return self:fail("Training acceptance could not re-enter the combat area after hunter recovery")
         end
     elseif self.state == "behavior_survey_reenter" then
         local areas = self.api:area_snapshot()

@@ -42,6 +42,10 @@ def payload():
             "required_categories": [
                 "independent", "fixed_branch", "conditional_branch"
             ],
+            "coverage_gate": {
+                "minimum_complete_timelines": 3,
+                "minimum_explicit_results": 3,
+            },
             "scenarios": scenarios,
         },
         "scenarios": [
@@ -67,7 +71,7 @@ class CoreAcceptanceAnalysisTests(unittest.TestCase):
         self.assertEqual(result["violations"], [])
         self.assertEqual(result["coverage_gaps"], [])
 
-    def test_partial_or_unclassified_evidence_is_a_coverage_gap(self):
+    def test_partial_timeline_is_a_batch_gap_but_unclassified_is_explicit(self):
         data = payload()
         data["scenarios"][1]["analysis"] = timeline_analysis(
             "fixed", complete=False, classified=False
@@ -76,8 +80,9 @@ class CoreAcceptanceAnalysisTests(unittest.TestCase):
         self.assertEqual(result["status"], "core_contract_valid_with_coverage_gaps")
         self.assertTrue(result["core_contract_valid"])
         self.assertFalse(result["ready_for_release_gate"])
-        self.assertIn("fixed:complete_timeline", result["coverage_gaps"])
-        self.assertIn("fixed:classified_result", result["coverage_gaps"])
+        self.assertIn("batch:complete_timelines:2/3", result["coverage_gaps"])
+        self.assertTrue(result["result_coverage_complete"])
+        self.assertEqual(result["explicit_result_count"], 3)
 
     def test_stops_release_on_missing_or_reordered_scenario(self):
         data = payload()

@@ -30,7 +30,7 @@ python tools/analyze_behavior_survey.py `
 
 首个玩家响应验收命令为 `run_probe_session.ps1 -TrainingScenarioId tigrex_rotate_attack_right_single -TrainingRepeatCount 1 -TrainingResponseStep dodge`。该模式拒绝 `-ResumeExisting`，因为“本进程是否已对该轮发送输入”是实现至多一次语义的必要状态，不能从旧报告猜测恢复。
 
-轰龙 MVP 集中门禁使用 `run_core_acceptance.ps1`。默认计划来自 `tools/tigrex_core_acceptance_plan.json`，每个场景必须已经在怪物数据包标为 `verified`，并且请求轮数不得超过其 `max_verified_repeats`。第一项完成部署与启动，后续项传递 `-SkipDeployment` 并复用运行中的游戏；子项失败后立即停止，避免自动重试把第一次失败覆盖掉。批次摘要与统一分析位于 `artifacts/core_acceptance/<batch-id>/`，只有场景完整有序、所有子合同有效、每项均有完整判定时间轴和可分类结果时才输出 `ready_for_release_gate=true`。
+轰龙 MVP 集中门禁使用 `run_core_acceptance.ps1`。默认计划来自 `tools/tigrex_core_acceptance_plan.json`，每个场景必须已经在怪物数据包标为 `verified`，并且请求轮数不得超过其 `max_verified_repeats`。第一项完成部署与启动，后续项传递 `-SkipDeployment` 并复用运行中的游戏；子项失败后立即停止，避免自动重试把第一次失败覆盖掉。批次摘要与统一分析位于 `artifacts/core_acceptance/<batch-id>/`。全部 8 项都必须完成、合同有效并产生显式结果等级；Native 判定窗采用计划声明的代表性最低覆盖数，因为投石等投射物判定不一定出现在怪物本体 Provider。`unclassified` 是不可计分但合法的证据等级，不会被伪装成成功。
 
 ## 不变量
 

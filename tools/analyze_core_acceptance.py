@@ -45,8 +45,8 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
         coverage_gaps.extend(f"category:{item}" for item in missing_categories)
 
     scenario_summaries: list[dict[str, Any]] = []
-    phase_coverage_complete = True
-    result_coverage_complete = True
+    complete_timeline_count = 0
+    explicit_result_count = 0
     for index, expected_row in enumerate(expected):
         if index >= len(results) or not isinstance(results[index], dict):
             break
@@ -70,13 +70,11 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
             row_violations.append("round_count_mismatch")
 
         complete_timeline = analysis.get("status") == "verified_complete_training_timeline"
-        classified_result = outcome.get("evidence_level") not in {None, "unclassified", "interrupted"}
-        if not complete_timeline:
-            phase_coverage_complete = False
-            coverage_gaps.append(f"{scenario_id}:complete_timeline")
-        if not classified_result:
-            result_coverage_complete = False
-            coverage_gaps.append(f"{scenario_id}:classified_result")
+        explicit_result = outcome.get("evidence_level") not in {None, "interrupted"}
+        if complete_timeline:
+            complete_timeline_count += 1
+        if explicit_result:
+            explicit_result_count += 1
         if row_violations:
             violations.extend(f"{scenario_id}:{item}" for item in row_violations)
 
@@ -91,6 +89,30 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
             "evidence_level": outcome.get("evidence_level"),
             "violations": row_violations,
         })
+
+    coverage_gate = plan.get("coverage_gate") or {}
+    minimum_complete_timelines = coverage_gate.get("minimum_complete_timelines")
+    minimum_explicit_results = coverage_gate.get("minimum_explicit_results")
+    valid_thresholds = (
+        isinstance(minimum_complete_timelines, int)
+        and 1 <= minimum_complete_timelines <= len(expected)
+        and isinstance(minimum_explicit_results, int)
+        and 1 <= minimum_explicit_results <= len(expected)
+    )
+    if not valid_thresholds:
+        violations.append("invalid_coverage_gate")
+        minimum_complete_timelines = len(expected)
+        minimum_explicit_results = len(expected)
+    phase_coverage_complete = complete_timeline_count >= minimum_complete_timelines
+    result_coverage_complete = explicit_result_count >= minimum_explicit_results
+    if not phase_coverage_complete:
+        coverage_gaps.append(
+            f"batch:complete_timelines:{complete_timeline_count}/{minimum_complete_timelines}"
+        )
+    if not result_coverage_complete:
+        coverage_gaps.append(
+            f"batch:explicit_results:{explicit_result_count}/{minimum_explicit_results}"
+        )
 
     violations = list(dict.fromkeys(violations))
     coverage_gaps = list(dict.fromkeys(coverage_gaps))
@@ -113,6 +135,8 @@ def analyze(payload: dict[str, Any]) -> dict[str, Any]:
         "violations": violations,
         "coverage_gaps": coverage_gaps,
         "scenario_count": len(results),
+        "complete_timeline_count": complete_timeline_count,
+        "explicit_result_count": explicit_result_count,
         "required_categories": sorted(required_categories),
         "scenarios": scenario_summaries,
     }

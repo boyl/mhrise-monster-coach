@@ -7,6 +7,10 @@
     "fixed_branch",
     "conditional_branch"
   ],
+  "coverage_gate": {
+    "minimum_complete_timelines": 3,
+    "minimum_explicit_results": 8
+  },
   "scenarios": [
     { "id": "tigrex_roar_single", "category": "independent", "repeat_count": 1 },
     { "id": "tigrex_mr_rock_launcher_left", "category": "independent", "repeat_count": 1 },

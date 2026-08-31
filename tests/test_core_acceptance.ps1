@@ -16,6 +16,10 @@ if ($contract.weapon_response_required -ne $false) {
 if (@($contract.required_categories).Count -ne 3) {
     throw 'The core batch must cover independent, fixed and conditional branches.'
 }
+if ($contract.coverage_gate.minimum_complete_timelines -ne 3 -or
+    $contract.coverage_gate.minimum_explicit_results -ne 8) {
+    throw 'The core batch coverage gate changed unexpectedly.'
+}
 if ($contract.scenarios[0].id -ne 'tigrex_roar_single' -or
     $contract.scenarios[-1].id -ne 'tigrex_straight_rush_branches') {
     throw 'The stable core acceptance execution order changed unexpectedly.'

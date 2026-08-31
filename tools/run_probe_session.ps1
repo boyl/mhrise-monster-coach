@@ -450,7 +450,8 @@ $startupUiClosedProactively = $false
 $startupTitleZeroFallbackSent = $false
 $startupUiClosedAt = $null
 $navigationGateStates = @('wait_stable', 'verify_restart', 'forced_recovery_verify',
-    'monster_respawn_recovery_verify', 'behavior_survey_reenter')
+    'monster_respawn_recovery_verify', 'behavior_survey_reenter',
+    'training_acceptance_reenter')
 $arenaNavigation = $null
 $lastProbeState = $null
 $combatRunHeld = $false
@@ -871,7 +872,7 @@ do {
                 $verticalGap = [Math]::Abs([double]$player.y - [double]$enemy.y)
                 if ($verticalGap -gt 10.0) {
                     Stop-ArenaMovement
-                    throw "Product condition training left the combat layer (vertical gap $([Math]::Round($verticalGap, 2)) m)"
+                    continue
                 }
                 $dx = [double]$enemy.x - [double]$player.x
                 $dz = [double]$enemy.z - [double]$player.z

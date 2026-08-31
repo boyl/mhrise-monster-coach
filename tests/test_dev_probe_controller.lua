@@ -291,6 +291,30 @@ assert(training_reports[#training_reports].status == "completed"
     "product-path acceptance reports the controller's exact completed repeat count")
 assert(training_api.finished == true, "acceptance restores temporary training configuration")
 
+local training_combat_layer = true
+function training_api:area_snapshot() return { combat_layer = training_combat_layer } end
+training_status = { state = "positioning", status = "等待起手",
+    completed_rounds = 0, target_rounds = 1 }
+local recovery_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
+recovery_probe.request = {
+    session_id = "training-hunter-recovery", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_roar_single", training_repeat_count = 1,
+    require_combat_area = true,
+}
+recovery_probe:set_state("training_acceptance_wait")
+training_combat_layer = false
+recovery_probe:update()
+assert(recovery_probe.state == "training_acceptance_reenter",
+    "hunter recovery pauses an active training acceptance outside the combat layer")
+for _ = 1, 20 do recovery_probe:update() end
+assert(recovery_probe.state == "training_acceptance_reenter",
+    "preparation-area frames never resume active training acceptance")
+training_combat_layer = true
+recovery_probe:update()
+assert(recovery_probe.state == "training_acceptance_wait",
+    "combat re-entry resumes the same training acceptance without a new scenario request")
+function training_api:area_snapshot() return { combat_layer = true } end
+
 function training_api:input_motion_diagnostics()
     return { current_bindings = {
         policy = "read_only_exact_dictionary_lookup", call_failures = 0,
