@@ -269,8 +269,14 @@ assert(controller:preview_training_scenario(scenario))
 model.current_metadata = { action_category = 4 }
 model.coaching_state = function() return { phase = "startup" } end
 controller.training_state = "idle"
+sticky_node = "Attack.CheckBite.Phase01"
 assert(controller:start_training_scenario(scenario) and controller.training_state == "waiting"
     and training_requests == 3, "active monster attack queues training without interrupting the monster")
+sticky_node = "Normal.Search.Phase00"
+controller.frame_counter = controller.frame_counter + 15
+controller:update_training_scenario()
+assert(controller.training_state == "requested" and training_requests == 4,
+    "verified non-attack behavior-tree readiness bypasses a stale category-4 ActionNo")
 controller:cancel_training_scenario()
 assert(controller.training_state == "cancelled", "queued repeat training can be stopped explicitly")
 
@@ -327,7 +333,7 @@ controller.frame_counter = 213
 controller:update_training_scenario()
 assert(controller.training_state == "completed" and controller.training_completed_rounds == 1,
     "verified native successor completes the condition-guided round")
-assert(training_requests == 3, "natural condition training never calls forced Action injection")
+assert(training_requests == 4, "natural condition training never calls forced Action injection")
 
 local conditional = {
     id = "conditional", name_zh = "条件起手", actions = { 6000 },

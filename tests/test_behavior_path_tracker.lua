@@ -8,6 +8,8 @@ local snapshot = { layers = { { layer = 0, active_nodes = {
 } } } }
 assert(tracker:sample(10, snapshot, { category = 4, action = 19, motion_name = "TigRoar_R" }))
 assert(tracker.events[1].node.name == "Attack.Roar", "status1 active node wins over stale status2")
+assert(Tracker.primary_family(snapshot) == "attack",
+    "the selected primary Attack node is classified as an attack")
 assert(not tracker:sample(11, snapshot, { category = 4, action = 19, motion_name = "TigRoar_R" }),
     "unchanged FSM and Action state is deduplicated")
 tracker:sample(12, snapshot, { category = 1, action = 8, motion_name = "Idle" })
@@ -28,6 +30,11 @@ sticky:sample(22, { layers = { { layer = 0, active_nodes = {
 } } } }, { category = 4, action = 29, motion_name = "em032_00_08274" })
 assert(sticky:attack_cycle_completed_since(20),
     "a known non-attack node completes a sticky-ActionNo attack lifecycle")
+assert(Tracker.primary_family({ layers = { { layer = 0, active_nodes = {
+    { id = "search", name = "Normal.Search.Phase00", status1 = 2 },
+} } } }) == "non_attack", "Normal/Wait/Move primary nodes are safe non-attack readiness")
+assert(Tracker.primary_family({ layers = {} }) == "unknown",
+    "missing behavior-tree evidence remains fail-closed")
 
 local stale_motion = Tracker.new(8)
 stale_motion:sample(30, { layers = { { layer = 0, active_nodes = {

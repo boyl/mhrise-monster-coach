@@ -125,7 +125,20 @@ function M.training_entry_status(self)
     local category = self.model.current_metadata and tonumber(self.model.current_metadata.action_category)
     local coaching = self.model.coaching_state and self.model:coaching_state() or {}
     if category == 4 and coaching.phase ~= "recovery" then
-        return false, "等待怪物进入非攻击或收招状态", true
+        -- ActionNo can remain on the completed attack after the primary FSM has
+        -- already returned to Normal/Wait/Move. Reuse the same strict behavior-
+        -- tree classification that proves a sticky-ActionNo round completed.
+        -- Unknown or still-Attack snapshots remain fail-closed.
+        local family = "unknown"
+        if self.runtime.behavior_tree_snapshot then
+            local ok, snapshot = pcall(function()
+                return self.runtime:behavior_tree_snapshot()
+            end)
+            if ok then family = BehaviorPathTracker.primary_family(snapshot) end
+        end
+        if family ~= "non_attack" then
+            return false, "等待怪物进入非攻击或收招状态", true
+        end
     end
     return true
 end

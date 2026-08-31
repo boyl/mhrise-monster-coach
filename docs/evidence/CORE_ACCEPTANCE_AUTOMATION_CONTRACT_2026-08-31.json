@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_version": "0.49.46-action-transition-evidence",
+  "source_version": "0.49.47-behavior-tree-readiness",
   "scope": "轰龙 MVP 单启动、同任务集中自动验收契约",
   "plan": {
     "scenario_count": 8,
@@ -40,7 +40,8 @@
     "至少三个代表性场景具有完整 Native 判定窗口，全部场景具有行为树退出证据",
     "每个场景结果具有明确证据等级；未分类合法但不可计分",
     "完成依据仅允许 action_transition 或 behavior_tree_attack_exit",
-    "目标轮结束后允许观察不同 state_key 的后续动作；同目标仍活动时拒绝"
+    "目标轮结束后允许观察不同 state_key 的后续动作；同目标仍活动时拒绝",
+    "ActionNo 滞留时仅允许主行为树明确为 Normal、Wait 或 Move 后开始下一项；Attack、未知或读取失败时拒绝"
   ],
   "status": "offline_contract_verified_real_game_batch_pending"
 }

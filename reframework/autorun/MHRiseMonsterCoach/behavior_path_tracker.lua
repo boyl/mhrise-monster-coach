@@ -43,6 +43,14 @@ local function node_family(name)
     return "unknown"
 end
 
+-- Expose the same conservative family classification used by lifecycle
+-- completion so callers do not duplicate behavior-tree readiness rules.
+function M.primary_family(snapshot)
+    local node = select_primary(snapshot)
+    if node == nil then return "unknown" end
+    return node_family(node.name)
+end
+
 function M.new(max_events)
     return setmetatable({
         max_events = tonumber(max_events) or 128,
