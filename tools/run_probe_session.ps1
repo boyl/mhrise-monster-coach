@@ -9,6 +9,8 @@ param(
     [string[]]$ForcedActions = @(),
     [string]$TrainingScenarioId = '',
     [ValidateRange(1, 20)][int]$TrainingRepeatCount = 3,
+    [ValidateRange(0, 60)][double]$TrainingPrePositionDistance = 0,
+    [ValidateRange(0.5, 10)][double]$TrainingPrePositionTolerance = 2,
     [ValidateSet('none', 'dodge')][string]$TrainingResponseStep = 'none',
     [switch]$BehaviorSurvey,
     [switch]$BehaviorDistanceSweep,
@@ -44,6 +46,9 @@ foreach ($rawForcedAction in $ForcedActions) {
     }
 }
 $ForcedActions = @($normalizedForcedActions)
+if ($TrainingPrePositionDistance -gt 0 -and [string]::IsNullOrWhiteSpace($TrainingScenarioId)) {
+    throw '-TrainingPrePositionDistance requires -TrainingScenarioId.'
+}
 if ($SemanticInputTrigger -and ($UiContract -or $MonsterRespawn -or
         $ForcedActions.Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($TrainingScenarioId) -or
         $BehaviorSurvey -or $BehaviorDistanceSweep -or $ConditionBranch -or
@@ -256,6 +261,12 @@ if ($ResumeExisting) {
         forced_actions = @($ForcedActions)
         training_scenario_id = $TrainingScenarioId
         training_repeat_count = $TrainingRepeatCount
+        training_preposition_distance = if ($TrainingPrePositionDistance -gt 0) {
+            $TrainingPrePositionDistance
+        } else { $null }
+        training_preposition_tolerance = if ($TrainingPrePositionDistance -gt 0) {
+            $TrainingPrePositionTolerance
+        } else { $null }
         training_response_step = $TrainingResponseStep
         behavior_survey_frames = $BehaviorSurveyFrames
         target_root = if ($ConditionBranch) { 5000 } else { $null }
@@ -573,6 +584,11 @@ do {
             $report.state -eq 'training_acceptance_wait' -and
             $report.training_acceptance.execution_mode -eq 'natural_condition' -and
             $report.training_acceptance.state -eq 'positioning'
+        $isAcceptancePrePositionReport = $TrainingScenarioId -and $report -and
+            $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
+            $report.state -eq 'training_acceptance_preposition' -and
+            $report.training_acceptance.execution_mode -eq 'acceptance_preposition' -and
+            $report.training_acceptance.state -eq 'positioning'
         $isResponseReport = $responseEnabled -and $report -and
             $report.session_id -eq $sessionId -and $report.status -eq 'running' -and
             $report.state -eq 'training_acceptance_wait'
@@ -652,7 +668,8 @@ do {
             }
         }
         if (-not $isNavigationReport -and -not $isDistanceSweepReport -and
-            -not $isConditionBranchReport -and -not $isConditionTrainingReport) {
+            -not $isConditionBranchReport -and -not $isConditionTrainingReport -and
+            -not $isAcceptancePrePositionReport) {
             Stop-ArenaMovement
             $arenaNavigation = $null
         } elseif ($isNavigationReport) {
@@ -874,7 +891,7 @@ do {
                 }
             }
         }
-        if ($isConditionTrainingReport) {
+        if ($isConditionTrainingReport -or $isAcceptancePrePositionReport) {
             $player = $report.areas.player_position
             $enemy = $report.areas.enemy_position
             $targetDistance = [double]$report.training_acceptance.positioning.target
@@ -903,11 +920,14 @@ do {
                         if (-not [MonsterCoachInput]::BeginHoldMovement(
                             $game.MainWindowHandle, $virtualKeys[[string]$command.Primary], $secondaryKey)) {
                             if (Test-ProbeTerminal) { continue }
-                            throw "Could not apply product condition-training movement $desiredKeys"
+                            throw "Could not apply training positioning movement $desiredKeys"
                         }
                         $combatRunHeld = $true
                         $combatRunKeys = $desiredKeys
-                        Write-Host "Product condition training: $desiredKeys distance=$([Math]::Round($distance, 2)) m"
+                        $positioningKind = if ($isAcceptancePrePositionReport) {
+                            'Acceptance pre-position'
+                        } else { 'Product condition training' }
+                        Write-Host "$positioningKind`: $desiredKeys distance=$([Math]::Round($distance, 2)) m"
                     }
                 } else {
                     Stop-ArenaMovement

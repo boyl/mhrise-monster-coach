@@ -226,6 +226,10 @@ def analyze(
             violations.append("target_timeline_still_active")
     outcome = last_round.get("outcome")
     classification = last_round.get("classification") or result_data.get("classification") or {}
+    expected_root_action = acceptance.get("root_action")
+    if expected_root_action is not None \
+            and str(result_data.get("action")) != str(expected_root_action):
+        violations.append("target_round_action_mismatch")
     if outcome not in KNOWN_OUTCOMES:
         violations.append("unknown_outcome")
     if result_data.get("outcome") != outcome:

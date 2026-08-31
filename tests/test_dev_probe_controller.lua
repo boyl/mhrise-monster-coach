@@ -253,6 +253,7 @@ assert(batch_probe.forced_results[1].recovered == true,
 
 local training_reports = {}
 local training_status = { state = "waiting", status = "waiting", completed_rounds = 0, target_rounds = 3 }
+local training_start_count = 0
 local training_api = { quest_api = quest_api }
 function training_api:get_context() return forced_context end
 function training_api:read_request() return nil end
@@ -261,6 +262,7 @@ function training_api:environment_evidence() return {} end
 function training_api:area_snapshot() return { combat_layer = true } end
 function training_api:start_training_acceptance(id, count)
     assert(id == "tigrex_roar_single" and count == 3)
+    training_start_count = training_start_count + 1
     return true
 end
 function training_api:training_acceptance_status() return training_status end
@@ -291,7 +293,70 @@ assert(training_reports[#training_reports].status == "completed"
     "product-path acceptance reports the controller's exact completed repeat count")
 assert(training_api.finished == true, "acceptance restores temporary training configuration")
 
+local preposition_distance = 12
+function training_api:area_snapshot()
+    return {
+        combat_layer = true,
+        player_position = { x = 0, y = 0, z = 0 },
+        enemy_position = { x = preposition_distance, y = 0, z = 0 },
+    }
+end
+training_status = { state = "waiting", status = "waiting",
+    scenario_id = "tigrex_roar_single", completed_rounds = 0, target_rounds = 3 }
+local preposition_probe = Probe.new(training_api, 200032001, {
+    stable_frames = 1, preposition_stable_frames = 1,
+})
+preposition_probe.request = {
+    session_id = "training-preposition", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_roar_single", training_repeat_count = 3,
+    training_preposition_distance = 4, training_preposition_tolerance = 1,
+}
+preposition_probe:set_state("wait_stable")
+preposition_probe:update()
+assert(preposition_probe.state == "training_acceptance_preposition"
+    and training_start_count == 1,
+    "acceptance pre-position delays the target action instead of injecting it at the entry point")
+preposition_probe:update()
+assert(preposition_probe.state == "training_acceptance_preposition",
+    "out-of-band distance keeps acceptance in its read-only positioning gate")
+preposition_distance = 4
+preposition_probe:update()
+assert(preposition_probe.state == "training_acceptance_wait"
+    and training_start_count == 2,
+    "the verified distance band starts the original product training controller exactly once")
+
+local invalid_preposition_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
+assert(invalid_preposition_probe:accept_request({
+    session_id = "invalid-training-preposition", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_roar_single", training_repeat_count = 1,
+    training_preposition_distance = 4, training_preposition_tolerance = 0.1,
+}, forced_context) == false and training_reports[#training_reports].status == "failed",
+    "invalid acceptance positioning bounds fail before movement or action injection")
+
+preposition_distance = 4
 local training_combat_layer = true
+local recovering_preposition_probe = Probe.new(training_api, 200032001, {
+    stable_frames = 1, preposition_stable_frames = 2,
+})
+recovering_preposition_probe.request = {
+    session_id = "training-preposition-recovery", kind = "training_scenario_acceptance",
+    training_scenario_id = "tigrex_roar_single", training_repeat_count = 3,
+    training_preposition_distance = 4, training_preposition_tolerance = 1,
+}
+recovering_preposition_probe:set_state("training_acceptance_preposition")
+training_combat_layer = false
+function training_api:area_snapshot()
+    return {
+        combat_layer = training_combat_layer,
+        player_position = { x = 0, y = 0, z = 0 },
+        enemy_position = { x = preposition_distance, y = 0, z = 0 },
+    }
+end
+recovering_preposition_probe:update()
+assert(recovering_preposition_probe.state == "wait_stable",
+    "acceptance pre-position returns to the shared arena recovery path after a cart")
+
+training_combat_layer = true
 function training_api:area_snapshot() return { combat_layer = training_combat_layer } end
 training_status = { state = "positioning", status = "等待起手",
     completed_rounds = 0, target_rounds = 1 }

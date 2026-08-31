@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.50-read-only-outcome-classification",
+  "status": "verified_no_damage_with_live_damage_observation",
+  "runtime_policy": {
+    "diagnostic_safe_mode": true,
+    "health_observation": "enabled_read_only",
+    "resource_writes": "disabled",
+    "weapon_response_required": false
+  },
+  "terminal_rounds": [
+    {
+      "session_id": "55a9ed91c24c45ee9f14751da396e5a4",
+      "scenario_id": "tigrex_roar_single",
+      "action": "19",
+      "outcome": "no_damage",
+      "health_comparisons": 342,
+      "damage": 0,
+      "analysis_status": "verified_complete_training_timeline",
+      "contract_valid": true,
+      "ready_for_product_acceptance": true
+    },
+    {
+      "session_id": "6ab69eb0fce14a019396ad2dc0aee960",
+      "scenario_id": "tigrex_half_turn_bite_short",
+      "action": "5000",
+      "outcome": "no_damage",
+      "health_comparisons": 74,
+      "damage": 0,
+      "analysis_status": "verified_partial_training_timeline",
+      "contract_valid": true,
+      "ready_for_product_acceptance": false
+    },
+    {
+      "session_id": "4e1d0729580d4573a2d938ddaaee310a",
+      "scenario_id": "tigrex_max_bite_single",
+      "action": "21",
+      "outcome": "no_damage",
+      "health_comparisons": 336,
+      "damage": 0,
+      "analysis_status": "verified_complete_training_timeline",
+      "contract_valid": true,
+      "ready_for_product_acceptance": true
+    }
+  ],
+  "live_damage_observations": [
+    {
+      "session_id": "6ab69eb0fce14a019396ad2dc0aee960",
+      "move": "咆哮",
+      "damage": 35.0,
+      "motion_frame": 39.2,
+      "evidence": "terminal overlay last-hit snapshot"
+    },
+    {
+      "session_id": "4e1d0729580d4573a2d938ddaaee310a",
+      "move": "冲锋起步",
+      "damage": 83.0,
+      "motion_frame": 120.7,
+      "evidence": "terminal overlay last-hit snapshot"
+    }
+  ],
+  "post_probe_runtime": {
+    "game_running": true,
+    "game_responding": true,
+    "new_windows_application_error_observed": false
+  },
+  "boundaries": [
+    "两个 live damage 样本证明只读掉血观察链工作，但它们发生在目标起手之前，不能替代目标轮 hit 终态合同。",
+    "短距半回转报告合同有效但缺少完整判定窗，因此保持 partial，不提升为完整产品验收。",
+    "no_damage 只表示连续生命比较期间没有掉血，不代表见切、居合或其他武器技能成功。"
+  ],
+  "raw_artifacts": [
+    "artifacts/outcome_acceptance/55a9ed91c24c45ee9f14751da396e5a4.training_scenario_acceptance.completed.json",
+    "artifacts/outcome_acceptance/6ab69eb0fce14a019396ad2dc0aee960.training_scenario_acceptance.completed.json",
+    "artifacts/outcome_acceptance/4e1d0729580d4573a2d938ddaaee310a.training_scenario_acceptance.completed.json"
+  ]
+}

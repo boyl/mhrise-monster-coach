@@ -181,6 +181,7 @@ function M.start()
             state = controller.training_state,
             status = controller.training_status,
             scenario_id = scenario and scenario.id or nil,
+            root_action = scenario and scenario.actions and scenario.actions[1] or nil,
             execution_mode = scenario and scenario.execution_mode or nil,
             positioning = scenario and scenario.positioning or nil,
             geometry = geometry,
@@ -290,7 +291,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.50-read-only-outcome-classification loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.51-automated-hit-positioning loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

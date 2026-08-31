@@ -28,6 +28,8 @@ python tools/analyze_behavior_survey.py `
 
 `run_probe_session.ps1 -TrainingScenarioId <id>` 在归档终态报告后会自动生成同名 `.analysis.json`；`-ResumeExisting` 恢复终态时也执行同一分析，不重新发送输入。分析结果把 `violations` 与 `coverage_gaps` 分开：前者表示证据契约不可信，后者表示结构可信但缺少完整判定窗或行为树退出证据。
 
+需要验收目标轮受击时，可在同一请求上增加 `-TrainingPrePositionDistance` 与 `-TrainingPrePositionTolerance`。探针先发布 `acceptance_preposition` 状态，外部执行器按报告中的实时坐标移动猎人；目标区间稳定后才创建训练轮并触发白名单 Action。终态分析同时核对 `training_acceptance.root_action` 与 Result 的 `action`，因此预定位途中或自然招式产生的伤害不能通过目标轮合同。
+
 训练终态绑定 `training_timeline.last_round`，不要求整个实时观察器停止。目标轮通过白名单完成依据结束后，Model 可以立即开始观察不同 `state_key` 的下一动作；分析器将其标记为 `post_round_observation_active=true`。活动时间轴仍属于刚完成的目标 `state_key`、缺少活动起点或状态键不可核对时，继续以 `target_timeline_still_active` 失败关闭。
 
 首个玩家响应验收命令为 `run_probe_session.ps1 -TrainingScenarioId tigrex_rotate_attack_right_single -TrainingRepeatCount 1 -TrainingResponseStep dodge`。该模式拒绝 `-ResumeExisting`，因为“本进程是否已对该轮发送输入”是实现至多一次语义的必要状态，不能从旧报告猜测恢复。

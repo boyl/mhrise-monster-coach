@@ -21,6 +21,7 @@ def payload(outcome="observed_hit"):
         {"sequence": 4, "kind": "hitbox_close", "data": {
             "motion_frame": 45.25, "source": "monster_coach_native"}},
         {"sequence": 5, "kind": "result", "data": {
+            "action": "19",
             "outcome": outcome,
             "outcome_tracking": False,
             "completion_basis": "behavior_tree_attack_exit",
@@ -33,6 +34,7 @@ def payload(outcome="observed_hit"):
         "training_acceptance": {
             "state": "completed",
             "scenario_id": "tigrex_roar_single",
+            "root_action": 19,
             "execution_mode": "forced_single",
             "completed_rounds": 5,
             "target_rounds": 5,
@@ -236,6 +238,13 @@ class TrainingTimelineAcceptanceAnalysisTests(unittest.TestCase):
         data["training_acceptance"]["completed_rounds"] = 4
         result = analyze(data)
         self.assertIn("training_round_count_mismatch", result["violations"])
+
+    def test_rejects_a_terminal_round_from_the_wrong_monster_action(self):
+        data = payload()
+        data["training_timeline"]["last_round"]["events"][-1]["data"]["action"] = "8"
+        result = analyze(data)
+        self.assertFalse(result["contract_valid"])
+        self.assertIn("target_round_action_mismatch", result["violations"])
 
     def test_rejects_candidate_scored_as_success(self):
         data = payload("response_attempt")

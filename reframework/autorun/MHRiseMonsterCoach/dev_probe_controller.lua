@@ -21,6 +21,17 @@ local function combat_area_ready(areas, allow_player_only)
         or (allow_player_only == true and areas.player_combat_layer == true))
 end
 
+local function horizontal_distance(areas)
+    local player = areas and areas.player_position or nil
+    local enemy = areas and areas.enemy_position or nil
+    if type(player) ~= "table" or type(enemy) ~= "table" then return nil end
+    local px, pz = tonumber(player.x), tonumber(player.z)
+    local ex, ez = tonumber(enemy.x), tonumber(enemy.z)
+    if px == nil or pz == nil or ex == nil or ez == nil then return nil end
+    local dx, dz = ex - px, ez - pz
+    return math.sqrt(dx * dx + dz * dz)
+end
+
 local SEMANTIC_TRIGGER_NEUTRAL_NODES = {
     ["wait.main"] = true,
     ["wait.wait_pre_mot_end"] = true,
@@ -50,6 +61,7 @@ function M.new(api, quest_id, options)
             timeout_frames = options.quest_timeout_frames or 3600,
         }),
         stable_required = options.stable_frames or 120,
+        preposition_stable_required = options.preposition_stable_frames or 15,
         collect_wait_frames = options.collect_wait_frames or 180,
         spawn_retry_interval_frames = options.spawn_retry_interval_frames or 30,
         spawn_timeout_frames = options.spawn_timeout_frames or 1800,
@@ -276,6 +288,14 @@ function M:accept_request(request, context)
                 or tonumber(request.training_repeat_count) ~= 1) then
             return self:fail("Dodge response requires the single-repeat right-spin scenario")
         end
+        if request.training_preposition_distance ~= nil then
+            local distance = tonumber(request.training_preposition_distance)
+            local tolerance = tonumber(request.training_preposition_tolerance)
+            if distance == nil or distance <= 0 or distance > 60
+                or tolerance == nil or tolerance < 0.5 or tolerance > 10 then
+                return self:fail("Training pre-position requires a >0-60 m target and 0.5-10 m tolerance")
+            end
+        end
     end
     if request.kind == "behavior_path_survey" then
         local frames = tonumber(request.behavior_survey_frames)
@@ -420,6 +440,24 @@ function M:update()
                                 return self:fail("Training response requires the current Long Sword loadout")
                             end
                         end
+                        local preposition = tonumber(self.request.training_preposition_distance)
+                        if preposition ~= nil and preposition > 0 then
+                            self.training_acceptance = {
+                                state = "positioning",
+                                status = "自动验收：起手前调整距离",
+                                scenario_id = self.request.training_scenario_id,
+                                execution_mode = "acceptance_preposition",
+                                positioning = {
+                                    metric = "horizontal_distance",
+                                    target = preposition,
+                                    tolerance = tonumber(self.request.training_preposition_tolerance) or 2,
+                                },
+                                completed_rounds = 0,
+                                target_rounds = tonumber(self.request.training_repeat_count),
+                            }
+                            self:set_state("training_acceptance_preposition")
+                            return true
+                        end
                         local ok, reason = self.api:start_training_acceptance(
                             self.request.training_scenario_id, self.request.training_repeat_count)
                         if not ok then return self:fail(reason) end
@@ -543,6 +581,40 @@ function M:update()
             end
         else
             self.stable_frames = 0
+        end
+    elseif self.state == "training_acceptance_preposition" then
+        local areas = self.api:area_snapshot()
+        if not combat_area_ready(areas) then
+            self.stable_frames = 0
+            self:set_state("wait_stable")
+            self:report("running")
+            return true
+        end
+        local distance = horizontal_distance(areas)
+        local positioning = self.training_acceptance.positioning
+        self.training_acceptance.geometry = {
+            horizontal_distance = distance,
+            player_position = areas and areas.player_position or nil,
+            enemy_position = areas and areas.enemy_position or nil,
+        }
+        if distance == nil then
+            self.stable_frames = 0
+        elseif math.abs(distance - positioning.target) <= positioning.tolerance then
+            self.stable_frames = self.stable_frames + 1
+        else
+            self.stable_frames = 0
+        end
+        if self.state_frames % 15 == 0 then self:report("running") end
+        if self.stable_frames >= self.preposition_stable_required then
+            local ok, reason = self.api:start_training_acceptance(
+                self.request.training_scenario_id, self.request.training_repeat_count)
+            if not ok then return self:fail(reason) end
+            self.training_acceptance = self.api:training_acceptance_status()
+            self:set_state("training_acceptance_wait")
+            return true
+        end
+        if self.state_frames > 1800 then
+            return self:fail("Training pre-position timed out")
         end
     elseif self.state == "training_acceptance_wait" then
         self.training_acceptance = self.api:training_acceptance_status()
