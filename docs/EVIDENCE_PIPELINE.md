@@ -8,7 +8,7 @@
 
 1. `run_probe_session.ps1` 完成或失败时，先把原始报告复制到 `artifacts/probe_reports/<session>.<kind>.<status>.json`。
 2. 自然行为调查交给 `analyze_behavior_survey.py`，从中提取攻击起手和下一攻击候选，并与怪物数据包已有边交叉验证。
-3. 训练场景验收交给 `analyze_training_timeline_acceptance.py`，统一审核轮次完成、事件连续性、判定窗、行为树退出、结果分类和证据等级。
+3. 训练场景验收交给 `analyze_training_timeline_acceptance.py`，统一审核轮次完成、事件连续性、判定窗、结果分类、证据等级和完成依据；ActionNo 真实变化使用 `action_transition`，ActionNo 粘滞但攻击树退出使用 `behavior_tree_attack_exit`，其他值全部拒绝。
 4. 带 `-TrainingResponseStep` 的自动验收另存同名 `.response.json`：它只证明外部白名单输入在某一轮发送过；分析器仍必须在原始游戏时间轴中找到预期玩家状态，二者会话、场景和轮次全部一致才通过。
 5. `run_core_acceptance.ps1` 在同一游戏进程和同一任务中顺序调用上述安全单场景执行器，再由 `analyze_core_acceptance.py` 聚合审核；它不另建 Lua 批量状态机，也不把一个场景的状态带入另一个场景的证据合同。
 6. 未被怪物包审核的边始终输出为 `observed_next_attack_candidate`，无论出现多少次。

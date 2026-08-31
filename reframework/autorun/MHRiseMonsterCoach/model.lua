@@ -738,7 +738,7 @@ local function record_transition(self, from_action, to_action)
     row.next[next_key] = (row.next[next_key] or 0) + 1
 end
 
-function M.finish_round(self, now)
+function M.finish_round(self, now, completion_basis)
     if self.current_action == nil then return end
     self.rounds = self.rounds + 1
     local classification = OutcomeClassifier.classify(self.training_timeline.events, {
@@ -749,6 +749,7 @@ function M.finish_round(self, now)
         action = tostring(self.current_action),
         state_key = self.current_state_key,
         damage = self.round_damage,
+        completion_basis = completion_basis,
         classification = classification,
     })
     if classification.score == "failure" then
@@ -779,7 +780,7 @@ function M.complete_current_action_from_behavior_exit(self, now, expected_action
     end
     M.finalize_hitbox_observation(self)
     if self.context.outcome_tracking == true then
-        M.finish_round(self, now)
+        M.finish_round(self, now, "behavior_tree_attack_exit")
     else
         local classification = OutcomeClassifier.classify(self.training_timeline.events, {
             outcome_tracking = false,
@@ -844,7 +845,7 @@ function M.observe_action(self, action, now, metadata)
         M.finalize_hitbox_observation(self)
         if self.training_timeline.active == true then
             if self.context.outcome_tracking == true then
-                M.finish_round(self, now)
+                M.finish_round(self, now, "action_transition")
             else
                 local classification = OutcomeClassifier.classify(self.training_timeline.events, {
                     outcome_tracking = false,
@@ -853,6 +854,7 @@ function M.observe_action(self, action, now, metadata)
                     action = tostring(previous),
                     state_key = previous_state_key,
                     outcome_tracking = false,
+                    completion_basis = "action_transition",
                     classification = classification,
                 })
                 self.state_changes = self.state_changes + 1

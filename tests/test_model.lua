@@ -150,6 +150,8 @@ status_model:observe_action("11", 4)
 local evade_round = status_model:training_timeline_snapshot().last_round
 equal(evade_round.outcome, "evade_attempt", "Escape is explicit but remains unscored")
 equal(evade_round.classification.score, "unclassified")
+equal(evade_round.events[#evade_round.events].data.completion_basis,
+    "action_transition", "ActionNo changes record a verified transition completion basis")
 
 local sticky_timeline_model = Model.new(profile, { moves = {}, scenarios = {} }, config)
 sticky_timeline_model:set_context({
@@ -268,6 +270,8 @@ local failed_timeline = model:training_timeline_snapshot().last_round
 equal(failed_timeline.outcome, "hit", "training timeline classifies an outcome-tracked hit")
 equal(failed_timeline.events[1].kind, "action_start", "training timeline begins at action start")
 equal(failed_timeline.events[#failed_timeline.events].kind, "result", "training timeline ends with a result")
+equal(failed_timeline.events[#failed_timeline.events].data.completion_basis,
+    "action_transition", "tracked rounds preserve ActionNo transition completion evidence")
 
 model:observe_action("12", 3)
 equal(model.successes, 3, "no damage closes successful round")

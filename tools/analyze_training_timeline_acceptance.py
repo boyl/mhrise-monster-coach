@@ -228,10 +228,10 @@ def analyze(
     windows, hitbox_gaps = _hitbox_windows(events)
     coverage_gaps.extend(hitbox_gaps)
     completion_basis = result_data.get("completion_basis")
-    if completion_basis != "behavior_tree_attack_exit":
+    if completion_basis not in {"behavior_tree_attack_exit", "action_transition"}:
         coverage_gaps.append(
             "completion_basis_missing" if completion_basis is None
-            else "completion_basis_not_behavior_tree_exit"
+            else "completion_basis_not_verified"
         )
 
     response, response_violations = _analyze_response(

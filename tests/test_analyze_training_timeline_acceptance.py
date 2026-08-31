@@ -80,6 +80,16 @@ class TrainingTimelineAcceptanceAnalysisTests(unittest.TestCase):
         self.assertEqual(result["outcome"]["evidence_level"], "observed_failure")
         self.assertFalse(result["outcome"]["scoreable"])
 
+    def test_accepts_verified_action_transition_completion(self):
+        data = payload()
+        data["training_timeline"]["last_round"]["events"][-1]["data"][
+            "completion_basis"
+        ] = "action_transition"
+        result = analyze(data)
+        self.assertEqual(result["status"], "verified_complete_training_timeline")
+        self.assertEqual(result["timeline"]["completion_basis"], "action_transition")
+        self.assertTrue(result["contract_valid"])
+
     def test_keeps_community_success_as_candidate(self):
         data = payload("response_success_candidate")
         classification = data["training_timeline"]["last_round"]["classification"]
