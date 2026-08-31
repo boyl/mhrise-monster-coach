@@ -43,7 +43,7 @@
 
 ## 当前推进批次
 
-当前源码候选版本为 `0.49.46-action-transition-evidence`。`tools/run_core_acceptance.ps1` 把既有安全单场景执行器组合成单次启动、单次任务的 8 场景批处理。首轮真实批次自动完成 5 项并暴露猫车恢复缺口；第二轮在大咬 Action `21 -> Move 12` 后安全停止，证明旧时间轴只声明了 ActionNo 粘滞时的 `behavior_tree_attack_exit`，没有记录真实 ActionNo 变化的完成依据。新版在 Model 结果事件中显式记录 `action_transition`，分析器只接受这两种白名单完成依据。猫车仍通过原生传送恢复同一场景；投石等允许保持“结构有效但无怪物本体 Native 窗口”，`unclassified` 仍是诚实且不可计分的显式结果。下一步是第三次完整批次，再把无法结构化判断的 Overlay 可读性集中验收一次。
+当前源码候选版本为 `0.49.46-action-transition-evidence`。`tools/run_core_acceptance.ps1` 把既有安全单场景执行器组合成单次启动、单次任务的 8 场景批处理。首轮真实批次自动完成 5 项并暴露猫车恢复缺口；第二轮补出 `action_transition` 完成依据；第三轮再次到达大咬后证明目标轮已经完整结束，但 Model 按职责立即开始观察后续 Move Action，旧分析器错误要求整个实时观察器静止。现在验收严格绑定 `last_round`：只允许已完成目标与当前活动 `state_key` 不同的后续观察，目标本身仍 active 时继续失败。猫车仍通过原生传送恢复同一场景；投石等允许保持“结构有效但无怪物本体 Native 窗口”，`unclassified` 仍是诚实且不可计分的显式结果。下一步是继续完整批次，再把无法结构化判断的 Overlay 可读性集中验收一次。
 
 本次范围决定遵循最小扩展边界：不删除 `response_long_sword.lua`、武器知识数据或开发验收器，不提前建立武器插件注册表；只用一个默认关闭的配置值控制 Model 计算与 View 呈现。通用时间轴不依赖该开关，因此以后重新启用太刀或增加第二种武器时无需改写怪物训练闭环。
 

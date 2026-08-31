@@ -39,7 +39,8 @@
     "每个单场景终态报告完成且时间轴合同有效",
     "至少三个代表性场景具有完整 Native 判定窗口，全部场景具有行为树退出证据",
     "每个场景结果具有明确证据等级；未分类合法但不可计分",
-    "完成依据仅允许 action_transition 或 behavior_tree_attack_exit"
+    "完成依据仅允许 action_transition 或 behavior_tree_attack_exit",
+    "目标轮结束后允许观察不同 state_key 的后续动作；同目标仍活动时拒绝"
   ],
   "status": "offline_contract_verified_real_game_batch_pending"
 }

@@ -28,6 +28,8 @@ python tools/analyze_behavior_survey.py `
 
 `run_probe_session.ps1 -TrainingScenarioId <id>` 在归档终态报告后会自动生成同名 `.analysis.json`；`-ResumeExisting` 恢复终态时也执行同一分析，不重新发送输入。分析结果把 `violations` 与 `coverage_gaps` 分开：前者表示证据契约不可信，后者表示结构可信但缺少完整判定窗或行为树退出证据。
 
+训练终态绑定 `training_timeline.last_round`，不要求整个实时观察器停止。目标轮通过白名单完成依据结束后，Model 可以立即开始观察不同 `state_key` 的下一动作；分析器将其标记为 `post_round_observation_active=true`。活动时间轴仍属于刚完成的目标 `state_key`、缺少活动起点或状态键不可核对时，继续以 `target_timeline_still_active` 失败关闭。
+
 首个玩家响应验收命令为 `run_probe_session.ps1 -TrainingScenarioId tigrex_rotate_attack_right_single -TrainingRepeatCount 1 -TrainingResponseStep dodge`。该模式拒绝 `-ResumeExisting`，因为“本进程是否已对该轮发送输入”是实现至多一次语义的必要状态，不能从旧报告猜测恢复。
 
 轰龙 MVP 集中门禁使用 `run_core_acceptance.ps1`。默认计划来自 `tools/tigrex_core_acceptance_plan.json`，每个场景必须已经在怪物数据包标为 `verified`，并且请求轮数不得超过其 `max_verified_repeats`。第一项完成部署与启动，后续项传递 `-SkipDeployment` 并复用运行中的游戏；子项失败后立即停止，避免自动重试把第一次失败覆盖掉。批次摘要与统一分析位于 `artifacts/core_acceptance/<batch-id>/`。全部 8 项都必须完成、合同有效并产生显式结果等级；Native 判定窗采用计划声明的代表性最低覆盖数，因为投石等投射物判定不一定出现在怪物本体 Provider。`unclassified` 是不可计分但合法的证据等级，不会被伪装成成功。

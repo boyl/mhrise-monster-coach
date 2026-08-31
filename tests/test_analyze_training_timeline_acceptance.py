@@ -90,6 +90,40 @@ class TrainingTimelineAcceptanceAnalysisTests(unittest.TestCase):
         self.assertEqual(result["timeline"]["completion_basis"], "action_transition")
         self.assertTrue(result["contract_valid"])
 
+    def test_accepts_observation_of_a_different_post_round_action(self):
+        data = payload()
+        data["training_timeline"]["last_round"]["events"][-1]["data"][
+            "state_key"
+        ] = "4:19"
+        data["training_timeline"].update({
+            "active": True,
+            "events": [{
+                "sequence": 1,
+                "kind": "action_start",
+                "data": {"action": "12", "state_key": "1:12"},
+            }],
+        })
+        result = analyze(data)
+        self.assertTrue(result["contract_valid"])
+        self.assertTrue(result["timeline"]["post_round_observation_active"])
+
+    def test_rejects_active_timeline_for_the_completed_target(self):
+        data = payload()
+        data["training_timeline"]["last_round"]["events"][-1]["data"][
+            "state_key"
+        ] = "4:19"
+        data["training_timeline"].update({
+            "active": True,
+            "events": [{
+                "sequence": 1,
+                "kind": "action_start",
+                "data": {"action": "19", "state_key": "4:19"},
+            }],
+        })
+        result = analyze(data)
+        self.assertIn("target_timeline_still_active", result["violations"])
+        self.assertFalse(result["contract_valid"])
+
     def test_keeps_community_success_as_candidate(self):
         data = payload("response_success_candidate")
         classification = data["training_timeline"]["last_round"]["classification"]

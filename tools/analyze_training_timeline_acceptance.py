@@ -181,8 +181,9 @@ def analyze(
     last_round = timeline.get("last_round") or {}
     if timeline.get("schema_version") != 3 or last_round.get("schema_version") != 3:
         violations.append("unsupported_timeline_schema")
-    if timeline.get("active") is not False:
-        violations.append("timeline_still_active")
+    timeline_active = timeline.get("active")
+    if timeline_active not in {True, False}:
+        violations.append("timeline_active_flag_invalid")
     dropped_events = last_round.get("dropped_events", timeline.get("dropped_events", 0))
     if dropped_events != 0:
         violations.append("timeline_events_dropped")
@@ -202,6 +203,21 @@ def analyze(
             violations.append("terminal_result_invalid")
 
     result_data = (events[-1].get("data") or {}) if events and events[-1].get("kind") == "result" else {}
+    post_round_observation_active = False
+    if timeline_active is True:
+        active_events = timeline.get("events")
+        active_events = active_events if isinstance(active_events, list) else []
+        active_start = active_events[0] if active_events else {}
+        active_data = active_start.get("data") or {}
+        completed_state_key = result_data.get("state_key")
+        active_state_key = active_data.get("state_key")
+        if active_start.get("kind") == "action_start" \
+                and isinstance(completed_state_key, str) \
+                and isinstance(active_state_key, str) \
+                and active_state_key != completed_state_key:
+            post_round_observation_active = True
+        else:
+            violations.append("target_timeline_still_active")
     outcome = last_round.get("outcome")
     classification = last_round.get("classification") or result_data.get("classification") or {}
     if outcome not in KNOWN_OUTCOMES:
@@ -269,6 +285,7 @@ def analyze(
             "hitbox_windows": windows,
             "player_action_events": len(_events_of_kind(events, "player_action")),
             "player_status_events": len(_events_of_kind(events, "player_status")),
+            "post_round_observation_active": post_round_observation_active,
         },
         "outcome": {
             "value": outcome,
