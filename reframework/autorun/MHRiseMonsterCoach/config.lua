@@ -16,6 +16,7 @@ local DEFAULTS = {
     show_move = true,
     show_prediction = true,
     show_advice = true,
+    weapon_response_extension_enabled = false,
     show_timeline_review = true,
     show_hitboxviewer_debug_shapes = false,
     time_control_enabled = true,

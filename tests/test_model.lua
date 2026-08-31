@@ -6,6 +6,7 @@ local config = {
     min_prediction_samples = 3,
     transition_history_limit = 8,
     learned_action_limit = 16,
+    weapon_response_extension_enabled = true,
 }
 
 local profile = {
@@ -56,6 +57,27 @@ for _, response in ipairs(model.response_candidates) do
     if response.action == "evade" then has_evade = true break end
 end
 assert(has_evade, "unknown loadout retains safe fallback")
+
+local response_disabled_config = {
+    min_prediction_samples = 3,
+    transition_history_limit = 8,
+    learned_action_limit = 16,
+    weapon_response_extension_enabled = false,
+}
+local response_disabled_model = Model.new(profile, { moves = {}, scenarios = {} },
+    response_disabled_config)
+response_disabled_model.current_action = "10"
+response_disabled_model.current_state_key = "0:10"
+response_disabled_model:update_player_combat_state({
+    weapon_type = "long_sword",
+    active_scroll = "unknown",
+    resources = { usable_wirebugs = 1 },
+    action_state = {},
+})
+equal(#response_disabled_model.response_candidates, 0,
+    "disabled weapon response extension does not evaluate suggestions")
+equal(response_disabled_model.response_error, nil,
+    "disabled weapon response extension does not report missing response state")
 
 local semantic_knowledge = {
     actions = { foresight_slash = { name = "见切斩" } },

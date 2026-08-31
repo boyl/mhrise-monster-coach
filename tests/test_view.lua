@@ -16,6 +16,7 @@ local config = {
     show_move = false,
     show_prediction = false,
     show_advice = false,
+    weapon_response_extension_enabled = false,
     show_timeline_review = true,
     time_control_enabled = false,
     slowmo_scale = 0.25,
@@ -74,6 +75,29 @@ drawn = {}
 view:draw(model, runtime, false, nil)
 assert(table.concat(drawn, "\n"):find("Next (random):", 1, true),
     "random branches are never presented as conditional or fixed")
+
+config.show_advice = true
+model.current_move = { advice = "Move sideways", threat = {
+    direction = "front", response = "leave the line",
+} }
+model.response_candidates = { { availability = "available", name = "Foresight Slash" } }
+model.player_combat_state = { weapon_type = "long_sword", active_scroll = "red",
+    switch_skills = { red = { 1, 2, 3, 4, 5 } } }
+drawn = {}
+view:draw(model, runtime, false, nil)
+local response_disabled_text = table.concat(drawn, "\n")
+assert(not response_disabled_text:find("Weapon response:", 1, true),
+    "disabled optional extension hides weapon-specific response text")
+assert(not response_disabled_text:find("Long Sword loadout:", 1, true),
+    "disabled optional extension hides weapon loadout diagnostics")
+config.weapon_response_extension_enabled = true
+drawn = {}
+view:draw(model, runtime, false, nil)
+local response_enabled_text = table.concat(drawn, "\n")
+assert(response_enabled_text:find("Weapon response: Foresight Slash", 1, true),
+    "enabled optional extension shows weapon-specific response text")
+assert(response_enabled_text:find("Long Sword loadout: red scroll", 1, true),
+    "enabled optional extension shows weapon loadout diagnostics")
 
 revision = 2
 view:draw(model, runtime, false, nil)

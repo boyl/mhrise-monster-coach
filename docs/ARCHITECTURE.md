@@ -58,7 +58,7 @@ app (composition root)
 
 ### 武器上下文应对
 
-静态 `MoveDefinition.advice` 只是无玩家上下文时的保底提示。武器专属建议采用 `MonsterMoveContext + PlayerCombatState → ResponseCandidate[]`，详细契约见 `RESPONSE_ENGINE.md`。Runtime 只负责把游戏字段转换为稳定语义，Model 保存状态并运行纯规则，View 不判断见切、居合或登龙是否可用。首个实现固定为太刀；第二种真实武器落地前不建立武器插件注册表。
+武器上下文应对是默认关闭的可选扩展，不属于轰龙 MVP 的核心依赖。静态 `MoveDefinition.advice` 继续提供与武器无关的保底提示；启用 `weapon_response_extension_enabled` 后，武器专属建议才采用 `MonsterMoveContext + PlayerCombatState → ResponseCandidate[]`，详细契约见 `RESPONSE_ENGINE.md`。Runtime 继续把玩家状态转换为稳定语义，供通用结果时间轴使用；Model 只在扩展开启时运行太刀规则，View 只在同一开关开启时呈现武器建议和配装摘要。首个实现固定为太刀；第二种真实武器落地前不建立武器插件注册表。
 
 猎人实时动作采用 `player_action_reader → player_action_observer → PlayerCombatState.action_state.evidence → player_action_semantics → Model` 的单向依赖。Reader 只接触 REFramework 对象，Observer 负责去重和有界历史，语义解析器只消费武器数据包，Model 记录稳定契约。动作节点到“见切/居合”等名称的映射禁止写入 Reader、Controller 或 View。社区来源的节点只标记为候选；本机观察表示“节点确实出现”，不等于映射已经实机验证，更不等于反击成功。
 

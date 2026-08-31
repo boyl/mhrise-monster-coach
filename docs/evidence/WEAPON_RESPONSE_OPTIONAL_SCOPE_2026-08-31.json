@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "date": "2026-08-31",
+  "source_version": "0.49.43-optional-weapon-response",
+  "decision": "weapon_response_is_optional_extension",
+  "default_enabled": false,
+  "scope": {
+    "optional": [
+      "weapon-specific skill suggestions",
+      "long sword scroll and loadout summary",
+      "foresight, iai, helmbreaker and other weapon semantic success hints",
+      "automated player response acceptance"
+    ],
+    "core_unchanged": [
+      "monster move and phase display",
+      "fixed, conditional, random and observed branch display",
+      "featured starter training",
+      "global slow motion",
+      "native one-key quest restart",
+      "generic hit, guard and evade status timeline"
+    ]
+  },
+  "implementation_contract": {
+    "config": "weapon_response_extension_enabled",
+    "disabled_model_behavior": "does not evaluate response_long_sword",
+    "disabled_view_behavior": "does not render weapon response or loadout",
+    "retained_modules": true,
+    "plugin_registry_added": false
+  },
+  "reason": "Reduce the remaining MVP validation chain while preserving the proven extension boundary for later weapons.",
+  "external_failure_note": "The preceding wait_quest exit is not attributed to this feature because the user confirmed concurrent modification by another program."
+}

@@ -208,12 +208,18 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             lines[#lines + 1] = { "Threat / 威胁: " .. truncate(threat.direction, 30)
                 .. "  →  " .. truncate(threat.response, 42), COLORS.warning }
         end
-        lines[#lines + 1] = { "Response: " .. truncate(model.current_move.advice, 76), COLORS.text }
-        local weapon_response = response_text(model)
-        if weapon_response then lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text } end
+        lines[#lines + 1] = { "Advice: " .. truncate(model.current_move.advice, 76), COLORS.text }
+        if self.config.weapon_response_extension_enabled == true then
+            local weapon_response = response_text(model)
+            if weapon_response then
+                lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text }
+            end
+        end
     end
-    local loadout = loadout_text(model)
-    if loadout then lines[#lines + 1] = { loadout, COLORS.muted } end
+    if self.config.weapon_response_extension_enabled == true then
+        local loadout = loadout_text(model)
+        if loadout then lines[#lines + 1] = { loadout, COLORS.muted } end
+    end
     if model.context.outcome_tracking and model.last_result then
         lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
     end

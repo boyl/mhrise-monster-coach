@@ -346,7 +346,13 @@ function M.update_player_combat_state(self, state, at)
     end
     if type(state) ~= "table" or self.current_action == nil then
         self.response_candidates = {}
-        self.response_error = state == nil and "player_state_unavailable" or nil
+        self.response_error = self.config.weapon_response_extension_enabled == true
+            and state == nil and "player_state_unavailable" or nil
+        return
+    end
+    if self.config.weapon_response_extension_enabled ~= true then
+        self.response_candidates = {}
+        self.response_error = nil
         return
     end
     local results, response_error = LongSwordResponse.evaluate({

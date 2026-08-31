@@ -636,7 +636,9 @@ function M.draw_menu_content(self)
     changed = checkbox("Overlay / 场上提示", self.config, "overlay_enabled") or changed
     changed = checkbox("Show move / 显示招式", self.config, "show_move") or changed
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
-    changed = checkbox("Show response / 显示应对", self.config, "show_advice") or changed
+    changed = checkbox("General move advice / 通用招式应对", self.config, "show_advice") or changed
+    changed = checkbox("Weapon skill response (optional) / 武器技能应对（可选）",
+        self.config, "weapon_response_extension_enabled") or changed
     changed = checkbox("Round review / 单轮复盘", self.config, "show_timeline_review") or changed
     changed = checkbox("Manual slow motion / 手动子弹时间", self.config, "time_control_enabled") or changed
     changed = M.draw_training_menu(self) or changed
