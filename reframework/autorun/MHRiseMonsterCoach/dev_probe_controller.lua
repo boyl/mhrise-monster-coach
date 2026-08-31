@@ -73,6 +73,7 @@ function M.new(api, quest_id, options)
         input_motion = nil,
         player_action = nil,
         ui_contract = nil,
+        last_quest_flow_state = nil,
     }, { __index = M })
     return self
 end
@@ -85,6 +86,30 @@ function M:select_request_quest(request)
         hub_stable_frames = self.quest_flow.hub_stable_required,
         timeout_frames = self.quest_flow.timeout_frames,
     })
+    self.last_quest_flow_state = self.quest_flow.state
+end
+
+function M:emit_lifecycle(event, reason)
+    if self.request == nil or type(self.api.write_lifecycle) ~= "function" then return end
+    pcall(function()
+        self.api:write_lifecycle({
+            schema_version = 1,
+            session_id = self.request.session_id,
+            kind = self.request.kind,
+            event = event,
+            reason = reason,
+            controller_state = self.state,
+            quest_flow = self.quest_flow:diagnostics(),
+            frame = self.frame,
+        })
+    end)
+end
+
+function M:sync_quest_flow_lifecycle()
+    local state = self.quest_flow and self.quest_flow.state or nil
+    if state == self.last_quest_flow_state then return end
+    self.last_quest_flow_state = state
+    self:emit_lifecycle("quest_flow_transition")
 end
 
 function M:set_state(state)
@@ -94,6 +119,7 @@ function M:set_state(state)
     self.spawn_attempts = 0
     self.last_spawn_attempt_frame = nil
     self.last_spawn_reason = nil
+    self:emit_lifecycle("controller_transition")
 end
 
 function M:report(status, reason)
@@ -145,7 +171,9 @@ function M:fail(reason)
     if self.api.cancel_semantic_input_trigger then self.api:cancel_semantic_input_trigger() end
     if self.request and self.request.kind == "training_scenario_acceptance"
         and self.api.finish_training_acceptance then self.api:finish_training_acceptance() end
-    self:report("failed", tostring(reason or "unknown error"))
+    local failure_reason = tostring(reason or "unknown error")
+    self:emit_lifecycle("failed", failure_reason)
+    self:report("failed", failure_reason)
     self.quest_flow:shutdown()
     self.request = nil
     self.probe_key = nil
@@ -160,6 +188,7 @@ function M:complete()
         reason = tostring(self.forced_failure_count)
             .. " forced action(s) were isolated and safely recovered"
     end
+    self:emit_lifecycle("completed", reason)
     self:report("completed", reason)
     if self.request and self.request.kind == "training_scenario_acceptance"
         and self.api.finish_training_acceptance then self.api:finish_training_acceptance() end
@@ -207,6 +236,7 @@ function M:accept_request(request, context)
     if request.auto_load_save == true and context.in_quest ~= true
         and context.player_found ~= true then return false end
     self.request = request
+    self:emit_lifecycle("request_accepted")
     self.monster_respawn = { attempted = false, state = "idle" }
     self.respawn_failure = nil
     self.forced_actions = {}
@@ -350,6 +380,7 @@ function M:update()
 
     if self.state == "launching" then
         self.quest_flow:update(context)
+        self:sync_quest_flow_lifecycle()
         if self.quest_flow.state == "failed" then return self:fail(self.quest_flow.error) end
         if self.quest_flow.state == "complete" then self:set_state("wait_stable") end
     elseif self.state == "wait_stable" then
@@ -769,6 +800,7 @@ function M:update()
         end
     elseif self.state == "native_branch_recovery" then
         self.quest_flow:update(context)
+        self:sync_quest_flow_lifecycle()
         if self.state_frames % 30 == 0 then self:report("running") end
         if self.quest_flow.state == "failed" then
             return self:fail("Native branch recovery failed: " .. tostring(self.quest_flow.error))
@@ -858,6 +890,7 @@ function M:update()
         end
     elseif self.state == "forced_recovery" then
         self.quest_flow:update(context)
+        self:sync_quest_flow_lifecycle()
         if self.state_frames % 30 == 0 then self:report("running") end
         if self.quest_flow.state == "failed" then
             return self:fail(self.forced_error .. "; F7 recovery failed: "
@@ -909,6 +942,7 @@ function M:update()
         end
     elseif self.state == "monster_respawn_recovery" then
         self.quest_flow:update(context)
+        self:sync_quest_flow_lifecycle()
         if self.state_frames % 30 == 0 then self:report("running") end
         if self.quest_flow.state == "failed" then
             return self:fail(self.respawn_failure .. "; F7 recovery failed: "
@@ -941,6 +975,7 @@ function M:update()
         end
     elseif self.state == "restarting" then
         self.quest_flow:update(context)
+        self:sync_quest_flow_lifecycle()
         if self.quest_flow.state == "failed" then return self:fail(self.quest_flow.error) end
         if self.quest_flow.state == "complete" then self:set_state("verify_restart") end
     elseif self.state == "verify_restart" then

@@ -47,6 +47,9 @@ function M.start()
     function probe_api:write_report(report)
         json.dump_file("MHRiseMonsterCoach/dev_probe_report.json", report)
     end
+    function probe_api:write_lifecycle(status)
+        json.dump_file("MHRiseMonsterCoach/dev_probe_lifecycle_status.json", status)
+    end
     function probe_api:observe_environment()
         return runtime:observe_environment_creatures()
     end
@@ -268,7 +271,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.41-training-response-isolation loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.42-training-response-lifecycle loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

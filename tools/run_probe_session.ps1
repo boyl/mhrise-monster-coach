@@ -78,6 +78,7 @@ $resolvedGameRoot = [IO.Path]::GetFullPath($GameRoot)
 $dataRoot = Join-Path $resolvedGameRoot 'reframework\data\MHRiseMonsterCoach'
 $requestPath = Join-Path $dataRoot 'dev_probe_request.json'
 $reportPath = Join-Path $dataRoot 'dev_probe_report.json'
+$lifecyclePath = Join-Path $dataRoot 'dev_probe_lifecycle_status.json'
 $bootstrapStatusPath = Join-Path $dataRoot 'startup_bootstrap_status.json'
 $bootstrapAckPath = Join-Path $dataRoot 'startup_bootstrap_ack.json'
 $receiptPath = Join-Path $dataRoot 'dev_install_receipt.json'
@@ -984,7 +985,24 @@ do {
         }
     }
     if (-not (Get-Process -Name MonsterHunterRise -ErrorAction SilentlyContinue)) {
-        throw 'The game exited before the probe report was completed.'
+        New-Item -ItemType Directory -Path $resolvedArchiveRoot -Force | Out-Null
+        $lifecycleArchive = $null
+        $lifecycleState = 'unavailable'
+        if (Test-Path -LiteralPath $lifecyclePath -PathType Leaf) {
+            try {
+                $lifecycle = Get-Content -LiteralPath $lifecyclePath -Raw | ConvertFrom-Json
+                if ($lifecycle.session_id -eq $sessionId) {
+                    $lifecycleArchive = Join-Path $resolvedArchiveRoot `
+                        "$sessionId.$($request.kind).game_exit.lifecycle.json"
+                    Copy-Item -LiteralPath $lifecyclePath -Destination $lifecycleArchive -Force
+                    $lifecycleState = "$($lifecycle.controller_state)/$($lifecycle.quest_flow.state)"
+                }
+            } catch {
+                $lifecycleState = 'unreadable'
+            }
+        }
+        Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
+        throw "The game exited before the probe report was completed; last lifecycle=$lifecycleState; archive=$lifecycleArchive"
     }
     Start-Sleep -Milliseconds 250
 } while ((Get-Date) -lt $deadline)

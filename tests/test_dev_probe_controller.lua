@@ -6,7 +6,7 @@ local context = { in_quest = false, is_online = false, build_supported = true, p
 local request = {
     session_id = "probe-1", kind = "environment_creature_lifecycle", allow_spawn_probe = true,
 }
-local reports, observed, spawned, reset_calls = {}, 0, 0, 0
+local reports, lifecycles, observed, spawned, reset_calls = {}, {}, 0, 0, 0
 local quest_api = {}
 function quest_api:request_reset() reset_calls = reset_calls + 1 return true end
 function quest_api:is_hub_ready() return true end
@@ -24,6 +24,7 @@ local api = { quest_api = quest_api }
 function api:get_context() return context end
 function api:read_request() local value = request request = nil return value end
 function api:write_report(report) reports[#reports + 1] = report end
+function api:write_lifecycle(status) lifecycles[#lifecycles + 1] = status end
 function api:observe_environment() observed = observed + 1 return true end
 function api:spawn_environment_probe() spawned = spawned + 1 return true, "bird-1" end
 function api:environment_evidence() return { revision = observed } end
@@ -36,7 +37,21 @@ local probe = Probe.new(api, 200032001, {
 probe.frame = 60
 probe:update()
 assert(probe.state == "launching", "request starts automatic hub launch")
+assert(#lifecycles >= 2 and lifecycles[#lifecycles].controller_state == "launching"
+    and lifecycles[#lifecycles].quest_flow.state == "wait_hub",
+    "minimal lifecycle records request acceptance and hub launch before full reports")
 for _ = 1, 7 do probe:update() end
+local quest_flow_states = {}
+for _, lifecycle in ipairs(lifecycles) do
+    if lifecycle.event == "quest_flow_transition" then
+        quest_flow_states[lifecycle.quest_flow.state] = true
+    end
+end
+assert(quest_flow_states.open_counter and quest_flow_states.start_session
+    and quest_flow_states.select_quest and quest_flow_states.wait_posted
+    and quest_flow_states.wait_counter_close and quest_flow_states.depart
+    and quest_flow_states.wait_quest,
+    "minimal lifecycle records every native quest launch boundary")
 context = { in_quest = true, quest_no = 200032001, is_online = false,
     build_supported = true, target_found = true }
 for _ = 1, 4 do probe:update() end
