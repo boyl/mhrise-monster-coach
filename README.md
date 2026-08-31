@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：源码候选版 `0.49.40-training-response-acceptance`。托管语义写入实验已按反证永久关闭；产品手柄支持回到已验证物理绑定与冲突检测。开发验收现在可在白名单轰龙起手开始后，按本机只读解析的真实键位自动发送一次玩家应对，并要求游戏时间轴反向证明对应状态；不能证明就失败关闭且不重试。启动观察器已移除与 TDB 71 签名不符的每帧诊断调用，存档确认也改为至多一次、随后只观察原生加载。轰龙核心闭环已有多项实机证据，但尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
+> 当前状态：源码候选版 `0.49.41-training-response-isolation`。托管语义写入实验已按反证永久关闭；产品手柄支持回到已验证物理绑定与冲突检测。开发验收现在可在白名单轰龙起手开始后，按本机只读解析的真实键位自动发送一次玩家应对，并要求游戏时间轴反向证明对应状态；不能证明就失败关闭且不重试。自动启动已确认能完成单次存档选择并进入大厅；任务启动前会临时隔离两个已知的旧特效诊断启动器，结束时按 SHA-256 恢复，避免把跨项目实验钩子混入验收样本。轰龙核心闭环已有多项实机证据，但尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 
@@ -116,6 +116,8 @@ py -3 -m venv .venv
 
 开发副本可使用 `tools/deploy_dev.ps1` 部署。它按白名单复制文件、逐项校验 SHA-256，并保留配置、校准、运行证据、日志和其他 Mod。游戏必须先退出；如果目标位于 `Program Files`，请从具有写权限的 PowerShell 7 执行。
 
+`tools/run_probe_session.ps1` 在自行启动游戏时，会暂时停用且只停用 `LihuoSnSVfxInterceptPoc.lua` 与 `LihuoSnSVfxYunPreflight.lua` 两个已知实验启动器。无论验收完成、失败还是抛出异常，脚本都会先核对内容哈希再恢复原文件；其他 autorun Mod、配置与存档不在隔离范围。连接已经运行的游戏时不会移动任何启动器，因为它们已经被 REFramework 加载。
+
 ## 证据与架构
 
 项目将通用训练逻辑与逐怪数据包分离，运行时采用 Model / View / Controller 边界：
@@ -147,6 +149,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe tests/check_lua_syntax.py
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
 pwsh -NoProfile -File tests/test_deploy_dev.ps1
+pwsh -NoProfile -File tests/test_diagnostic_script_isolation.ps1
 ```
 
 自动测试通过不等于实机验收通过。源码候选会在集中部署后，按 `docs/REAL_GAME_ACCEPTANCE.md` 收集真实游戏证据再升级状态。

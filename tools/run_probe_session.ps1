@@ -58,6 +58,7 @@ $resolvedArchiveRoot = if ([string]::IsNullOrWhiteSpace($ProbeArchiveRoot)) {
     [IO.Path]::GetFullPath($ProbeArchiveRoot)
 }
 Import-Module (Join-Path $PSScriptRoot 'ArenaNavigation.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'DiagnosticScriptIsolation.psm1') -Force
 $responseEnabled = $TrainingResponseStep -ne 'none'
 $responseContract = $null
 if ($responseEnabled) {
@@ -171,6 +172,8 @@ function Test-ProbeTerminal {
     }
 }
 
+$diagnosticIsolation = @()
+try {
 if ($game) {
     $installedVersion = if (Test-Path -LiteralPath $receiptPath) {
         (Get-Content -LiteralPath $receiptPath -Raw | ConvertFrom-Json).version
@@ -269,6 +272,12 @@ if ($ResumeExisting) {
     }) -Path $bootstrapAckPath
 }
 if (-not $game) {
+    $diagnosticIsolation = @(Suspend-MonsterCoachKnownDiagnosticScripts `
+        -AutorunRoot (Join-Path $resolvedGameRoot 'reframework\autorun') `
+        -SessionId $sessionId)
+    if ($diagnosticIsolation.Count -gt 0) {
+        Write-Host "Temporarily isolated $($diagnosticIsolation.Count) known diagnostic autorun loader(s)."
+    }
     Start-Process -FilePath 'steam://run/1446780'
     $launchedGame = $true
     Write-Host $(if ($UiContract) { 'Game launched. The UI contract probe will complete before loading a save.' }
@@ -986,5 +995,13 @@ finally {
     Stop-ArenaMovement
     if ('MonsterCoachPlayerInputBridge' -as [type]) {
         [MonsterCoachPlayerInputBridge]::ReleaseAllowlistedInputs()
+    }
+}
+}
+finally {
+    if ($diagnosticIsolation.Count -gt 0) {
+        $restoredDiagnostics = @(Restore-MonsterCoachKnownDiagnosticScripts `
+            -Suspended $diagnosticIsolation)
+        Write-Host "Restored $($restoredDiagnostics.Count) diagnostic autorun loader(s)."
     }
 }

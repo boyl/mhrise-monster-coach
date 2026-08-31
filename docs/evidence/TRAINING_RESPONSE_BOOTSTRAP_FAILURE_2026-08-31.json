@@ -2,7 +2,7 @@
   "schema_version": 1,
   "captured_at": "2026-08-31",
   "scope": "automated training response startup boundary",
-  "result": "response_not_executed_bootstrap_failed",
+  "result": "response_not_executed_hub_reached_then_game_crashed",
   "attempts": [
     {
       "session_id": "e21affac11db43d19c6ff116d047c926",
@@ -35,6 +35,18 @@
       "report_status": "pending",
       "exception": "c0000005",
       "game_relative_offset": "0x4d807ba"
+    },
+    {
+      "session_id": "534ee40a8cf149fea9934d4b81ee76b0",
+      "version": "0.49.40-training-response-acceptance",
+      "save_confirmation_count": 1,
+      "bootstrap_status": "completed",
+      "bootstrap_completed_at_utc": "2026-08-30T20:08:17.1745230Z",
+      "game_crashed_at_utc": "2026-08-30T20:08:19.0370000Z",
+      "epv_dictionary_errors": 8,
+      "report_status": "pending",
+      "exception": "c0000005",
+      "game_relative_offset": "0x4d807ba"
     }
   ],
   "invariants": {
@@ -45,13 +57,23 @@
     "save_writes": false
   },
   "bounded_diagnosis": {
-    "confirmed_project_defect_removed": "TDB 71 getCurrentNodeName requires UInt32; optional zero-argument polling removed",
-    "third_party_epv_preflight_is_root_cause": false,
-    "remaining_common_trigger": "the acknowledged first-save confirmation was replayed twice while the native load boundary remained asynchronous",
-    "remediation": "save confirmation is now at-most-once; wait_hub is observe-only and fails closed after 3600 frames"
+    "confirmed_project_defects_removed": [
+      "TDB 71 getCurrentNodeName requires UInt32; optional zero-argument polling removed",
+      "save confirmation is at-most-once and wait_hub is observe-only"
+    ],
+    "at_most_once_retest": "bootstrap completed and entered the hub before the crash, so repeated save confirmation is disproven as the remaining cause",
+    "latest_failure_boundary": "after hub readiness and before the developer probe produced its first running report",
+    "known_diagnostic_interference": "two unrelated Lihuo SnS VFX experimental autorun loaders were active; eight EPV dictionary out-of-range calls occurred 3.254 seconds before the crash",
+    "root_cause_status": "not yet proven; the earlier isolation removed only one loader and did not isolate the intercept PoC",
+    "remediation": "the launcher now suspends both exact diagnostic loader filenames before a fresh game launch and restores unchanged hashes in finally"
   },
   "last_attempt_artifacts": {
-    "reframework_log_sha256": "47FC5BC3EA23A316986A91F8406F701424B3B4CA7127B8DCCF4E61ABEA9D61BC",
-    "crash_dump_sha256": "26F4B0C86D8CDB7A606440D7262F08B62CCE1A0CB07904518CD2EA6B1226AFDD"
+    "reframework_log_sha256": "E9674C4C4F0298EB023863968ACD5C54F48C14BF9BBE4FAE6B843C9D02F1B363",
+    "crash_dump_sha256": "B9555D2E2B83F067A54FAAA755117FD45795516BC21130772097A85C606819BD",
+    "bootstrap_status_sha256": "255EC6A66B85DCF2B02DC05C49167C69D7AA60BB55CC92B737429C8587125FD6",
+    "diagnostic_loader_sha256": {
+      "LihuoSnSVfxInterceptPoc.lua": "11BCC8500F3C8708B89F7F10A868AC0C0C16339F045607D4359119E67DEFA17C",
+      "LihuoSnSVfxYunPreflight.lua": "00BDE2F3C00450BE5F7B0F8CAB73E4B66041E9343C80D99EF403826E34C06FD9"
+    }
   }
 }
