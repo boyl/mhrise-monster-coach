@@ -2245,6 +2245,7 @@ function M.context(self)
     else
         self.player_state_reader:suspend("player combat state suspended during scene transition")
     end
+    local health_observation_available = M.health_observation_available(self)
     self.last_context = {
         in_quest = in_quest,
         quest_no = quest_no,
@@ -2253,8 +2254,11 @@ function M.context(self)
         enemy_id = self.enemy_id,
         reader_ready = self.reader:ready(),
         player_found = self.player ~= nil,
-        outcome_tracking = self.config.diagnostic_safe_mode ~= true
-            and self.player_data ~= nil and self.fields.player_health ~= nil,
+        -- Result observation is read-only.  Diagnostic safe mode disables
+        -- resource writes, not passive health sampling.
+        health_observation_available = health_observation_available,
+        outcome_tracking = health_observation_available,
+        resource_writes_enabled = self.config.diagnostic_safe_mode ~= true,
         safe_mode = self.config.diagnostic_safe_mode == true,
         build_supported = build_supported,
         game_name = self.game_name,
@@ -2386,6 +2390,10 @@ end
 function M.read_player_health(self)
     if self.player_data == nil or self.fields.player_health == nil then return nil end
     return safe(function() return self.fields.player_health:get_data(self.player_data) end)
+end
+
+function M.health_observation_available(self)
+    return self.player_data ~= nil and self.fields.player_health ~= nil
 end
 
 function M.restore_player_resources(self)

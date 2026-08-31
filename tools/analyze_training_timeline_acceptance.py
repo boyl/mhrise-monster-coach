@@ -59,7 +59,13 @@ def _classification_evidence(
     if outcome == "counter_success":
         return verified_success and not damage, "verified_success", True
     if outcome == "no_damage":
-        return result_data.get("outcome_tracking") is True and not damage, "health_tracked_no_damage", True
+        health_comparisons = result_data.get("health_comparisons")
+        return (
+            result_data.get("outcome_tracking") is True
+            and isinstance(health_comparisons, (int, float))
+            and health_comparisons >= 1
+            and not damage
+        ), "health_tracked_no_damage", True
     if outcome == "response_success_candidate":
         return candidate_success and not damage, "candidate_success", False
     if outcome == "response_attempt":

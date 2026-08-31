@@ -127,6 +127,7 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
         failures = 0,
         streak = 0,
         round_damage = 0,
+        round_health_comparisons = 0,
         last_result = nil,
         last_hit_event = nil,
         training_timeline = TrainingTimeline.new(config.timeline_event_limit or 128),
@@ -530,6 +531,7 @@ function M.set_context(self, context)
         self.last_player_status_key = nil
         self.last_player_status_active = false
         self.round_damage = 0
+        self.round_health_comparisons = 0
         self.live_hitbox_seen = false
         self.live_hitbox_state_key = nil
     end
@@ -741,14 +743,18 @@ end
 function M.finish_round(self, now, completion_basis)
     if self.current_action == nil then return end
     self.rounds = self.rounds + 1
+    local outcome_tracking = self.context.outcome_tracking == true
+        and (self.round_health_comparisons > 0 or self.round_damage > 0)
     local classification = OutcomeClassifier.classify(self.training_timeline.events, {
-        outcome_tracking = true,
+        outcome_tracking = outcome_tracking,
         damage = self.round_damage,
     })
     self.training_timeline:finish(now, classification.outcome, {
         action = tostring(self.current_action),
         state_key = self.current_state_key,
         damage = self.round_damage,
+        health_comparisons = self.round_health_comparisons,
+        outcome_tracking = outcome_tracking,
         completion_basis = completion_basis,
         classification = classification,
     })
@@ -767,6 +773,7 @@ function M.finish_round(self, now, completion_basis)
         self.last_result = classification.label
     end
     self.round_damage = 0
+    self.round_health_comparisons = 0
 end
 
 -- Enemy ActionNo and Motion can remain stale after the primary behavior tree
@@ -811,6 +818,8 @@ function M.rearm_current_action_round(self, now, expected_action)
     self.live_hitbox_seen = false
     self.live_hitbox_state_key = self.current_state_key
     self.action_started_at = tonumber(now) or 0
+    self.round_damage = 0
+    self.round_health_comparisons = 0
     self.training_timeline:start(self.action_started_at, {
         action = tostring(self.current_action),
         state_key = self.current_state_key,
@@ -875,6 +884,7 @@ function M.observe_action(self, action, now, metadata)
     self.live_hitbox_seen = false
     self.live_hitbox_state_key = next_state_key
     self.action_started_at = event_time
+    self.round_health_comparisons = 0
     self.prediction = self.current_move and (profile_prediction(self, self.current_move)
         or static_prediction(self, action, metadata)
         or learned_prediction(self, next_state_key)) or nil
@@ -925,7 +935,7 @@ end
 
 function M.observe_damage(self, amount)
     if type(amount) == "number" and amount > 0 and self.current_action ~= nil then
-        if self.context.outcome_tracking == true then
+        if self.context.outcome_tracking == true and self.training_timeline.active == true then
             self.round_damage = self.round_damage + amount
         end
         local metadata = self.current_metadata or {}
@@ -999,9 +1009,20 @@ function M.observe_damage(self, amount)
     return false
 end
 
+-- Record that two consecutive, valid health samples were compared while the
+-- current monster round was active.  Absence of damage is only scoreable when
+-- at least one such comparison exists; field availability alone is not proof.
+function M.observe_health_comparison(self)
+    if self.context.outcome_tracking ~= true or self.current_action == nil
+        or self.training_timeline.active ~= true then return false end
+    self.round_health_comparisons = self.round_health_comparisons + 1
+    return true
+end
+
 function M.reset_round(self, reason)
     self.training_timeline:reset(reason or "Training round reset")
     self.round_damage = 0
+    self.round_health_comparisons = 0
     self.last_hit_event = nil
     self.last_result = reason or "Training round reset"
     self.state = self.current_action and M.states.RUNNING or M.states.READY
@@ -1024,6 +1045,7 @@ function M.clear_round_runtime(self, reason)
     self.last_player_status_key = nil
     self.last_player_status_active = false
     self.round_damage = 0
+    self.round_health_comparisons = 0
     self.last_hit_event = nil
     self.live_hitbox_seen = false
     self.live_hitbox_state_key = nil

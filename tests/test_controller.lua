@@ -128,10 +128,11 @@ assert(captures == 1 and in_place_resets == 1,
     "F8 records a chosen point and F9 requests the native in-place candidate once")
 keys[120] = false
 
-local writes = 0
+local writes, health_comparisons = 0, 0
 local health_values = { 100, 80 }
 local health_index = 0
 model.observe_damage = function(_, amount) assert(amount == 20) return true end
+model.observe_health_comparison = function() health_comparisons = health_comparisons + 1 return true end
 model.export_calibration = function() return { observed_hit_timing = {} } end
 runtime.read_player_health = function()
     health_index = health_index + 1
@@ -144,6 +145,7 @@ config.diagnostic_safe_mode = true
 controller:update_health()
 controller:update_health()
 assert(writes == 1, "safe mode passively persists hit timing evidence")
+assert(health_comparisons == 1, "safe mode compares consecutive health samples without writing gameplay state")
 
 local training_requests = 0
 local semantic_rearms, semantic_exits = 0, 0

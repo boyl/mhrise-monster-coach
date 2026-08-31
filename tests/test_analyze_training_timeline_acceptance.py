@@ -160,6 +160,45 @@ class TrainingTimelineAcceptanceAnalysisTests(unittest.TestCase):
         self.assertTrue(result["outcome"]["scoreable"])
         self.assertEqual(result["violations"], [])
 
+    def test_accepts_no_damage_only_with_a_real_health_comparison(self):
+        data = payload("no_damage")
+        classification = data["training_timeline"]["last_round"]["classification"]
+        classification.update({
+            "score": "success", "label": "无伤（应对方式待确认）",
+            "tone": "success", "reason": "health_tracked_without_damage",
+        })
+        events = data["training_timeline"]["last_round"]["events"]
+        events[2] = {"sequence": 3, "kind": "player_status", "data": {
+            "escape": False, "damage": False, "guard": False}}
+        events[-1]["data"].update({
+            "outcome_tracking": True,
+            "health_comparisons": 42,
+            "classification": copy.deepcopy(classification),
+        })
+        result = analyze(data)
+        self.assertTrue(result["contract_valid"])
+        self.assertEqual(result["outcome"]["evidence_level"], "health_tracked_no_damage")
+        self.assertTrue(result["outcome"]["scoreable"])
+
+    def test_rejects_no_damage_without_a_health_comparison(self):
+        data = payload("no_damage")
+        classification = data["training_timeline"]["last_round"]["classification"]
+        classification.update({
+            "score": "success", "label": "无伤（应对方式待确认）",
+            "tone": "success", "reason": "health_tracked_without_damage",
+        })
+        events = data["training_timeline"]["last_round"]["events"]
+        events[2] = {"sequence": 3, "kind": "player_status", "data": {
+            "escape": False, "damage": False, "guard": False}}
+        events[-1]["data"].update({
+            "outcome_tracking": True,
+            "health_comparisons": 0,
+            "classification": copy.deepcopy(classification),
+        })
+        result = analyze(data)
+        self.assertFalse(result["contract_valid"])
+        self.assertIn("classification_evidence_mismatch", result["violations"])
+
     def test_rejects_counter_success_from_unverified_mapping(self):
         data = payload("counter_success")
         classification = data["training_timeline"]["last_round"]["classification"]

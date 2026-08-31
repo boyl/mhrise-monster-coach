@@ -378,7 +378,14 @@ end
 function M.update_context(self)
     self.frame_counter = self.frame_counter + 1
     if self.frame_counter % 15 == 1 then
-        self.model:set_context(self.runtime:context())
+        local previous = self.model.context or {}
+        local context = self.runtime:context()
+        self.model:set_context(context)
+        if context.in_quest ~= true or context.player_found == false
+            or previous.in_quest ~= context.in_quest
+            or previous.quest_no ~= context.quest_no then
+            self.last_health = nil
+        end
         self.model:update_player_combat_state(self.runtime:player_combat_state(), now())
     end
 end
@@ -406,8 +413,9 @@ end
 
 function M.update_health(self)
     local health = self.runtime:read_player_health()
-    if type(health) == "number" and type(self.last_health) == "number" and health < self.last_health then
-        if self.model:observe_damage(self.last_health - health) then
+    if type(health) == "number" and type(self.last_health) == "number" then
+        self.model:observe_health_comparison()
+        if health < self.last_health and self.model:observe_damage(self.last_health - health) then
             self.config_module.write_calibration(self.model:export_calibration(self.runtime.reader:description()))
         end
     end

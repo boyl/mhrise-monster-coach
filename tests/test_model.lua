@@ -177,6 +177,20 @@ truthy(sticky_timeline_model:rearm_current_action_round(11, 26),
     "a verified repeated request can rearm the same ActionNo")
 equal(sticky_timeline_model:training_timeline_snapshot().active, true,
     "rearmed repeat starts one fresh timeline round")
+
+local tracked_sticky = Model.new(profile, { moves = {}, scenarios = {} }, config)
+tracked_sticky:set_context({
+    in_quest = true, is_online = false, target_found = true, reader_ready = true,
+    outcome_tracking = true,
+})
+tracked_sticky:observe_action("26", 20, { action_category = 4 })
+tracked_sticky:observe_health_comparison()
+tracked_sticky:complete_current_action_from_behavior_exit(21, 26)
+tracked_sticky:observe_damage(15)
+equal(tracked_sticky.round_damage, 0,
+    "damage observed after a semantic exit is not carried into a future repeat")
+tracked_sticky:rearm_current_action_round(22, 26)
+equal(tracked_sticky.round_damage, 0, "rearming a sticky ActionNo starts a clean damage total")
 model.current_action = nil
 model:set_context({ in_quest = false, is_online = false, target_found = false, reader_ready = false })
 equal(model.state, Model.states.WAITING, "outside quest")
@@ -272,9 +286,26 @@ equal(failed_timeline.events[1].kind, "action_start", "training timeline begins 
 equal(failed_timeline.events[#failed_timeline.events].kind, "result", "training timeline ends with a result")
 equal(failed_timeline.events[#failed_timeline.events].data.completion_basis,
     "action_transition", "tracked rounds preserve ActionNo transition completion evidence")
+equal(failed_timeline.events[#failed_timeline.events].data.outcome_tracking, true,
+    "a measured health decrease is scoreable in read-only observation mode")
 
+truthy(model:observe_health_comparison(), "a valid health pair arms no-damage classification")
 model:observe_action("12", 3)
-equal(model.successes, 3, "no damage closes successful round")
+equal(model.successes, 1,
+    "only the health-sampled no-damage round is counted as successful")
+local successful_timeline = model:training_timeline_snapshot().last_round
+equal(successful_timeline.outcome, "no_damage", "paired health samples prove no damage")
+equal(successful_timeline.events[#successful_timeline.events].data.health_comparisons, 1,
+    "the result preserves its health comparison evidence")
+
+local unsampled = Model.new(profile, { moves = {}, scenarios = {} }, config)
+unsampled:set_context({ in_quest = true, is_online = false, target_found = true,
+    reader_ready = true, outcome_tracking = true })
+unsampled:observe_action("10", 1)
+unsampled:observe_action("11", 2)
+equal(unsampled:training_timeline_snapshot().last_round.outcome, "unclassified",
+    "health field availability alone never invents a no-damage result")
+equal(unsampled.successes, 0, "an unsampled round does not increase successes")
 
 -- Three identical observed transitions produce observed_single, never fixed.
 for index = 1, 3 do

@@ -105,7 +105,7 @@ app (composition root)
 时间轴 schema v2 除怪物动作、判定开闭、伤害与结果外，还可记录只读 `player_action`。该事件区分 `attempt`、`stance`、`activation` 与成功专用节点；结果分类不得仅凭“未受伤”推断见切或居合成功。
 
 - 每次 Action 开始建立一轮，事件严格按观察顺序保存；判定与受击事件同时保留 Motion 帧，不能用渲染帧或墙钟时间冒充动画时机。
-- 开启结果追踪时，Action 切换可得 `hit` 或 `no_damage`；只读模式只能给出 `observed_hit` 或 `unclassified`，不得把“未观察到掉血”升级为成功。
+- 只读生命观察可在 Action 切换时给出 `hit` 或 `no_damage`，但 `no_damage` 必须至少包含一组动作期间的连续生命值比较；字段或样本不可用时只能给出 `observed_hit` 或 `unclassified`，不得把“没有数据”升级为成功。
 - 活跃事件默认最多 128 条，溢出时显式累计 `dropped_events`；快照是只读副本，上一完整轮可跨普通重置保留以供复盘。
 - 当前契约不包含视频、世界状态、玩家关键输入或防御/回避语义。后两项只有在 Runtime 提供已验证的语义事件后才能扩展，不能由 Action 结果反推。
 

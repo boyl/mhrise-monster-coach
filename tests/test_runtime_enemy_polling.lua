@@ -43,4 +43,13 @@ runtime.methods.boss_enemy_count = { call = function() return 99 end }
 found, reason = runtime:poll_target_enemy(200032001, false)
 assert(found == false and reason == "Invalid boss enemy count", "invalid counts fail explicitly")
 
+runtime.config = { diagnostic_safe_mode = true }
+runtime.player_data = {}
+runtime.fields.player_health = {}
+assert(runtime:health_observation_available() == true,
+    "read-only health observation remains available in diagnostic safe mode")
+runtime.player_data = nil
+assert(runtime:health_observation_available() == false,
+    "health observation fails closed without a current player data object")
+
 print("test_runtime_enemy_polling.lua: PASS")
