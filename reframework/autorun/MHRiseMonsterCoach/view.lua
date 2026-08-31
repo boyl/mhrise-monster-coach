@@ -13,6 +13,14 @@ local COLORS = {
     disabled = 0xFF808080,
 }
 
+local PRIORITY = {
+    always = 0,
+    core = 10,
+    result = 20,
+    detail = 30,
+    diagnostic = 40,
+}
+
 local function truncate(text, max_chars)
     text = tostring(text or "")
     local offsets = {}
@@ -145,7 +153,31 @@ function M.new(config, font)
         font = font,
         timeline_revision = -1,
         timeline_review = nil,
+        last_layout = nil,
     }, { __index = M })
+end
+
+local function fit_line_budget(lines, max_lines)
+    if #lines <= max_lines then return lines end
+    local ranked = {}
+    for index, line in ipairs(lines) do
+        ranked[#ranked + 1] = { index = index, priority = tonumber(line[3]) or PRIORITY.detail }
+    end
+    table.sort(ranked, function(left, right)
+        if left.priority == right.priority then return left.index < right.index end
+        return left.priority < right.priority
+    end)
+    local selected = {}
+    for index = 1, max_lines do selected[ranked[index].index] = true end
+    local result = {}
+    for index, line in ipairs(lines) do
+        if selected[index] then result[#result + 1] = line end
+    end
+    return result
+end
+
+function M.layout_snapshot(self)
+    return self.last_layout
 end
 
 local function latest_timeline_review(self, model)
@@ -170,62 +202,69 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     local y = math.floor(math.max(18, screen_height * 0.025))
 
     local lines = {}
-    lines[#lines + 1] = { "MONSTER COACH  |  " .. model.profile.name, COLORS.title }
-    lines[#lines + 1] = { truncate(model.status, 88), result_color(model.state) }
+    lines[#lines + 1] = { "MONSTER COACH  |  " .. model.profile.name, COLORS.title, PRIORITY.always }
+    lines[#lines + 1] = { truncate(model.status, 88), result_color(model.state), PRIORITY.always }
     if model.context.in_quest then
         local target = model.context.target_found
             and ("Target: Tigrex detected  |  Enemy ID " .. tostring(model.context.enemy_id or "unknown"))
             or "Target: waiting for Tigrex"
-        lines[#lines + 1] = { target, model.context.target_found and COLORS.success or COLORS.muted }
+        lines[#lines + 1] = { target, model.context.target_found and COLORS.success or COLORS.muted,
+            PRIORITY.always }
     end
 
     if self.config.show_move and model.current_move then
-        lines[#lines + 1] = { "Move: " .. truncate(model.current_move.name, 74), COLORS.text }
+        lines[#lines + 1] = { "Move: " .. truncate(model.current_move.name, 74), COLORS.text,
+            PRIORITY.core }
         local progress = model.context.outcome_tracking
             and string.format("Round %d  |  Streak %d", model.rounds + 1, model.streak)
             or string.format("Observed changes %d", model.state_changes)
-        lines[#lines + 1] = { string.format("State key: %s  |  %s", model.current_state_key or model.current_action, progress), COLORS.muted }
+        lines[#lines + 1] = { string.format("State key: %s  |  %s", model.current_state_key or model.current_action, progress),
+            COLORS.muted, PRIORITY.diagnostic }
         local metadata = model.current_metadata
         if metadata and type(metadata.current_frame) == "number" and type(metadata.end_frame) == "number"
             and metadata.end_frame > 0 then
             lines[#lines + 1] = {
                 string.format("Animation: %.1f / %.1f  |  %.0f%%", metadata.current_frame, metadata.end_frame, (metadata.motion_progress or 0) * 100),
-                COLORS.muted,
+                COLORS.muted, PRIORITY.diagnostic,
             }
         end
     end
     if self.config.show_prediction and model.current_action then
-        lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text }
+        lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text,
+            PRIORITY.core }
     end
     if model.current_action then
         local phase_line, phase = phase_text(model)
         lines[#lines + 1] = { phase_line, phase == "active" and COLORS.warning
-            or (phase == "recovery" and COLORS.success or COLORS.text) }
+            or (phase == "recovery" and COLORS.success or COLORS.text), PRIORITY.core }
     end
     if self.config.show_advice and model.current_move then
         local threat = model.current_move.threat
         if threat then
             lines[#lines + 1] = { "Threat / 威胁: " .. truncate(threat.direction, 30)
-                .. "  →  " .. truncate(threat.response, 42), COLORS.warning }
+                .. "  →  " .. truncate(threat.response, 42), COLORS.warning, PRIORITY.result }
         end
-        lines[#lines + 1] = { "Advice: " .. truncate(model.current_move.advice, 76), COLORS.text }
+        lines[#lines + 1] = { "Advice: " .. truncate(model.current_move.advice, 76), COLORS.text,
+            PRIORITY.result }
         if self.config.weapon_response_extension_enabled == true then
             local weapon_response = response_text(model)
             if weapon_response then
-                lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text }
+                lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text, PRIORITY.detail }
             end
         end
     end
     if self.config.weapon_response_extension_enabled == true then
         local loadout = loadout_text(model)
-        if loadout then lines[#lines + 1] = { loadout, COLORS.muted } end
+        if loadout then lines[#lines + 1] = { loadout, COLORS.muted, PRIORITY.diagnostic } end
     end
     if model.context.outcome_tracking and model.last_result then
-        lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state) }
+        lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state),
+            PRIORITY.result }
     end
     if self.config.show_timeline_review then
         local review = latest_timeline_review(self, model)
-        if review then lines[#lines + 1] = { review.text, COLORS[review.tone] or COLORS.muted } end
+        if review then lines[#lines + 1] = { review.text, COLORS[review.tone] or COLORS.muted,
+            PRIORITY.core } end
     end
     local training = model.training_scenario
     if type(training) == "table" and training.state ~= "idle" then
@@ -236,18 +275,20 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             and (" [" .. round_text .. "]") or ""
         lines[#lines + 1] = { truncate(label .. tostring(training.status or training.state) .. progress, 88),
             result_color(training.state == "completed" and "success"
-                or (training.state == "failed" and "failure" or "running")) }
+                or (training.state == "failed" and "failure" or "running")), PRIORITY.core }
         local events = training.actual_path and training.actual_path.events or {}
         if #events > 0 then
             local names, first = {}, math.max(1, #events - 2)
             for index = first, #events do
                 names[#names + 1] = tostring(events[index].node and events[index].node.name or "?")
             end
-            lines[#lines + 1] = { truncate("Actual path / 实际路径: " .. table.concat(names, " > "), 88), COLORS.muted }
+            lines[#lines + 1] = { truncate("Actual path / 实际路径: " .. table.concat(names, " > "), 88),
+                COLORS.muted, PRIORITY.detail }
         end
     end
     local hit_result = last_hit_text(model.last_hit_event)
-    if hit_result then lines[#lines + 1] = { truncate(hit_result, 88), COLORS.failure } end
+    if hit_result then lines[#lines + 1] = { truncate(hit_result, 88), COLORS.failure,
+        PRIORITY.result } end
 
     local controls
     if model.context.build_supported == false then
@@ -271,16 +312,60 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     else
         controls = "F6: slow | F7: quest restart | F8: set reset point | F9: in-place reset disabled"
     end
-    lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted }
+    lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted,
+        PRIORITY.always }
 
     local font_pushed = self.font and self.font:push() or false
     local line_height = self.font and self.font.line_height or 19
     local padding = 12
+    local bottom_margin = 18
+    local available_height = math.max(line_height * 4 + padding * 2,
+        screen_height - y - bottom_margin)
+    local max_lines = math.max(4, math.floor((available_height - padding * 2) / line_height))
+    local raw_line_count = #lines
+    lines = fit_line_budget(lines, max_lines)
     local height = padding * 2 + line_height * #lines
+    local rendered_text = {}
+    local rendered_widths = {}
+    local content_width = width - padding * 2
+    local horizontal_overflow = false
+    for index, line in ipairs(lines) do
+        rendered_text[index] = fit_text(line[1], content_width)
+        rendered_widths[index] = measured_width(rendered_text[index])
+        if type(rendered_widths[index]) == "number" and rendered_widths[index] > content_width then
+            horizontal_overflow = true
+        end
+    end
+    self.last_layout = {
+        screen_width = screen_width,
+        screen_height = screen_height,
+        x = x,
+        y = y,
+        width = width,
+        height = height,
+        bottom = y + height,
+        bottom_margin = bottom_margin,
+        content_width = content_width,
+        line_height = line_height,
+        line_count = #lines,
+        raw_line_count = raw_line_count,
+        clipped_line_count = raw_line_count - #lines,
+        max_lines = max_lines,
+        text = rendered_text,
+        text_widths = rendered_widths,
+        horizontal_overflow = horizontal_overflow,
+        vertical_overflow = y + height > screen_height - bottom_margin,
+        font = {
+            ready = self.font and self.font.ready == true or false,
+            path = self.font and self.font.path or nil,
+            sample_width = self.font and self.font.sample_width or nil,
+            diagnostic = self.font and self.font:diagnostic() or "default font",
+        },
+    }
     draw.filled_rect(x, y, width, height, COLORS.panel)
     draw.outline_rect(x, y, width, height, COLORS.border)
     for index, line in ipairs(lines) do
-        draw.text(fit_text(line[1], width - padding * 2),
+        draw.text(rendered_text[index],
             x + padding, y + padding + (index - 1) * line_height, line[2])
     end
     if self.font then self.font:pop(font_pushed) end

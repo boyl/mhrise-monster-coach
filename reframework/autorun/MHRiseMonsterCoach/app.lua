@@ -175,6 +175,7 @@ function M.start()
             target_rounds = controller.training_target_rounds,
             actual_path = model.training_scenario and model.training_scenario.actual_path or nil,
             actual_branch = model.training_scenario and model.training_scenario.actual_branch or nil,
+            overlay_layout = view:layout_snapshot(),
         }
     end
     function probe_api:training_menu_snapshot(requested_repeats)
@@ -271,7 +272,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.47-behavior-tree-readiness loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.48-measured-overlay-layout loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

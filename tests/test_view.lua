@@ -43,8 +43,8 @@ function model:training_timeline_snapshot()
     } } }
 end
 
-local screen_width = 640
-local runtime = { screen_size = function() return screen_width, 360 end }
+local screen_width, screen_height = 640, 360
+local runtime = { screen_size = function() return screen_width, screen_height end }
 local view = View.new(config, nil)
 view:draw(model, runtime, false, nil)
 assert(snapshot_calls == 1, "first render obtains one immutable timeline snapshot")
@@ -98,6 +98,56 @@ assert(response_enabled_text:find("Weapon response: Foresight Slash", 1, true),
     "enabled optional extension shows weapon-specific response text")
 assert(response_enabled_text:find("Long Sword loadout: red scroll", 1, true),
     "enabled optional extension shows weapon loadout diagnostics")
+
+config.show_move = true
+model.rounds = 4
+model.streak = 2
+model.state_changes = 9
+model.current_state_key = "4:2"
+model.current_metadata = { current_frame = 120, end_frame = 180, motion_progress = 2 / 3 }
+model.context.outcome_tracking = true
+model.last_result = "观察到受击"
+model.training_scenario = {
+    name = "直线冲锋派生", state = "running", status = "等待条件派生 0/1",
+    completed_rounds = 0, target_rounds = 1,
+    actual_path = { events = {
+        { node = { name = "Attack.StraightRush.Phase00" } },
+        { node = { name = "Attack.StraightRush.Phase01" } },
+        { node = { name = "Attack.AfterRushDriftForAttack.Phase00" } },
+    } },
+}
+model.last_hit_event = { move_name = "直线冲锋", damage = 42,
+    relation = "inside_active", relative_frame = 3 }
+screen_width = 640
+drawn = {}
+view:draw(model, runtime, false, nil)
+local compact_layout = view:layout_snapshot()
+assert(compact_layout.bottom <= compact_layout.screen_height - compact_layout.bottom_margin,
+    "minimum-height overlay stays inside its measured screen content rectangle")
+assert(not compact_layout.horizontal_overflow and not compact_layout.vertical_overflow,
+    "shared runtime layout snapshot reports no horizontal or vertical overflow")
+assert(compact_layout.clipped_line_count > 0 and compact_layout.line_count <= compact_layout.max_lines,
+    "low resolution hides lower-priority diagnostics instead of overflowing")
+local compact_text = table.concat(compact_layout.text, "\n")
+assert(compact_text:find("Move:", 1, true)
+    and compact_text:find("Next (random):", 1, true)
+    and compact_text:find("Phase / 阶段:", 1, true)
+    and compact_text:find("Training ", 1, true),
+    "compact layout preserves move, branch certainty, phase and training state")
+assert(compact_layout.text[#compact_layout.text]:find("READ%-ONLY:") ~= nil,
+    "device-appropriate controls remain the final visible overlay line")
+for _, text in ipairs(compact_layout.text) do
+    assert(imgui.calc_text_size(text).x <= compact_layout.width - 24,
+        "all compact overlay text shares the measured content width")
+end
+
+screen_width = 1920
+screen_height = 1080
+drawn = {}
+view:draw(model, runtime, false, nil)
+local full_layout = view:layout_snapshot()
+assert(full_layout.clipped_line_count == 0 and full_layout.raw_line_count == full_layout.line_count,
+    "common 1080p layout retains the full evidence and diagnostic set")
 
 revision = 2
 view:draw(model, runtime, false, nil)
