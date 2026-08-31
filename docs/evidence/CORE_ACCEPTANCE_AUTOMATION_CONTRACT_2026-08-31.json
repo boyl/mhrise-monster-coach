@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.44-core-acceptance-batch",
+  "scope": "轰龙 MVP 单启动、同任务集中自动验收契约",
+  "plan": {
+    "scenario_count": 8,
+    "required_categories": [
+      "independent",
+      "fixed_branch",
+      "conditional_branch"
+    ],
+    "repeat_count_per_scenario": 1,
+    "weapon_response_required": false
+  },
+  "execution": {
+    "game_starts": 1,
+    "quest_sessions": 1,
+    "worker": "tools/run_probe_session.ps1",
+    "orchestrator": "tools/run_core_acceptance.ps1",
+    "analyzer": "tools/analyze_core_acceptance.py",
+    "stop_on_first_failure": true,
+    "automatic_retry": false,
+    "preserve_completed_evidence": true,
+    "leave_game_running_after_batch": true
+  },
+  "safety": {
+    "multiplayer_allowed": false,
+    "save_writes": false,
+    "equipment_writes": false,
+    "switch_skill_writes": false,
+    "arbitrary_action_ids": false,
+    "unverified_scenarios": false
+  },
+  "release_gate": [
+    "场景 ID、分类和重复上限与怪物数据包一致",
+    "场景按计划完整且有序执行",
+    "每个单场景终态报告完成且时间轴合同有效",
+    "每个场景具有完整 Native 判定窗口和行为树退出证据",
+    "每个场景结果具有明确证据等级"
+  ],
+  "status": "offline_contract_verified_real_game_batch_pending"
+}

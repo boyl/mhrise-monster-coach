@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "plan_id": "tigrex_mvp_core_v1",
+  "monster": "tigrex_mr_normal",
+  "required_categories": [
+    "independent",
+    "fixed_branch",
+    "conditional_branch"
+  ],
+  "scenarios": [
+    { "id": "tigrex_roar_single", "category": "independent", "repeat_count": 1 },
+    { "id": "tigrex_mr_rock_launcher_left", "category": "independent", "repeat_count": 1 },
+    { "id": "tigrex_check_bite_single", "category": "independent", "repeat_count": 1 },
+    { "id": "tigrex_max_bite_single", "category": "independent", "repeat_count": 1 },
+    { "id": "tigrex_rotate_attack_right_single", "category": "independent", "repeat_count": 1 },
+    { "id": "tigrex_half_turn_bite_short", "category": "fixed_branch", "repeat_count": 1 },
+    { "id": "tigrex_half_turn_bite_long", "category": "fixed_branch", "repeat_count": 1 },
+    { "id": "tigrex_straight_rush_branches", "category": "conditional_branch", "repeat_count": 1 }
+  ]
+}

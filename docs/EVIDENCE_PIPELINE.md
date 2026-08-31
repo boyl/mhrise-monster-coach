@@ -10,9 +10,10 @@
 2. 自然行为调查交给 `analyze_behavior_survey.py`，从中提取攻击起手和下一攻击候选，并与怪物数据包已有边交叉验证。
 3. 训练场景验收交给 `analyze_training_timeline_acceptance.py`，统一审核轮次完成、事件连续性、判定窗、行为树退出、结果分类和证据等级。
 4. 带 `-TrainingResponseStep` 的自动验收另存同名 `.response.json`：它只证明外部白名单输入在某一轮发送过；分析器仍必须在原始游戏时间轴中找到预期玩家状态，二者会话、场景和轮次全部一致才通过。
-5. 未被怪物包审核的边始终输出为 `observed_next_attack_candidate`，无论出现多少次。
-6. 只有静态 Think/FSM 结构与自然运行时证据共同支持后，才允许在怪物包中声明 `fixed` 或 `conditional`。
-7. 强制 Action 探针仅验证起手能否安全进入和退出，不用于证明后继关系。
+5. `run_core_acceptance.ps1` 在同一游戏进程和同一任务中顺序调用上述安全单场景执行器，再由 `analyze_core_acceptance.py` 聚合审核；它不另建 Lua 批量状态机，也不把一个场景的状态带入另一个场景的证据合同。
+6. 未被怪物包审核的边始终输出为 `observed_next_attack_candidate`，无论出现多少次。
+7. 只有静态 Think/FSM 结构与自然运行时证据共同支持后，才允许在怪物包中声明 `fixed` 或 `conditional`。
+8. 强制 Action 探针仅验证起手能否安全进入和退出，不用于证明后继关系。
 
 ## 离线分析
 
@@ -28,6 +29,8 @@ python tools/analyze_behavior_survey.py `
 `run_probe_session.ps1 -TrainingScenarioId <id>` 在归档终态报告后会自动生成同名 `.analysis.json`；`-ResumeExisting` 恢复终态时也执行同一分析，不重新发送输入。分析结果把 `violations` 与 `coverage_gaps` 分开：前者表示证据契约不可信，后者表示结构可信但缺少完整判定窗或行为树退出证据。
 
 首个玩家响应验收命令为 `run_probe_session.ps1 -TrainingScenarioId tigrex_rotate_attack_right_single -TrainingRepeatCount 1 -TrainingResponseStep dodge`。该模式拒绝 `-ResumeExisting`，因为“本进程是否已对该轮发送输入”是实现至多一次语义的必要状态，不能从旧报告猜测恢复。
+
+轰龙 MVP 集中门禁使用 `run_core_acceptance.ps1`。默认计划来自 `tools/tigrex_core_acceptance_plan.json`，每个场景必须已经在怪物数据包标为 `verified`，并且请求轮数不得超过其 `max_verified_repeats`。第一项完成部署与启动，后续项传递 `-SkipDeployment` 并复用运行中的游戏；子项失败后立即停止，避免自动重试把第一次失败覆盖掉。批次摘要与统一分析位于 `artifacts/core_acceptance/<batch-id>/`，只有场景完整有序、所有子合同有效、每项均有完整判定时间轴和可分类结果时才输出 `ready_for_release_gate=true`。
 
 ## 不变量
 
