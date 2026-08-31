@@ -147,14 +147,27 @@ function M.start()
         training_acceptance_config = {
             enabled = config.forced_action_training_enabled,
             repeat_count = config.training_repeat_count,
+            overlay_enabled = config.overlay_enabled,
+            show_move = config.show_move,
+            show_prediction = config.show_prediction,
+            weapon_response_extension_enabled = config.weapon_response_extension_enabled,
         }
         config.forced_action_training_enabled = true
         config.training_repeat_count = math.max(1, math.min(20, math.floor(tonumber(repeat_count) or 1)))
+        config.overlay_enabled = true
+        config.show_move = true
+        config.show_prediction = true
+        config.weapon_response_extension_enabled = false
         controller:preview_training_scenario(scenario)
         local ok = controller:start_training_scenario(scenario)
         if not ok then
             config.forced_action_training_enabled = training_acceptance_config.enabled
             config.training_repeat_count = training_acceptance_config.repeat_count
+            config.overlay_enabled = training_acceptance_config.overlay_enabled
+            config.show_move = training_acceptance_config.show_move
+            config.show_prediction = training_acceptance_config.show_prediction
+            config.weapon_response_extension_enabled =
+                training_acceptance_config.weapon_response_extension_enabled
             training_acceptance_config = nil
             return false, controller.training_status
         end
@@ -204,6 +217,11 @@ function M.start()
         if training_acceptance_config ~= nil then
             config.forced_action_training_enabled = training_acceptance_config.enabled
             config.training_repeat_count = training_acceptance_config.repeat_count
+            config.overlay_enabled = training_acceptance_config.overlay_enabled
+            config.show_move = training_acceptance_config.show_move
+            config.show_prediction = training_acceptance_config.show_prediction
+            config.weapon_response_extension_enabled =
+                training_acceptance_config.weapon_response_extension_enabled
             training_acceptance_config = nil
         end
     end
@@ -272,7 +290,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.48-measured-overlay-layout loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.49.49-overlay-probe-surface loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M
