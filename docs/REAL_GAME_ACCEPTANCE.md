@@ -39,6 +39,7 @@
 | 2026-08-31 | 0.49.47-behavior-tree-readiness | 第五次单启动核心批次 | 一次启动、一次任务自动完成 8/8：5 个独立起手、2 个固定派生、1 个条件派生；动作分析为 `ready_for_release_gate` | 合同 8/8 有效，完整 Native 时间轴 5/8，显式结果 8/8，覆盖缺口 0；短/长距均续接 5001，冲锋命中条件分支 15；报告完成后进程以 `D3D12Core.dll / c0000409` 退出，REFramework 转储未更新 | 核心动作/派生门禁通过，但整轮稳定性门禁失败；执行器新增 15 秒批次后监视，下一步只做渲染/第三方插件隔离诊断，不重跑动作批次 |
 | 2026-09-01 | 0.49.49-overlay-probe-surface | 实测 Overlay 集中验收 | 右回旋完整训练与直线冲锋条件界面均通过 `verified_measured_overlay`；后者业务层仍因未进入已收录后继而失败 | 2560×1440 下中文字体 53 px；14/15 行面板均无横纵溢出；招式、Next、阶段、训练状态、操作提示齐全；真实 `Next (condition)` 可见；武器 Response 隐藏；用户 Overlay 关闭偏好恢复 | 几何和文案结构已验证；截图才能判断的原生 UI 层级与主观可读性保留一次确认；条件后继失败不改写为成功 |
 | 2026-09-01 | 0.49.50-read-only-outcome-classification | 通用结果分类集中验收 | 咆哮与大咬目标轮均以安全模式下的连续生命比较得到 `no_damage`，独立分析为完整时间轴；近距派生合同有效但判定窗不完整，保持 partial | 三个目标轮分别含 342/74/336 次有效生命比较；自动靠近过程另观察到咆哮 35 点和冲锋 83 点真实掉血；全程 `diagnostic_safe_mode=true`，用户 Overlay 偏好恢复，进程继续响应 | 无伤门禁已通过；两次掉血不在目标起手轮内，故只证明 live damage 观察链，不冒充目标轮 `hit` 终态验收 |
+| 2026-09-01 | 0.49.51-automated-hit-positioning | 目标轮受击自动验收 | 自动进入任务并把猎人移动到约 1.98 米，随后大咬 Action 21 在同一目标轮造成 27 点伤害；时间轴、结果和 Overlay 三项分析全部通过 | 根 Action 与 Result Action 均为 21；330 次生命比较；完整 Native 判定窗 48.58 帧；`verified_failure` 可计分；用户 Overlay 偏好恢复 | 终态报告完成后出现既有 `D3D12Core.dll / c0000409` 环境退出并被外部流程自动重启；不影响已归档合同，但不据此宣称整场稳定性通过 |
 
 `0.49.47-behavior-tree-readiness` 的第 5 次有界尝试已经完成，不再重复动作批次。原始报告保存在本地 `artifacts/core_acceptance/b572cccf1e29466fb31e1226b2ef6ec6/`，可提交的精简证据见 `docs/evidence/CORE_ACCEPTANCE_REAL_GAME_2026-08-31.json`。动作/派生合同通过，但 D3D12 退出使总发布门禁保持失败；下一步只做短时稳定性隔离和 Overlay 可读性集中验收。武器技能 Response 继续作为默认关闭的可选扩展，不回到核心阻塞路径。
 
@@ -47,6 +48,8 @@
 `0.49.49-overlay-probe-surface` 已把实机结构门禁收敛为两份报告，不再需要重复操作。第一份独立招式报告完整成功；第二份条件派生报告的 Overlay 合同成功、业务训练失败，证明分析器不会把 UI 可读等同于怪物派生成功。精简证据见 `docs/evidence/OVERLAY_ACCEPTANCE_2026-09-01.json`。
 
 `0.49.50-read-only-outcome-classification` 已完成自动部署和三次有界实机验证。咆哮与大咬分别以 342、336 次连续生命比较形成可计分 `no_damage`，分析器均返回 `verified_complete_training_timeline`；近距派生的 74 次比较也保持合同有效，但因判定窗缺口只标记 partial。自动寻路期间真实观察到 35、83 点掉血，证明安全模式下只读伤害采集有效；由于这些伤害发生在目标起手之前，当前证据只把它们列为 live observation，目标轮 `hit` 终态仍待以后一次集中验收。精简证据见 `docs/evidence/READ_ONLY_OUTCOME_ACCEPTANCE_2026-09-01.json`。
+
+`0.49.51-automated-hit-positioning` 已补齐唯一剩余的目标轮 `hit` 门禁。外部执行器先把猎人与轰龙的水平距离稳定到 3±1 米区间，再由既有产品入口请求一次大咬；终态报告记录 Action 21、27 点伤害、330 次生命比较和完整 Native 判定窗，分析返回 `verified_complete_training_timeline`、`contract_valid=true`、`ready_for_product_acceptance=true`。终态后同签名 D3D12 环境退出独立记录，不混入结果合同。精简证据见 `docs/evidence/TARGET_HIT_ACCEPTANCE_2026-09-01.json`。
 
 `0.49.14-semantic-action-gate` 已完成部署，但自动语义校准由用户主动中止，故没有新的动作语义验收结论。中止后的只读检查确认无外部采集进程、临时 Quest ID `200032002` 不存在，随后删除了匹配失败报告的终态请求。`0.49.15` 完成玩家接管与清理门禁。`0.49.16` 证明 XBUTTON1 修正不足，并暴露固定七步忽略活动书替换技的问题。`0.49.25` 已取得本机真实绑定，并以两种 Windows 注入 API 得到同一失败结果；因此见切 `atk.atk_147.atk_147` 不再通过物理侧键猜测复测。下一阶段只允许有界调查 MHR 自身 `StmPlayerInput/CommandButton2` 语义入口；所有候选在实机确认前不升级为已验证映射。
 

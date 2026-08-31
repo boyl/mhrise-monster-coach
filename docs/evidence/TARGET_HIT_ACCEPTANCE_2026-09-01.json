@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.51-automated-hit-positioning",
+  "status": "verified_target_round_hit",
+  "contract_valid": true,
+  "ready_for_product_acceptance": true,
+  "runtime_policy": {
+    "diagnostic_safe_mode": true,
+    "health_observation": "enabled_read_only",
+    "resource_writes": "disabled",
+    "prepositioning": "external_bounded_player_movement"
+  },
+  "session": {
+    "session_id": "4597f55ca8024f9887d10fe0321e509a",
+    "scenario_id": "tigrex_max_bite_single",
+    "execution_mode": "forced_single",
+    "target_distance": 3.0,
+    "distance_tolerance": 1.0,
+    "observed_horizontal_distance": 1.9766526807723377,
+    "root_action": "21",
+    "result_action": "21",
+    "outcome": "hit",
+    "damage": 27.0,
+    "health_comparisons": 330,
+    "completion_basis": "behavior_tree_attack_exit",
+    "analysis_status": "verified_complete_training_timeline",
+    "evidence_level": "verified_failure",
+    "scoreable": true,
+    "timeline_event_count": 7,
+    "dropped_events": 0,
+    "native_hitbox_window_count": 1,
+    "native_hitbox_window_duration_frames": 48.575486183166504,
+    "overlay_status": "verified_measured_overlay"
+  },
+  "preference_restoration": {
+    "overlay_enabled_before": false,
+    "overlay_enabled_after": false,
+    "diagnostic_safe_mode_after": true
+  },
+  "post_report_runtime": {
+    "terminal_report_completed_before_exit": true,
+    "windows_application_error_observed": true,
+    "signature": "D3D12Core.dll / 0xc0000409",
+    "classification": "previously_confirmed_external_environment_conflict",
+    "game_auto_relaunched": true,
+    "relaunched_process_responding": true
+  },
+  "boundaries": [
+    "预定位只移动猎人，稳定到目标区间后才调用既有产品训练入口。",
+    "终态分析要求场景根 Action 与 Result Action 一致，预定位途中的旧伤不能通过合同。",
+    "hit 表示目标轮真实掉血，不推断具体武器应对技能。",
+    "终态证据已在退出前完整归档；后续同签名 D3D12 环境退出仍保留为独立稳定性风险。"
+  ],
+  "raw_artifacts": [
+    "artifacts/outcome_acceptance/4597f55ca8024f9887d10fe0321e509a.training_scenario_acceptance.completed.json",
+    "artifacts/outcome_acceptance/4597f55ca8024f9887d10fe0321e509a.training_scenario_acceptance.completed.analysis.json",
+    "artifacts/outcome_acceptance/4597f55ca8024f9887d10fe0321e509a.training_scenario_acceptance.completed.overlay.analysis.json"
+  ]
+}
