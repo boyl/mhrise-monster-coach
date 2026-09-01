@@ -268,13 +268,25 @@ end
 function training_api:training_acceptance_status() return training_status end
 function training_api:finish_training_acceptance() training_api.finished = true end
 function training_api:training_menu_snapshot(repeats)
-    return { requested_repeats = repeats, scenarios = {
-        { scenario_id = "tigrex_roar_single", start_label = "开始：咆哮 × 5",
-            effective_repeats = 5 },
-        { scenario_id = "tigrex_half_turn_bite_short",
-            start_label = "开始：短距半回转钩咬 × 1", effective_repeats = 1,
-            repeat_gate_message = "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。" },
-    } }
+    return {
+        schema_version = 1, state = "disabled", state_label = "未启用",
+        status = "启用后才能开始", instruction = "先查看派生树",
+        enabled = false, scope_ready = false,
+        scope_status = "请先进入单人轰龙陪练任务",
+        requested_repeats = repeats, scenario_count = 2,
+        groups = { { id = "independent", name = "独立关键招式", scenarios = {
+            { scenario_id = "tigrex_roar_single", name = "咆哮",
+                requested_repeats = 5, effective_repeats = 5,
+                start_label = "开始：咆哮 × 5", selected = false,
+                branch_tree = { action = "19", candidates = {} } },
+            { scenario_id = "tigrex_half_turn_bite_short", name = "短距半回转钩咬",
+                requested_repeats = 5, effective_repeats = 1,
+                start_label = "开始：短距半回转钩咬 × 1", selected = false,
+                branch_tree = { action = "5000", candidates = {} },
+                repeat_gate_message = "该场景当前仅开放 1 轮：更高重复次数尚未通过稳定性门禁。" },
+        } } },
+        selected = nil, can_select = true, can_start = false, can_stop = false,
+    }
 end
 local training_probe = Probe.new(training_api, 200032001, { stable_frames = 1 })
 training_probe.request = {
@@ -423,7 +435,8 @@ assert(ui_probe:accept_request({ session_id = "ui-contract", kind = "ui_contract
 }), "runtime UI contract snapshot completes without entering a quest")
 local ui_report = training_reports[#training_reports]
 assert(ui_report.status == "completed" and ui_report.ui_contract.requested_repeats == 5
-    and ui_report.ui_contract.scenarios[2].effective_repeats == 1,
+    and ui_report.ui_contract.state == "disabled"
+    and ui_report.ui_contract.groups[1].scenarios[2].effective_repeats == 1,
     "developer evidence serializes the same presentation contract consumed by ImGui")
 
 local survey_reports, survey_action = {}, 0

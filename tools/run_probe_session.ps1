@@ -149,6 +149,10 @@ function Invoke-ProbeAnalysis {
             Script = 'analyze_training_timeline_acceptance.py'
             Label = 'Training timeline'
         }; break }
+        'ui_contract_snapshot' { [ordered]@{
+            Script = 'analyze_training_menu_contract.py'
+            Label = 'Training menu contract'
+        }; break }
         default { $null }
     }
     if ($null -eq $analysis) { return $null }

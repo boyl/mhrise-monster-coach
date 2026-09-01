@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：源码候选版 `0.49.52-transactional-release-package`，实机已安装版本仍为 `0.49.51-automated-hit-positioning`。轰龙 MVP 聚焦招式、阶段、派生、精选起手、子弹时间、一键重开和通用训练结果；根据武器、替换技、资源与姿态推荐见切、居合或登龙等技能的 Response 已改为默认关闭的可选扩展，不再阻塞核心验收。集中开发验收已在一次游戏启动、一次任务中自动跑完 8/8 个精选起手，动作/派生结构化分析覆盖缺口为 0；目标轮 `no_damage` 与 `hit` 也已通过。当前源码新增可验证的 Windows 候选安装包：安装、升级备份、哈希校验、失败回滚和收据驱动卸载已在中文临时路径中自动通过，但尚未上传正式 Release。重复签名的 `D3D12Core.dll / c0000409` 退出继续作为已确认的环境隔离项记录。仅限单人使用，并请先备份存档。
+> 当前状态：源码候选版 `0.49.53-training-menu-state-model`，实机已安装版本仍为 `0.49.51-automated-hit-positioning`。轰龙 MVP 的 8/8 精选起手、Overlay 布局及目标轮 `no_damage`/`hit` 已通过。当前源码把普通训练菜单和自动验收统一到同一状态模型，明确未启用、不可用、待选择、可开始、执行中、完成、失败和停止，并在执行中锁定切换与重复提交；实机菜单快照会自动检查目录、派生树、次数门禁及按钮所有权。可验证 Windows 候选安装包也已通过中文路径、哈希、配置保留和失败回滚测试，但尚未上传正式 Release。重复签名的 `D3D12Core.dll / c0000409` 退出继续作为已确认的环境隔离项记录。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 
@@ -149,6 +149,7 @@ py -3 -m venv .venv
 - [架构与扩展契约](docs/ARCHITECTURE.md)
 - [武器应对引擎](docs/RESPONSE_ENGINE.md)
 - [训练时间轴与复盘](docs/TIMELINE_REVIEW.md)
+- [指定起手训练菜单体验契约](docs/TRAINING_MENU_UX.md)
 - [实机验收矩阵](docs/REAL_GAME_ACCEPTANCE.md)
 - [证据流水线](docs/EVIDENCE_PIPELINE.md)
 - [猎人动作证据与自动校准](docs/PLAYER_ACTION_EVIDENCE.md)

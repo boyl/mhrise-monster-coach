@@ -2,6 +2,20 @@ local BehaviorPathTracker = require("MHRiseMonsterCoach.behavior_path_tracker")
 
 local M = {}
 
+local ACTIVE_TRAINING_STATES = {
+    waiting = true,
+    requested = true,
+    running = true,
+    positioning = true,
+}
+
+local ACTIVE_STATE_LABELS = {
+    waiting = "准备中",
+    requested = "已请求",
+    running = "训练中",
+    positioning = "调整站位",
+}
+
 local function now()
     return os.clock()
 end
@@ -39,7 +53,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         reset_trace_mode = nil,
         restart_state = "idle",
         training_state = "idle",
-        training_status = "Specified-move training is disabled",
+        training_status = "请选择起手并查看派生树",
         training_scenario = nil,
         training_started_frame = 0,
         training_matched_frame = nil,
@@ -55,7 +69,25 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
     }, { __index = M })
 end
 
+function M.training_is_active(self)
+    return ACTIVE_TRAINING_STATES[self.training_state] == true
+end
+
+function M.set_training_enabled(self, enabled)
+    enabled = enabled == true
+    if self.config.forced_action_training_enabled == enabled then return false end
+    self.config.forced_action_training_enabled = enabled
+    if not enabled and M.training_is_active(self) then
+        M.cancel_training_scenario(self, "功能已关闭，当前训练已停止")
+    end
+    return true
+end
+
 function M.preview_training_scenario(self, scenario)
+    if M.training_is_active(self) then
+        self.training_status = "当前训练仍在进行；停止后才能切换起手"
+        return false
+    end
     local tree = self.model:training_branch_tree(scenario, 3)
     if tree == nil then
         self.training_status = "无法读取该场景的派生树"
@@ -112,16 +144,125 @@ function M.training_scenario_presentation(self, scenario, requested_override)
     }
 end
 
+function M.training_scope_status(self)
+    local context = self.model.context or {}
+    local quest = self.model.profile and self.model.profile.training_quest or nil
+    if context.is_online then return false, "联机状态下禁用指定出招" end
+    if context.build_supported == false then return false, "当前游戏版本尚未通过兼容门禁" end
+    if not context.in_quest then return false, "请先进入单人轰龙陪练任务" end
+    if quest == nil or tonumber(context.quest_no) ~= tonumber(quest.id) then
+        return false, "当前不是轰龙陪练任务"
+    end
+    if not context.target_found then return false, "请前往怪物区域，等待轰龙加载完成" end
+    return true, "单人陪练任务已就绪"
+end
+
+function M.training_menu_view_model(self, requested_override, include_catalog_trees)
+    local groups, scenario_count = {}, 0
+    local catalog = self.model.training_catalog and self.model:training_catalog()
+        or { { id = "legacy", name = "精选起手", scenarios = self.model.scenarios or {} } }
+    local selected = nil
+    for _, group in ipairs(catalog) do
+        local rows = {}
+        for _, scenario in ipairs(group.scenarios or {}) do
+            if scenario.verification and scenario.verification.status == "verified" then
+                local presentation = M.training_scenario_presentation(
+                    self, scenario, requested_override)
+                presentation.summary_zh = scenario.summary_zh
+                presentation.execution_mode = scenario.execution_mode
+                presentation.selected = self.training_preview_scenario_id == tostring(scenario.id)
+                presentation.branch_tree = (include_catalog_trees or presentation.selected)
+                    and self.model:training_branch_tree(scenario, 3) or nil
+                rows[#rows + 1] = presentation
+                scenario_count = scenario_count + 1
+                if presentation.selected then selected = presentation end
+            end
+        end
+        if #rows > 0 then groups[#groups + 1] = {
+            id = group.id,
+            name = group.name,
+            scenarios = rows,
+        } end
+    end
+
+    local enabled = self.config.forced_action_training_enabled == true
+    local scope_ready, scope_status = M.training_scope_status(self)
+    local active = M.training_is_active(self)
+    local state, label, status, instruction
+    if not enabled then
+        state, label = "disabled", "未启用"
+        status = "启用“指定出招训练”后才能开始；派生树仍可预览"
+        instruction = "先查看派生树，再启用并开始训练。"
+    elseif not scope_ready then
+        state, label, status = "unavailable", "当前不可用", scope_status
+        instruction = "派生树可提前查看；进入目标任务和怪物区域后即可开始。"
+    elseif scenario_count == 0 then
+        state, label = "empty", "暂无可用起手"
+        status = "当前数据包没有通过安全门禁的训练场景"
+        instruction = "未知或未验证 Action 不会显示为可执行入口。"
+    elseif active then
+        state, label, status = "active", ACTIVE_STATE_LABELS[self.training_state]
+            or "执行中", self.training_status
+        instruction = "等待当前轮完成；需要退出时点击“停止训练”或按 F7。"
+    elseif self.training_state == "completed" then
+        state, label, status = "completed", "本轮完成", self.training_status
+        instruction = "可再次练习当前起手，或查看其他派生树。"
+    elseif self.training_state == "failed" then
+        state, label, status = "failed", "训练失败", self.training_status
+        instruction = "可重新尝试；若怪物状态异常，按 F7 安全重开。"
+    elseif self.training_state == "cancelled" then
+        state, label, status = "cancelled", "已停止", self.training_status
+        instruction = "可继续当前起手，或查看其他派生树。"
+    elseif self.training_state == "unavailable" then
+        state, label, status = "unavailable", "当前不可用", self.training_status
+        instruction = "条件恢复后可重新尝试；不会自动重复发送请求。"
+    elseif selected ~= nil then
+        state, label = "previewed", "可开始"
+        status = self.training_status
+        instruction = "确认派生和有效轮数后开始；后续由怪物原生 AI 续接。"
+    else
+        state, label = "ready", "请选择起手"
+        status = "从目录中选择“查看派生树”"
+        instruction = "只有已验证起手会显示；查看后才开放开始按钮。"
+    end
+
+    local can_start = enabled and scope_ready and not active and selected ~= nil
+        and scenario_count > 0
+    local primary_label = selected and ("开始当前起手 × "
+        .. tostring(selected.effective_repeats)) or nil
+    if selected and self.training_state == "completed" then
+        primary_label = "再练一次 × " .. tostring(selected.effective_repeats)
+    elseif selected and (self.training_state == "failed"
+        or self.training_state == "cancelled" or self.training_state == "unavailable") then
+        primary_label = "重新尝试 × " .. tostring(selected.effective_repeats)
+    end
+    return {
+        schema_version = 1,
+        state = state,
+        state_label = label,
+        status = status,
+        instruction = instruction,
+        enabled = enabled,
+        scope_ready = scope_ready,
+        scope_status = scope_status,
+        requested_repeats = math.max(1, math.min(20,
+            math.floor(tonumber(requested_override or self.config.training_repeat_count) or 1))),
+        groups = groups,
+        scenario_count = scenario_count,
+        selected = selected,
+        can_select = not active,
+        can_start = can_start,
+        can_stop = active,
+        primary_label = primary_label,
+    }
+end
+
 function M.training_entry_status(self)
     if self.config.forced_action_training_enabled ~= true then
         return false, "请先启用“指定出招训练”", false
     end
-    local context = self.model.context or {}
-    if not context.in_quest or context.is_online or context.build_supported == false
-        or tonumber(context.quest_no) ~= tonumber(self.model.profile.training_quest.id)
-        or not context.target_found then
-        return false, "仅支持单人陪练任务的怪物区域", false
-    end
+    local scope_ready, scope_status = M.training_scope_status(self)
+    if not scope_ready then return false, scope_status, false end
     local category = self.model.current_metadata and tonumber(self.model.current_metadata.action_category)
     local coaching = self.model.coaching_state and self.model:coaching_state() or {}
     if category == 4 and coaching.phase ~= "recovery" then
@@ -582,41 +723,50 @@ end
 function M.draw_training_menu(self)
     imgui.separator()
     imgui.text("Specified Move / 指定出招")
-    local changed = checkbox("Enable specified-move training / 启用指定出招",
-        self.config, "forced_action_training_enabled")
-    ui_text_wrapped("先查看派生树，再选择次数并开始训练。")
-    ui_text_wrapped("攻击或判定期间自动等待，不强行打断怪物。")
-    imgui.text("Repeat / 次数：" .. tostring(self.config.training_repeat_count))
-    for index, count in ipairs({ 1, 3, 5, 10 }) do
-        if index > 1 then imgui.same_line() end
-        if imgui.button(tostring(count) .. " 次##training_repeat_" .. tostring(count)) then
-            self.config.training_repeat_count = count
-            changed = true
+    local toggled, enabled = imgui.checkbox(
+        "Enable specified-move training / 启用指定出招",
+        self.config.forced_action_training_enabled)
+    local changed = toggled
+    if toggled then
+        changed = M.set_training_enabled(self, enabled)
+    end
+
+    local menu = M.training_menu_view_model(self)
+    ui_text_wrapped("训练向导：[" .. tostring(menu.state_label) .. "] "
+        .. tostring(menu.status))
+    ui_text_wrapped(menu.instruction)
+    if menu.can_stop then
+        imgui.text(string.format("Progress / 进度：%d/%d",
+            self.training_completed_rounds, self.training_target_rounds))
+    else
+        imgui.text("Repeat / 次数：" .. tostring(self.config.training_repeat_count))
+        for index, count in ipairs({ 1, 3, 5, 10 }) do
+            if index > 1 then imgui.same_line() end
+            if imgui.button(tostring(count) .. " 次##training_repeat_" .. tostring(count)) then
+                self.config.training_repeat_count = count
+                changed = true
+            end
         end
     end
-    local catalog = self.model.training_catalog and self.model:training_catalog()
-        or { { id = "legacy", name = "精选起手", scenarios = self.model.scenarios or {} } }
-    for _, group in ipairs(catalog) do
+
+    for _, group in ipairs(menu.groups) do
         imgui.separator()
         imgui.text(group.name)
-        for _, scenario in ipairs(group.scenarios or {}) do
-            local verified = scenario.verification and scenario.verification.status == "verified"
-            local name = tostring(scenario.name_zh or scenario.name or scenario.id)
-            if verified then
-                if imgui.button("查看派生树：" .. name .. "##branch_" .. tostring(scenario.id)) then
-                    M.preview_training_scenario(self, scenario)
-                end
-                if self.training_preview_scenario_id == tostring(scenario.id) then
-                    if scenario.summary_zh then ui_text_wrapped(scenario.summary_zh) end
-                    local presentation = M.training_scenario_presentation(self, scenario)
-                    imgui.same_line()
-                    if imgui.button(presentation.start_label .. "##" .. tostring(scenario.id)) then
-                        M.start_training_scenario(self, scenario)
+        for _, row in ipairs(group.scenarios or {}) do
+            local prefix = row.selected and "当前选择：" or "查看派生树："
+            if menu.can_select then
+                if imgui.button(prefix .. row.name .. "##branch_" .. tostring(row.scenario_id)) then
+                    local scenario = nil
+                    for _, candidate in ipairs(self.model.scenarios or {}) do
+                        if tostring(candidate.id) == tostring(row.scenario_id) then
+                            scenario = candidate
+                            break
+                        end
                     end
-                    if presentation.repeat_gate_message then
-                        ui_text_wrapped(presentation.repeat_gate_message)
-                    end
+                    if scenario ~= nil then M.preview_training_scenario(self, scenario) end
                 end
+            else
+                ui_text_wrapped("• " .. row.name .. (row.selected and "（当前训练）" or ""))
             end
         end
     end
@@ -634,18 +784,34 @@ function M.draw_training_menu(self)
             ui_text_wrapped("  暂无已验证后续派生；当前按独立单招训练。")
         end
     end
-    if self.training_preview_tree ~= nil then
+    menu = M.training_menu_view_model(self)
+    if menu.selected ~= nil then
+        imgui.separator()
+        imgui.text("Current Selection / 当前选择：" .. tostring(menu.selected.name))
+        if menu.selected.summary_zh then ui_text_wrapped(menu.selected.summary_zh) end
+        if menu.selected.repeat_gate_message then
+            ui_text_wrapped(menu.selected.repeat_gate_message)
+        end
         imgui.text("Branch Tree / 派生树")
-        draw_branch(self.training_preview_tree, 0, nil)
+        draw_branch(menu.selected.branch_tree, 0, nil)
     end
-    if self.training_state == "waiting" or self.training_state == "requested"
-        or self.training_state == "running" or self.training_state == "positioning" then
-        imgui.same_line()
+    if menu.can_start then
+        if imgui.button(tostring(menu.primary_label) .. "##start_selected_training") then
+            local scenario = nil
+            for _, candidate in ipairs(self.model.scenarios or {}) do
+                if tostring(candidate.id) == tostring(menu.selected.scenario_id) then
+                    scenario = candidate
+                    break
+                end
+            end
+            if scenario ~= nil then M.start_training_scenario(self, scenario) end
+        end
+    end
+    if menu.can_stop then
         if imgui.button("停止训练##stop_training") then
             M.cancel_training_scenario(self)
         end
     end
-    ui_text_wrapped("状态：" .. tostring(self.training_status))
     return changed
 end
 
