@@ -173,7 +173,8 @@ def main() -> int:
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(payload, encoding="utf-8")
-    print(payload, end="")
+    else:
+        print(payload, end="")
     return 0 if result["contract_valid"] else 2
 
 

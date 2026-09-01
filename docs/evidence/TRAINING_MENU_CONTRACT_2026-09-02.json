@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.53-training-menu-state-model",
+  "session_id": "a77f7f9b26204516ae2f3341fa77a2c1",
+  "probe_kind": "ui_contract_snapshot",
+  "probe_status": "completed",
+  "frames": 1,
+  "save_loaded": false,
+  "quest_entered": false,
+  "gameplay_input": false,
+  "menu": {
+    "state": "unavailable",
+    "enabled": true,
+    "scope_ready": false,
+    "scope_status": "请先进入单人轰龙陪练任务",
+    "group_count": 3,
+    "scenario_count": 8,
+    "can_select": true,
+    "can_start": false,
+    "can_stop": false
+  },
+  "analysis": {
+    "status": "verified_training_menu_contract",
+    "contract_valid": true,
+    "ready_for_runtime_ui_review": true,
+    "violations": []
+  },
+  "verified": [
+    "普通菜单和实机探针消费同一 training_menu_view_model",
+    "3 个训练分组和 8 个已验证起手均有唯一 ID 与派生树",
+    "请求 5 轮时按每个场景的稳定性上限生成有效轮数和限制说明",
+    "未进入目标任务时允许查看派生，但不暴露开始或停止动作",
+    "探针在载入存档前完成，没有进入任务或发送玩法输入"
+  ],
+  "not_verified": [
+    "REFramework 最窄窗口下的主观视觉层级仍保留一次画面确认",
+    "本次不重复已经通过的 8/8 动作和派生实机批次"
+  ]
+}
