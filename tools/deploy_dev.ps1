@@ -62,49 +62,17 @@ if (-not (Test-Path -LiteralPath $destinationRoot -PathType Container)) {
     throw "REFramework directory was not found: $destinationRoot"
 }
 
-# Deliberately excludes config.json, calibration, runtime evidence, logs and dumps.
-$files = @(
-    'autorun\MHRiseMonsterCoach.lua',
-    'autorun\MHRiseMonsterCoach\action_reader.lua',
-    'autorun\MHRiseMonsterCoach\app.lua',
-    'autorun\MHRiseMonsterCoach\behavior_tree_reader.lua',
-    'autorun\MHRiseMonsterCoach\behavior_path_tracker.lua',
-    'autorun\MHRiseMonsterCoach\behavior_graph_recorder.lua',
-    'autorun\MHRiseMonsterCoach\config.lua',
-    'autorun\MHRiseMonsterCoach\controller.lua',
-    'autorun\MHRiseMonsterCoach\dev_probe_controller.lua',
-    'autorun\MHRiseMonsterCoach\environment_creature_recorder.lua',
-    'autorun\MHRiseMonsterCoach\font.lua',
-    'autorun\MHRiseMonsterCoach\hitbox_provider.lua',
-    'autorun\MHRiseMonsterCoach\hitbox_provider_hitboxviewer.lua',
-    'autorun\MHRiseMonsterCoach\hitbox_provider_native.lua',
-    'autorun\MHRiseMonsterCoach\input_adapter.lua',
-    'autorun\MHRiseMonsterCoach\input_motion_adapter.lua',
-    'autorun\MHRiseMonsterCoach\model.lua',
-    'autorun\MHRiseMonsterCoach\monster_pack_validator.lua',
-    'autorun\MHRiseMonsterCoach\monster_respawn.lua',
-    'autorun\MHRiseMonsterCoach\monster_phase.lua',
-    'autorun\MHRiseMonsterCoach\outcome_classifier.lua',
-    'autorun\MHRiseMonsterCoach\long_sword_switch_skills.lua',
-    'autorun\MHRiseMonsterCoach\player_action_observer.lua',
-    'autorun\MHRiseMonsterCoach\player_action_reader.lua',
-    'autorun\MHRiseMonsterCoach\player_action_semantics.lua',
-    'autorun\MHRiseMonsterCoach\player_state_reader.lua',
-    'autorun\MHRiseMonsterCoach\response_long_sword.lua',
-    'autorun\MHRiseMonsterCoach\startup_bootstrap_controller.lua',
-    'autorun\MHRiseMonsterCoach\think_context_reader.lua',
-    'autorun\MHRiseMonsterCoach\timeline_presenter.lua',
-    'autorun\MHRiseMonsterCoach\training_timeline.lua',
-    'autorun\MHRiseMonsterCoach\profile_tigrex.lua',
-    'autorun\MHRiseMonsterCoach\quest_list_order.lua',
-    'autorun\MHRiseMonsterCoach\quest_restart.lua',
-    'autorun\MHRiseMonsterCoach\runtime.lua',
-    'autorun\MHRiseMonsterCoach\view.lua',
-    'data\MHRiseMonsterCoach\tigrex_static_ai.json',
-    'data\MHRiseMonsterCoach\long_sword_knowledge.json',
-    'data\MHRiseMonsterCoach\arena_navigation_defaults.json',
-    'quests\q200032001.json'
-)
+# The same manifest drives development deployment and public release packaging.
+# It deliberately excludes config, calibration, runtime evidence, logs and dumps.
+$manifestPath = Join-Path $PSScriptRoot 'release_manifest.json'
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "Release manifest was not found: $manifestPath"
+}
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+$files = @($manifest.files | ForEach-Object { ([string]$_).Replace('/', [IO.Path]::DirectorySeparatorChar) })
+if ($manifest.schema_version -ne 1 -or $files.Count -eq 0) {
+    throw 'Release manifest is invalid or empty.'
+}
 
 $installed = @()
 foreach ($relativePath in $files) {

@@ -45,9 +45,10 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe .\tests\check_lua_syntax.py
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
 pwsh -NoProfile -File .\tests\test_deploy_dev.ps1
+pwsh -NoProfile -File .\tests\test_release_package.ps1
 ```
 
-部署测试只使用临时假游戏目录，不会访问真实游戏安装。提交前四组检查必须全部通过。
+部署与发布包测试只使用临时假游戏目录，不会访问真实游戏安装。提交前五组检查必须全部通过。
 
 ## 开发部署
 
@@ -60,6 +61,14 @@ pwsh -NoProfile -File .\tools\deploy_dev.ps1 `
 ```
 
 若 Steam 库不在默认位置，请替换 `-GameRoot`。部署器只复制固定白名单中的 Mod 文件，逐项比较 SHA-256，并保留 `config.json`、校准、运行证据、日志和其他 Mod。游戏安装在 `Program Files` 时通常需要提升的 PowerShell 窗口。
+
+构建候选发布包：
+
+```powershell
+pwsh -NoProfile -File .\tools\build_release.ps1
+```
+
+开发部署和发布包必须共享 `tools/release_manifest.json`，不得在第二个脚本中复制一份文件清单。发布包测试必须覆盖中文路径、依赖缺失、安装后哈希、用户数据保留、收据卸载和中途失败回滚。
 
 自动化实机探针会写入游戏内开发请求和本地 `artifacts/`，其参数及安全门禁见 `tools/run_probe_session.ps1`。不要把该脚本用于联机任务或正式存档研究。
 

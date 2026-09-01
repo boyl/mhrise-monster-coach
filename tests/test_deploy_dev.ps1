@@ -5,11 +5,12 @@ $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $deployScript = Join-Path $repositoryRoot 'tools\deploy_dev.ps1'
 $script = Get-Content -LiteralPath $deployScript -Raw
 $sourceRoot = Join-Path $repositoryRoot 'reframework'
-
-$allowlistBlock = [regex]::Match($script, '(?s)\$files\s*=\s*@\((.*?)\)')
-if (-not $allowlistBlock.Success) { throw 'Deploy allowlist could not be parsed' }
-$allowlist = @([regex]::Matches($allowlistBlock.Groups[1].Value, "'([^']+)'") |
-    ForEach-Object { $_.Groups[1].Value })
+$manifestPath = Join-Path $repositoryRoot 'tools\release_manifest.json'
+$manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+if ($manifest.schema_version -ne 1) { throw 'Release manifest schema is unsupported' }
+$allowlist = @($manifest.files | ForEach-Object {
+    ([string]$_).Replace('/', [IO.Path]::DirectorySeparatorChar)
+})
 $allowlistSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($entry in $allowlist) { [void]$allowlistSet.Add($entry) }
 

@@ -4,7 +4,7 @@
 
 一个面向 Steam PC 单人任务的 REFramework Lua Mod。目标不是把怪物变成木桩，而是降低反复练习真实招式与派生的成本：显示当前招式和后续分支、按需减速、选择高价值起手，并在一轮结束后解释玩家的应对时机。
 
-> 当前状态：源码候选版 `0.49.51-automated-hit-positioning`。轰龙 MVP 聚焦招式、阶段、派生、精选起手、子弹时间、一键重开和通用训练结果；根据武器、替换技、资源与姿态推荐见切、居合或登龙等技能的 Response 已改为默认关闭的可选扩展，不再阻塞核心验收。集中开发验收已在一次游戏启动、一次任务中自动跑完 8/8 个精选起手，动作/派生结构化分析覆盖缺口为 0；两份实机报告也已通过真实字体、内容矩形和溢出门禁。只读结果链已经实机证明无伤与实时掉血；开发验收器现在还能在指定起手前自动把猎人调整到目标距离，用于补齐目标轮命中证据，产品训练 Controller 不包含这段测试导航。重复签名的 `D3D12Core.dll / c0000409` 退出已确认与同时修改游戏的其他程序有关，继续作为环境隔离项记录，不再回滚已通过的动作合同。尚未发布面向普通玩家的一键安装包。仅限单人使用，并请先备份存档。
+> 当前状态：源码候选版 `0.49.52-transactional-release-package`，实机已安装版本仍为 `0.49.51-automated-hit-positioning`。轰龙 MVP 聚焦招式、阶段、派生、精选起手、子弹时间、一键重开和通用训练结果；根据武器、替换技、资源与姿态推荐见切、居合或登龙等技能的 Response 已改为默认关闭的可选扩展，不再阻塞核心验收。集中开发验收已在一次游戏启动、一次任务中自动跑完 8/8 个精选起手，动作/派生结构化分析覆盖缺口为 0；目标轮 `no_damage` 与 `hit` 也已通过。当前源码新增可验证的 Windows 候选安装包：安装、升级备份、哈希校验、失败回滚和收据驱动卸载已在中文临时路径中自动通过，但尚未上传正式 Release。重复签名的 `D3D12Core.dll / c0000409` 退出继续作为已确认的环境隔离项记录。仅限单人使用，并请先备份存档。
 
 ## 当前体验闭环
 
@@ -79,9 +79,21 @@ F7 与 F9 的语义不同：F7 让游戏原生系统完整重建任务对象、A
 
 [HitboxViewer 2.2.0](https://www.nexusmods.com/monsterhunterrise/mods/2182) 只是可选的判定交叉验证后端；不安装也能使用原生只读判定提供器。手柄快捷键同样不是必需项，且当前默认关闭。
 
-### 从源码安装
+### 候选安装包
 
-当前还没有面向普通玩家的稳定 Release 安装包。希望试用开发预览版时：
+仓库维护者可在 PowerShell 7 中运行：
+
+```powershell
+pwsh -NoProfile -File .\tools\build_release.ps1
+```
+
+生成的 ZIP 位于 `artifacts/releases/`。完整解压后双击 `INSTALL.cmd`；安装器会先检查 REFramework、RiseQuestLoader、游戏退出状态和全部载荷哈希，只复制 manifest 白名单文件。升级会备份被替换文件，异常时自动回滚；`UNINSTALL.cmd` 依据安装收据恢复上一版本或删除本次新增文件，不触碰用户配置、校准、运行证据和其他 Mod。
+
+当前还没有上传正式 GitHub Release；源码构建出的包只作为发布候选。
+
+### 从源码手工安装
+
+希望直接试用开发预览版时：
 
 1. 备份 Steam App `1446780` 的存档，并确保只进入单人环境。
 2. 按各自上游说明安装 REFramework 与 RiseQuestLoader；启动一次游戏，确认 Insert 菜单和 Quest Loader 均能正常出现。
@@ -90,7 +102,7 @@ F7 与 F9 的语义不同：F7 让游戏原生系统完整重建任务对象、A
 5. 核对入口文件为 `MonsterHunterRise/reframework/autorun/MHRiseMonsterCoach.lua`，任务文件为 `MonsterHunterRise/reframework/quests/q200032001.json`。
 6. 启动游戏并进入离线大厅，在集会所 MR 4★ 任务中选择 `[陪练] 轰龙·塔之秘境`。
 
-升级时保留 `reframework/data/MHRiseMonsterCoach/config.json`、校准文件和运行证据。仓库源码可能领先于已安装副本，请以游戏目录中的 `dev_install_receipt.json` 和运行日志为准。
+升级时保留 `reframework/data/MHRiseMonsterCoach/config.json`、校准文件和运行证据。开发部署以 `dev_install_receipt.json` 为准；候选安装包以 `install_receipt.json` 为准。
 
 ## 开发环境
 
@@ -115,6 +127,8 @@ py -3 -m venv .venv
 离线 AI/碰撞体研究还会用到可选的 .NET 8 SDK、RszTool 0.3.5、RETool 和对应游戏版本文件列表；它们不影响普通功能开发，也不随仓库分发。完整初始化、部署、证据边界和贡献规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 开发副本可使用 `tools/deploy_dev.ps1` 部署。它按白名单复制文件、逐项校验 SHA-256，并保留配置、校准、运行证据、日志和其他 Mod。游戏必须先退出；如果目标位于 `Program Files`，请从具有写权限的 PowerShell 7 执行。
+
+`tools/release_manifest.json` 是开发部署与公开安装包共享的唯一生产文件清单。`tests/test_release_package.ps1` 会在包含中文的临时目录中构建、安装、校验、卸载，并验证缺失 RiseQuestLoader 时零写入拒绝及复制中途失败时恢复旧版本；测试不会访问真实游戏目录。
 
 `tools/run_probe_session.ps1` 在自行启动游戏时，会暂时停用且只停用 `LihuoSnSVfxInterceptPoc.lua` 与 `LihuoSnSVfxYunPreflight.lua` 两个已知实验启动器。无论验收完成、失败还是抛出异常，脚本都会先核对内容哈希再恢复原文件；其他 autorun Mod、配置与存档不在隔离范围。连接已经运行的游戏时不会移动任何启动器，因为它们已经被 REFramework 加载。
 
