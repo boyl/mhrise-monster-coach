@@ -712,8 +712,63 @@ local function checkbox(label, config, key)
     return changed
 end
 
+local function imgui_width(value)
+    if type(value) == "table" then
+        return tonumber(value.x or value[1])
+    end
+    return tonumber(value)
+end
+
+local function menu_content_width()
+    if type(imgui.get_content_region_avail) == "function" then
+        local ok, available = pcall(imgui.get_content_region_avail)
+        local width = ok and imgui_width(available) or nil
+        if width and width > 80 then return width - 8 end
+    end
+    return 240
+end
+
+local function measured_text_width(text)
+    if type(imgui.calc_text_size) ~= "function" then return nil end
+    local ok, size = pcall(imgui.calc_text_size, tostring(text))
+    return ok and imgui_width(size) or nil
+end
+
+local function utf8_characters(text)
+    local characters = {}
+    for character in tostring(text):gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+        characters[#characters + 1] = character
+    end
+    return characters
+end
+
+local function measured_lines(text, max_width)
+    text = tostring(text or "")
+    max_width = tonumber(max_width) or menu_content_width()
+    if measured_text_width(text) == nil then return { text } end
+    local lines, line = {}, ""
+    for _, character in ipairs(utf8_characters(text)) do
+        if character == "\n" then
+            lines[#lines + 1], line = line, ""
+        else
+            local candidate = line .. character
+            if line ~= "" and measured_text_width(candidate) > max_width then
+                lines[#lines + 1], line = line, character
+            else
+                line = candidate
+            end
+        end
+    end
+    if line ~= "" or #lines == 0 then lines[#lines + 1] = line end
+    return lines
+end
+
 local function ui_text_wrapped(text)
-    if type(imgui.text_wrapped) == "function" then
+    if type(imgui.calc_text_size) == "function" then
+        for _, line in ipairs(measured_lines(text, menu_content_width())) do
+            imgui.text(line)
+        end
+    elseif type(imgui.text_wrapped) == "function" then
         imgui.text_wrapped(text)
     else
         imgui.text(text)
@@ -722,9 +777,9 @@ end
 
 function M.draw_training_menu(self)
     imgui.separator()
-    imgui.text("Specified Move / 指定出招")
+    imgui.text("指定出招训练")
     local toggled, enabled = imgui.checkbox(
-        "Enable specified-move training / 启用指定出招",
+        "启用指定出招训练",
         self.config.forced_action_training_enabled)
     local changed = toggled
     if toggled then
@@ -732,14 +787,14 @@ function M.draw_training_menu(self)
     end
 
     local menu = M.training_menu_view_model(self)
-    ui_text_wrapped("训练向导：[" .. tostring(menu.state_label) .. "] "
-        .. tostring(menu.status))
+    imgui.text("状态：[" .. tostring(menu.state_label) .. "]")
+    ui_text_wrapped(menu.status)
     ui_text_wrapped(menu.instruction)
     if menu.can_stop then
-        imgui.text(string.format("Progress / 进度：%d/%d",
+        imgui.text(string.format("进度：%d/%d",
             self.training_completed_rounds, self.training_target_rounds))
     else
-        imgui.text("Repeat / 次数：" .. tostring(self.config.training_repeat_count))
+        imgui.text("练习次数：" .. tostring(self.config.training_repeat_count))
         for index, count in ipairs({ 1, 3, 5, 10 }) do
             if index > 1 then imgui.same_line() end
             if imgui.button(tostring(count) .. " 次##training_repeat_" .. tostring(count)) then
@@ -787,12 +842,12 @@ function M.draw_training_menu(self)
     menu = M.training_menu_view_model(self)
     if menu.selected ~= nil then
         imgui.separator()
-        imgui.text("Current Selection / 当前选择：" .. tostring(menu.selected.name))
+        ui_text_wrapped("当前选择：" .. tostring(menu.selected.name))
         if menu.selected.summary_zh then ui_text_wrapped(menu.selected.summary_zh) end
         if menu.selected.repeat_gate_message then
             ui_text_wrapped(menu.selected.repeat_gate_message)
         end
-        imgui.text("Branch Tree / 派生树")
+        imgui.text("派生树")
         draw_branch(menu.selected.branch_tree, 0, nil)
     end
     if menu.can_start then
