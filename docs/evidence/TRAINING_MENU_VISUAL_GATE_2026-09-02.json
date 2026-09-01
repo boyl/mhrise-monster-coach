@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "source_version": "0.49.54-measured-training-menu",
+  "git_commit": "fdd5f84",
+  "resolution": [2560, 1440],
+  "automated_contract": {
+    "content_width_px": 232,
+    "all_rendered_lines_fit": true,
+    "lua_behavior_tests": "37/37",
+    "lua_syntax_tests": "73/73",
+    "python_tests": "98/98"
+  },
+  "runtime": {
+    "installed_files_verified": 40,
+    "loaded_version_verified_in_log": true
+  },
+  "visual_gate": {
+    "status": "manual_open_required",
+    "reason": "REFramework exposes no supported Lua API for opening its own menu. External Insert and pointer injection cannot be advanced from a sent-input event alone: game-native dialogs, title transitions and first-click focus can consume the event. The bounded attempts were stopped instead of clicking unknown game UI.",
+    "minimum_user_action": "Press Insert once after reaching a stable game scene; screenshot capture and inspection can then continue without quest or combat input."
+  },
+  "screenshots": [
+    {
+      "path": "artifacts/ui_capture/training-menu-0.49.54-start.png",
+      "sha256": "c4388f23173c8094352c2c8993b56a322265764c61a43f87fcaffacd6bdc40f4",
+      "meaning": "Deployed runtime at startup; REFramework menu visible before game-native startup flow completed."
+    },
+    {
+      "path": "artifacts/ui_capture/safe-startup-menu.png",
+      "sha256": "dd97fb58890b3cc82074310a08d464fa6e84da1493e190d23e0944f13c020c6c",
+      "meaning": "A later startup sample showing the REFramework menu and Script Generated UI entry before title transition."
+    },
+    {
+      "path": "artifacts/ui_capture/safe-final-start.png",
+      "sha256": "9e0ffd4cc9f629009400d958981cadd311bac7f641d5ff3f2e46a62e4b2c7fc0",
+      "meaning": "Stable hub reached after the startup menu window had already closed; no further pointer input was sent."
+    }
+  ]
+}
