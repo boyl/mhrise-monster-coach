@@ -99,17 +99,7 @@ function M.load(profile)
     config.quick_reset_safe_frames = math.floor(clamp(config.quick_reset_safe_frames, 5, 60))
     config.training_repeat_count = math.floor(clamp(config.training_repeat_count, 1, 20))
 
-    local calibration_path = data_path(profile, "calibration_file", DEFAULT_CALIBRATION_FILE)
-    local static_ai_path = data_path(profile, "static_ai_file", DEFAULT_STATIC_AI_FILE)
-    local calibration = json.load_file(calibration_path)
-    if type(calibration) ~= "table" then calibration = {} end
-    if type(calibration.moves) ~= "table" then calibration.moves = {} end
-    if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
-    if type(calibration.observed_hit_timing) ~= "table" then calibration.observed_hit_timing = {} end
-    if type(calibration.observed_hitbox_windows) ~= "table" then calibration.observed_hitbox_windows = {} end
-
-    local static_ai = M.load_static_ai(profile)
-
+    local calibration, static_ai = M.load_monster_data(profile)
     local long_sword_knowledge = json.load_file(LONG_SWORD_KNOWLEDGE_PATH)
     if type(long_sword_knowledge) ~= "table" then long_sword_knowledge = { actions = {} } end
     if type(long_sword_knowledge.actions) ~= "table" then long_sword_knowledge.actions = {} end
@@ -118,6 +108,18 @@ function M.load(profile)
     end
 
     return config, calibration, static_ai, long_sword_knowledge
+end
+
+function M.load_monster_data(profile)
+    local calibration_path = data_path(profile, "calibration_file", DEFAULT_CALIBRATION_FILE)
+    local calibration = json.load_file(calibration_path)
+    if type(calibration) ~= "table" then calibration = {} end
+    if type(calibration.moves) ~= "table" then calibration.moves = {} end
+    if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
+    if type(calibration.observed_hit_timing) ~= "table" then calibration.observed_hit_timing = {} end
+    if type(calibration.observed_hitbox_windows) ~= "table" then calibration.observed_hitbox_windows = {} end
+
+    return calibration, M.load_static_ai(profile)
 end
 
 function M.load_static_ai(profile)

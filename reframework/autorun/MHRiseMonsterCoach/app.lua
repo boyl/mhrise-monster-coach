@@ -15,11 +15,12 @@ local M = {}
 function M.start()
     local config, calibration, static_ai, long_sword_knowledge = Config.load(Profile)
     local model = Model.new(Profile, calibration, config, static_ai, long_sword_knowledge)
-    local runtime = Runtime.new(config, Profile)
+    local runtime = Runtime.new(config, Profile, ProfileRegistry)
     local font = Font.new()
     local view = View.new(config, font)
     local input_adapter = InputAdapter.new(config.controller_input)
-    local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter)
+    local controller = Controller.new(model, runtime, view, config, Config, font, input_adapter,
+        ProfileRegistry)
     local probe_api = { quest_api = runtime:quest_restart_api() }
     local function load_required_data_file(name)
         local contents = fs.read("MHRiseMonsterCoach/" .. name)
@@ -246,10 +247,17 @@ function M.start()
     local startup_bootstrap = StartupBootstrapController.new(bootstrap_api)
     startup_bootstrap:accept_request(probe_api:read_request())
 
-    local order_hooked, order_error = runtime:install_quest_list_order_hook({
-        Profile.training_quest.id,
-        Profile.training_quest.player_calibration_id,
-    })
+    local ordered_quest_ids = {}
+    for _, candidate in ipairs(ProfileRegistry.all()) do
+        if candidate.training_quest then
+            ordered_quest_ids[#ordered_quest_ids + 1] = candidate.training_quest.id
+            if candidate.training_quest.player_calibration_id then
+                ordered_quest_ids[#ordered_quest_ids + 1] =
+                    candidate.training_quest.player_calibration_id
+            end
+        end
+    end
+    local order_hooked, order_error = runtime:install_quest_list_order_hook(ordered_quest_ids)
     if not order_hooked then
         log.warn("[MHRiseMonsterCoach] " .. tostring(order_error))
     end
@@ -277,7 +285,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.50.0-multi-monster-data-boundary loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.50.1-auto-profile-selection loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

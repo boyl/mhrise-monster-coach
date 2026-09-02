@@ -24,7 +24,7 @@ local function key_down(code)
     return reframework:is_key_down(code) == true
 end
 
-function M.new(model, runtime, view, config, config_module, font, input_adapter)
+function M.new(model, runtime, view, config, config_module, font, input_adapter, profile_registry)
     return setmetatable({
         model = model,
         runtime = runtime,
@@ -39,6 +39,7 @@ function M.new(model, runtime, view, config, config_module, font, input_adapter)
         last_error = nil,
         frame_counter = 0,
         input = input_adapter,
+        profile_registry = profile_registry,
         input_state = { available = false, device = "keyboard" },
         saved_evidence_revision = 0,
         auto_anchor_stable_frames = 0,
@@ -146,14 +147,19 @@ end
 
 function M.training_scope_status(self)
     local context = self.model.context or {}
-    local quest = self.model.profile and self.model.profile.training_quest or nil
+    local profile = self.model.profile
+    local quest = profile and profile.training_quest or nil
+    local monster_name = profile and (profile.name_zh or profile.name) or "目标怪物"
+    if profile and profile.research_only == true then
+        return false, tostring(monster_name) .. "当前仅开放观察，指定出招尚未通过安全门禁"
+    end
     if context.is_online then return false, "联机状态下禁用指定出招" end
     if context.build_supported == false then return false, "当前游戏版本尚未通过兼容门禁" end
-    if not context.in_quest then return false, "请先进入单人轰龙陪练任务" end
+    if not context.in_quest then return false, "请先进入单人陪练任务" end
     if quest == nil or tonumber(context.quest_no) ~= tonumber(quest.id) then
-        return false, "当前不是轰龙陪练任务"
+        return false, "当前不是所选怪物的陪练任务"
     end
-    if not context.target_found then return false, "请前往怪物区域，等待轰龙加载完成" end
+    if not context.target_found then return false, "请前往怪物区域，等待目标怪物加载完成" end
     return true, "单人陪练任务已就绪"
 end
 
@@ -521,6 +527,18 @@ function M.update_context(self)
     if self.frame_counter % 15 == 1 then
         local previous = self.model.context or {}
         local context = self.runtime:context()
+        if self.profile_registry and context.profile_id
+            and context.profile_id ~= self.model.profile.id then
+            local profile = self.profile_registry.get(context.profile_id)
+            if profile ~= nil then
+                local calibration, static_ai = self.config_module.load_monster_data(profile)
+                M.cancel_training_scenario(self, "训练目标已切换")
+                self.model:activate_profile(profile, calibration, static_ai)
+                self.saved_evidence_revision = 0
+                self.training_preview_scenario_id = nil
+                self.training_preview_tree = nil
+            end
+        end
         self.model:set_context(context)
         if context.in_quest ~= true or context.player_found == false
             or previous.in_quest ~= context.in_quest

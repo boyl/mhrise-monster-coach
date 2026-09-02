@@ -1,0 +1,95 @@
+{
+  "QuestID": 200042001,
+  "QuestText": {
+    "QuestInfo": [
+      {
+        "Language": "ZHS",
+        "Name": "[陪练] 冰牙龙·塔之秘境",
+        "Client": "训练教官",
+        "Description": "用于只读观察普通大师等级冰牙龙。\r\n当前数据包仍处于研究阶段，不开放指定出招。\r\n本任务不提供任务报酬，仅限单人训练。",
+        "Target": "狩猎1头冰牙龙",
+        "Fail": "倒下9次或时间耗尽"
+      },
+      {
+        "Language": "ENG",
+        "Name": "[Coach] Barioth - Forlorn Arena",
+        "Client": "Training Instructor",
+        "Description": "Observe a normal Master Rank Barioth in read-only research mode.\r\nSpecified moves remain locked until runtime acceptance.\r\nThis solo quest grants no quest reward.",
+        "Target": "Hunt a Barioth",
+        "Fail": "Fail 9 times, or time expires"
+      }
+    ],
+    "FallbackLanguage": "ZHS",
+    "DebugName": "MonsterCoach_Barioth_ForlornArena",
+    "DebugClient": "MonsterCoach",
+    "DebugDescription": "Research-only single-player observation quest; no quest reward."
+  },
+  "QuestData": {
+    "QuestType": 1,
+    "QuestLevel": 3,
+    "EnemyLevel": 3,
+    "Map": 14,
+    "BaseTime": 21,
+    "TimeVariation": 0,
+    "TimeLimit": 50,
+    "Carts": 9,
+    "QuestConditions": [19, 0],
+    "TargetTypes": [2, 0],
+    "TargetMonsters": [42, 0],
+    "TargetItemIds": [67108864, 67108864],
+    "TargetAmounts": [1, 0],
+    "Monsters": [
+      { "Id": 42, "SpawnCondition": 1, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 },
+      { "Id": 0, "SpawnCondition": 0, "SpawnParam": 0 }
+    ],
+    "ExtraMonsterCount": 0,
+    "SwapExitRide": false,
+    "SwapFrequencies": [0, 0],
+    "SwapConditions": [0, 0],
+    "SwapParams": [0, 0],
+    "SwapExitTimes": [0, 0],
+    "SwapStopType": 0,
+    "SwapStopParam": 0,
+    "SwapExecType": 0,
+    "Reward": { "Zenny": 0, "Points": 0, "HRP": 0 },
+    "SupplyTable": 310003,
+    "Icons": [999, 999, 999, 999, 999],
+    "Tutorial": false,
+    "FromNpc": false,
+    "ArenaParam": {
+      "FenceDefaultActive": false,
+      "FenceUptime": 0,
+      "FenceInitialDelay": 0,
+      "FenceCooldown": 0,
+      "Pillars": [false, false, false]
+    },
+    "AutoMatchHR": 10004,
+    "BattleBGMType": 0,
+    "ClearBGMType": 0
+  },
+  "EnemyData": {
+    "SmallMonsters": {
+      "SpawnType": 0,
+      "HealthTable": 0,
+      "AttackTable": 0,
+      "PartTable": 0,
+      "OtherTable": 0,
+      "MultiTable": 0
+    },
+    "Monsters": [
+      { "PathId": 14, "SetName": "メイン", "SubType": 0, "IndividualType": 0, "HealthTable": 123, "AttackTable": 118, "PartTable": 137, "OtherTable": 135, "StaminaTable": 3, "Size": 100, "SizeTable": 6, "Difficulty": 2, "MultiTable": 16 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 },
+      { "PathId": 0, "SetName": "", "SubType": 0, "IndividualType": 0, "HealthTable": 0, "AttackTable": 0, "PartTable": 0, "OtherTable": 0, "StaminaTable": 0, "Size": 100, "SizeTable": 0, "Difficulty": 0, "MultiTable": 0 }
+    ]
+  },
+  "RampageData": null
+}

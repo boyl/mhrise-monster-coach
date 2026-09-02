@@ -140,6 +140,18 @@ function M.new(profile, calibration, config, static_ai, long_sword_knowledge)
     return self
 end
 
+function M.activate_profile(self, profile, calibration, static_ai)
+    if type(profile) ~= "table" or type(profile.id) ~= "string" then return false end
+    calibration = type(calibration) == "table" and calibration or { moves = {}, scenarios = {} }
+    local replacement = M.new(profile, calibration, self.config, static_ai,
+        self.long_sword_knowledge)
+    for key in pairs(self) do self[key] = nil end
+    for key, value in pairs(replacement) do self[key] = value end
+    setmetatable(self, { __index = M })
+    self.status = "Profile selected: " .. tostring(profile.name or profile.id)
+    return true
+end
+
 local function confirmed_evidence_move(self)
     local metadata = self.current_metadata or {}
     local state = tostring(self.current_state_key or "")

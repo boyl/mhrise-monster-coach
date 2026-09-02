@@ -45,7 +45,7 @@ local function enum_value(type_name, field_name)
     return field and safe(function() return field:get_data(nil) end) or nil
 end
 
-function M.new(config, profile)
+function M.new(config, profile, profile_registry)
     local default_arena_navigation = safe(function()
         return json.load_file("MHRiseMonsterCoach/arena_navigation_defaults.json")
     end)
@@ -73,6 +73,7 @@ function M.new(config, profile)
     local self = {
         config = config,
         profile = profile,
+        profile_registry = profile_registry,
         reader = ActionReader.new(config),
         enemy = nil,
         enemy_id = nil,
@@ -209,6 +210,18 @@ function M.new(config, profile)
     self.capabilities.action_request_observer = action_observer_ready
     self.capabilities.action_request_observer_reason = action_observer_reason
     return setmetatable(self, { __index = M })
+end
+
+function M.activate_profile(self, profile)
+    if type(profile) ~= "table" or type(profile.training_quest) ~= "table" then return false end
+    if self.profile and self.profile.id == profile.id then return false end
+    M.restore_time_scale(self)
+    clear_enemy(self, true)
+    self.player_anchor = nil
+    self.profile = profile
+    if self.quest_posting then self.quest_posting.target_quest_id = profile.training_quest.id end
+    self.quest_restart = QuestRestart.new(M.quest_restart_api(self), profile.training_quest.id)
+    return true
 end
 
 function M.install_action_request_observer(self)
@@ -2216,6 +2229,9 @@ function M.context(self)
     end
     local quest_no = quest and self.methods.quest_no
         and safe(function() return self.methods.quest_no:call(quest) end) or nil
+    local selected_profile = self.profile_registry
+        and self.profile_registry.for_quest(quest_no) or nil
+    if selected_profile ~= nil then M.activate_profile(self, selected_profile) end
     if lobby and self.methods.lobby_online then
         is_online = safe(function() return self.methods.lobby_online:call(lobby) end) == true
     end
@@ -2271,6 +2287,7 @@ function M.context(self)
         build_supported = build_supported,
         game_name = self.game_name,
         tdb_version = self.tdb_version,
+        profile_id = self.profile and self.profile.id or nil,
     }
     M.flush_quest_reset_trace(self, self.last_context, false)
     return self.last_context
@@ -2320,6 +2337,9 @@ end
 local function issue_forced_action(self, action_no, request_tag)
     action_no = tonumber(action_no)
     local context = self.last_context or {}
+    if self.profile and self.profile.research_only == true then
+        return false, "This monster profile is research-only; forced actions are locked"
+    end
     if not context.in_quest or context.is_online or context.build_supported == false
         or tonumber(context.quest_no) ~= tonumber(self.profile.training_quest.id)
         or not context.target_found then

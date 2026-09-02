@@ -54,6 +54,7 @@
     "data/MHRiseMonsterCoach/barioth_static_ai.json",
     "data/MHRiseMonsterCoach/long_sword_knowledge.json",
     "data/MHRiseMonsterCoach/arena_navigation_defaults.json",
-    "quests/q200032001.json"
+    "quests/q200032001.json",
+    "quests/q200042001.json"
   ]
 }

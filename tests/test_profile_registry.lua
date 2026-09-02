@@ -9,6 +9,9 @@ assert(Registry.default().id == "tigrex_mr_normal", "existing users must keep Ti
 assert(Registry.get("barioth_mr_normal").name == "Barioth / 冰牙龙")
 assert(Registry.get("barioth_mr_normal").research_only == true)
 assert(Registry.get("missing") == nil)
+assert(Registry.for_quest(200032001).id == "tigrex_mr_normal")
+assert(Registry.for_quest(200042001).id == "barioth_mr_normal")
+assert(Registry.for_quest(1) == nil)
 
 local ids = {}
 for _, profile in ipairs(profiles) do
