@@ -15,11 +15,17 @@
     "loaded_version_verified_in_log": true
   },
   "visual_gate": {
-    "status": "manual_open_required",
-    "reason": "REFramework exposes no supported Lua API for opening its own menu. External Insert and pointer injection cannot be advanced from a sent-input event alone: game-native dialogs, title transitions and first-click focus can consume the event. The bounded attempts were stopped instead of clicking unknown game UI.",
-    "minimum_user_action": "Press Insert once after reaching a stable game scene; screenshot capture and inspection can then continue without quest or combat input."
+    "status": "passed_by_combined_evidence",
+    "runtime_visual_result": "The user opened REFramework once in a stable scene. The captured deployed menu shows readable CJK glyphs, complete state/recovery guidance, compact repeat controls and all eight starter entries without horizontal clipping.",
+    "minimum_width_result": "The same renderer is covered by the 232 px measured-line contract; every emitted text line fits the available width.",
+    "automation_boundary": "REFramework exposes no supported Lua API for opening its own menu. External input is not used as proof of menu state because game-native dialogs and transitions can consume it."
   },
   "screenshots": [
+    {
+      "path": "artifacts/ui_capture/manual-insert-confirm.png",
+      "sha256": "6e109384a655a24542ee565776989729c014ddede256c2fc332ba42b7990ac26",
+      "meaning": "Final deployed runtime visual acceptance: Monster Coach and specified-move menu visible with complete Chinese status and instructions."
+    },
     {
       "path": "artifacts/ui_capture/training-menu-0.49.54-start.png",
       "sha256": "c4388f23173c8094352c2c8993b56a322265764c61a43f87fcaffacd6bdc40f4",
