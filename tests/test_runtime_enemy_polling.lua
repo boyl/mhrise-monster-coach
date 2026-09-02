@@ -35,6 +35,15 @@ found, reason = runtime:poll_target_enemy(200032001, false)
 assert(found == true and reason == nil, "supported quest finds Tigrex")
 assert(runtime.enemy == manager.enemies[2] and runtime.enemy_id == 32, "polling selects the matching boss")
 
+runtime.profile.enemy_ids = { [42] = true, ["em042_00"] = true }
+assert(runtime:is_target_monster({ id = 42 }) == true,
+    "numeric ids are resolved by the active profile rather than a Tigrex constant")
+assert(runtime:is_target_monster({ id = "variant/em042_00/runtime" }) == true,
+    "string runtime ids are resolved by the active profile")
+assert(runtime:is_target_monster({ id = "em032_00" }) == false,
+    "a different monster must not match the active profile")
+runtime.profile.enemy_ids = { [32] = true, ["em032_00"] = true }
+
 found, reason = runtime:poll_target_enemy(200032001, true)
 assert(found == false and reason ~= nil, "online quest is rejected")
 assert(runtime.enemy == nil, "online transition clears enemy state")

@@ -1957,7 +1957,7 @@ function M.monster_respawn_api(runtime)
     function api:find_created_enemy(contract, candidate)
         local owner = safe(function() return contract.set_info:call("get_OwnerEnemy") end)
         local resolved = owner or candidate
-        if resolved == nil or not M.is_tigrex(runtime, resolved) then return nil end
+        if resolved == nil or not M.is_target_monster(runtime, resolved) then return nil end
         local manager = safe(function() return sdk.get_managed_singleton("snow.enemy.EnemyManager") end)
         if manager == nil then return nil end
         local count = safe(function() return runtime.methods.boss_enemy_count:call(manager) end)
@@ -1979,12 +1979,12 @@ function M.start_monster_respawn_probe(self)
         return false, "Monster respawn probe requires the offline training quest"
     end
     if self.enemy == nil or self.methods.enemy_set_info == nil then
-        return false, "Tigrex spawn contract unavailable"
+        return false, "Target monster spawn contract unavailable"
     end
     local set_info = safe(function() return self.methods.enemy_set_info:call(self.enemy) end)
-    if set_info == nil then return false, "Tigrex EnemySetInfo unavailable" end
+    if set_info == nil then return false, "Target monster EnemySetInfo unavailable" end
     local enemy_set_param = safe(function() return set_info:call("get_EnemySetParam") end)
-    if enemy_set_param == nil then return false, "Tigrex EnemySetParam unavailable" end
+    if enemy_set_param == nil then return false, "Target monster EnemySetParam unavailable" end
     return self.monster_respawn:start({
         enemy = self.enemy,
         set_info = set_info,
@@ -2041,15 +2041,23 @@ function M.read_enemy_id(self, enemy)
     return normalize_enemy_id(value)
 end
 
-function M.is_tigrex(self, enemy)
+function M.is_target_monster(self, enemy)
     local enemy_id = M.read_enemy_id(self, enemy)
     if enemy_id == nil then return false end
     if self.profile.enemy_ids[enemy_id] then return true end
     local numeric = tonumber(enemy_id)
     if numeric and self.profile.enemy_ids[numeric] then return true end
     local text = string.lower(tostring(enemy_id))
-    return string.find(text, "em032_00", 1, true) ~= nil
+    for expected in pairs(self.profile.enemy_ids or {}) do
+        if type(expected) == "string" and string.find(text, string.lower(expected), 1, true) ~= nil then
+            return true
+        end
+    end
+    return false
 end
+
+-- Compatibility alias for existing diagnostics and third-party test harnesses.
+M.is_tigrex = M.is_target_monster
 
 clear_enemy = function(self, clear_anchor)
     self.enemy = nil
@@ -2081,7 +2089,7 @@ function M.poll_target_enemy(self, quest_no, is_online)
 
     for index = 0, count - 1 do
         local enemy = safe(function() return self.methods.boss_enemy:call(manager, index) end)
-        if enemy ~= nil and M.is_tigrex(self, enemy) then
+        if enemy ~= nil and M.is_target_monster(self, enemy) then
             self.enemy = enemy
             self.enemy_id = M.read_enemy_id(self, enemy)
             M.capture_enemy_spawn_contract(self, enemy)
@@ -2089,7 +2097,7 @@ function M.poll_target_enemy(self, quest_no, is_online)
         end
     end
     clear_enemy(self)
-    return false, "Tigrex not available yet"
+    return false, "Target monster not available yet"
 end
 
 function M.install_quest_list_order_hook(self, quest_ids)
@@ -2664,7 +2672,7 @@ function M.request_arena_transfer(self)
 end
 
 function M.capture_anchors(self)
-    if self.player == nil or self.enemy == nil then return false, "Player or Tigrex unavailable" end
+    if self.player == nil or self.enemy == nil then return false, "Player or target monster unavailable" end
     local player_transform = get_transform(self.player)
     local enemy_transform = get_transform(self.enemy)
     local player_position = get_position(player_transform)
@@ -2708,7 +2716,7 @@ function M.restore_player_anchor(self)
 end
 
 function M.restore_enemy_anchor(self)
-    return restore_anchor(self.enemy, self.enemy_anchor, "Tigrex")
+    return restore_anchor(self.enemy, self.enemy_anchor, "Target monster")
 end
 
 function M.restore_anchors(self)
@@ -2781,7 +2789,7 @@ function M.experimental_native_in_place_reset(self)
     if not resources_ok then return false, resources_reason end
 
     local enemy_ok = pcall(function() self.methods.enemy_native_warp_init:call(self.enemy) end)
-    if not enemy_ok then return false, "Native Tigrex initial-position warp failed" end
+    if not enemy_ok then return false, "Native target monster initial-position warp failed" end
 
     local health_ok, health_reason = M.restore_monster_health(self)
     if not health_ok then return false, health_reason end

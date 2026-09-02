@@ -3,6 +3,8 @@ return {
     id = "tigrex_mr_normal",
     name = "Tigrex / 轰龙",
     enemy_ids = { [32] = true, [5000] = true, ["em032_00"] = true },
+    calibration_file = "tigrex_calibration.json",
+    static_ai_file = "tigrex_static_ai.json",
     training_quest = {
         id = 200032001,
         player_calibration_id = 200032002,

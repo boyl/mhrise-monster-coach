@@ -553,7 +553,7 @@ function M.set_context(self, context)
         self.status = "Enter a single-player quest"
     elseif not context.target_found then
         self.state = M.states.OBSERVING
-        self.status = "Waiting for Tigrex (em032_00)"
+        self.status = "Waiting for " .. tostring(self.profile.name or self.profile.id or "target monster")
     elseif not context.reader_ready then
         self.state = M.states.OBSERVING
         self.status = "Calibrating the action reader"
@@ -593,7 +593,8 @@ local function named_move(self, action, metadata)
     return {
         name = "Uncatalogued action " .. key,
         short_name = "Action " .. key,
-        advice = "Observe the tell; add a name and advice in tigrex_calibration.json.",
+        advice = "Observe the tell; add a name and advice in "
+            .. tostring(self.profile.calibration_file or "the profile calibration file") .. ".",
         certainty = "unknown",
     }
 end

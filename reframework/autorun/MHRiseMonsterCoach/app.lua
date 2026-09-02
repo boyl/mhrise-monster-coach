@@ -4,7 +4,8 @@ local Runtime = require("MHRiseMonsterCoach.runtime")
 local View = require("MHRiseMonsterCoach.view")
 local Controller = require("MHRiseMonsterCoach.controller")
 local InputAdapter = require("MHRiseMonsterCoach.input_adapter")
-local Profile = require("MHRiseMonsterCoach.profile_tigrex")
+local ProfileRegistry = require("MHRiseMonsterCoach.profile_registry")
+local Profile = ProfileRegistry.default()
 local Font = require("MHRiseMonsterCoach.font")
 local DevProbeController = require("MHRiseMonsterCoach.dev_probe_controller")
 local StartupBootstrapController = require("MHRiseMonsterCoach.startup_bootstrap_controller")
@@ -12,7 +13,7 @@ local StartupBootstrapController = require("MHRiseMonsterCoach.startup_bootstrap
 local M = {}
 
 function M.start()
-    local config, calibration, static_ai, long_sword_knowledge = Config.load()
+    local config, calibration, static_ai, long_sword_knowledge = Config.load(Profile)
     local model = Model.new(Profile, calibration, config, static_ai, long_sword_knowledge)
     local runtime = Runtime.new(config, Profile)
     local font = Font.new()
@@ -276,7 +277,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.49.54-measured-training-menu loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.50.0-multi-monster-data-boundary loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

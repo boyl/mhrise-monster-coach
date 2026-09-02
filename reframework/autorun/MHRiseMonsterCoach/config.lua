@@ -2,8 +2,8 @@ local M = {}
 local MonsterPackValidator = require("MHRiseMonsterCoach.monster_pack_validator")
 
 local CONFIG_PATH = "MHRiseMonsterCoach/config.json"
-local CALIBRATION_PATH = "MHRiseMonsterCoach/tigrex_calibration.json"
-local STATIC_AI_PATH = "MHRiseMonsterCoach/tigrex_static_ai.json"
+local DEFAULT_CALIBRATION_FILE = "tigrex_calibration.json"
+local DEFAULT_STATIC_AI_FILE = "tigrex_static_ai.json"
 local LONG_SWORD_KNOWLEDGE_PATH = "MHRiseMonsterCoach/long_sword_knowledge.json"
 
 local DEFAULTS = {
@@ -79,7 +79,13 @@ local function clamp(value, low, high)
     return value
 end
 
-function M.load()
+local function data_path(profile, field, fallback)
+    local file = type(profile) == "table" and profile[field] or nil
+    if type(file) ~= "string" or file == "" then file = fallback end
+    return "MHRiseMonsterCoach/" .. file
+end
+
+function M.load(profile)
     local config = copy(DEFAULTS)
     local loaded = json.load_file(CONFIG_PATH)
     merge_known(config, loaded)
@@ -93,14 +99,16 @@ function M.load()
     config.quick_reset_safe_frames = math.floor(clamp(config.quick_reset_safe_frames, 5, 60))
     config.training_repeat_count = math.floor(clamp(config.training_repeat_count, 1, 20))
 
-    local calibration = json.load_file(CALIBRATION_PATH)
+    local calibration_path = data_path(profile, "calibration_file", DEFAULT_CALIBRATION_FILE)
+    local static_ai_path = data_path(profile, "static_ai_file", DEFAULT_STATIC_AI_FILE)
+    local calibration = json.load_file(calibration_path)
     if type(calibration) ~= "table" then calibration = {} end
     if type(calibration.moves) ~= "table" then calibration.moves = {} end
     if type(calibration.scenarios) ~= "table" then calibration.scenarios = {} end
     if type(calibration.observed_hit_timing) ~= "table" then calibration.observed_hit_timing = {} end
     if type(calibration.observed_hitbox_windows) ~= "table" then calibration.observed_hitbox_windows = {} end
 
-    local static_ai = M.load_static_ai()
+    local static_ai = M.load_static_ai(profile)
 
     local long_sword_knowledge = json.load_file(LONG_SWORD_KNOWLEDGE_PATH)
     if type(long_sword_knowledge) ~= "table" then long_sword_knowledge = { actions = {} } end
@@ -112,8 +120,9 @@ function M.load()
     return config, calibration, static_ai, long_sword_knowledge
 end
 
-function M.load_static_ai()
-    local static_ai = json.load_file(STATIC_AI_PATH)
+function M.load_static_ai(profile)
+    local static_ai_path = data_path(profile, "static_ai_file", DEFAULT_STATIC_AI_FILE)
+    local static_ai = json.load_file(static_ai_path)
     if type(static_ai) ~= "table" then static_ai = { actions = {} } end
     if type(static_ai.actions) ~= "table" then static_ai.actions = {} end
     local validation = MonsterPackValidator.validate(static_ai)
@@ -130,12 +139,12 @@ function M.save(config)
     json.dump_file(CONFIG_PATH, config)
 end
 
-function M.calibration_path()
-    return CALIBRATION_PATH
+function M.calibration_path(profile)
+    return data_path(profile, "calibration_file", DEFAULT_CALIBRATION_FILE)
 end
 
-function M.write_calibration(calibration)
-    json.dump_file(CALIBRATION_PATH, calibration)
+function M.write_calibration(calibration, profile)
+    json.dump_file(M.calibration_path(profile), calibration)
 end
 
 return M

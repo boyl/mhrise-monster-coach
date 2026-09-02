@@ -206,8 +206,9 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     lines[#lines + 1] = { truncate(model.status, 88), result_color(model.state), PRIORITY.always }
     if model.context.in_quest then
         local target = model.context.target_found
-            and ("Target: Tigrex detected  |  Enemy ID " .. tostring(model.context.enemy_id or "unknown"))
-            or "Target: waiting for Tigrex"
+            and ("Target: " .. tostring(model.profile.name or "monster")
+                .. " detected  |  Enemy ID " .. tostring(model.context.enemy_id or "unknown"))
+            or ("Target: waiting for " .. tostring(model.profile.name or "monster"))
         lines[#lines + 1] = { target, model.context.target_found and COLORS.success or COLORS.muted,
             PRIORITY.always }
     end

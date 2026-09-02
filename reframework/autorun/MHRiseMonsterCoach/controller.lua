@@ -547,7 +547,7 @@ function M.persist_runtime_evidence(self, force)
     if revision <= self.saved_evidence_revision then return false end
     if not force and self.frame_counter % 60 ~= 0 then return false end
     self.config_module.write_calibration(
-        self.model:export_calibration(self.runtime.reader:description()))
+        self.model:export_calibration(self.runtime.reader:description()), self.model.profile)
     self.saved_evidence_revision = revision
     return true
 end
@@ -557,7 +557,8 @@ function M.update_health(self)
     if type(health) == "number" and type(self.last_health) == "number" then
         self.model:observe_health_comparison()
         if health < self.last_health and self.model:observe_damage(self.last_health - health) then
-            self.config_module.write_calibration(self.model:export_calibration(self.runtime.reader:description()))
+            self.config_module.write_calibration(
+                self.model:export_calibration(self.runtime.reader:description()), self.model.profile)
         end
     end
     self.last_health = health
@@ -909,7 +910,8 @@ function M.draw_menu_content(self)
             or "READ-ONLY MODE: Action/Hitbox polling enabled; all gameplay writes disabled.")
     end
     imgui.text("Target: " .. (self.model.context.target_found
-        and ("Tigrex / " .. tostring(self.model.context.enemy_id or "unknown")) or "waiting"))
+        and (tostring(self.model.profile.name or "monster") .. " / "
+            .. tostring(self.model.context.enemy_id or "unknown")) or "waiting"))
     if self.font then imgui.text(self.font:diagnostic()) end
     local reader = self.runtime.reader:description()
     imgui.text("Reader: " .. tostring(reader and reader.name or "not calibrated"))
@@ -993,12 +995,13 @@ function M.draw_menu_content(self)
     end
 
     if imgui.button("Export calibration evidence") then
-        self.config_module.write_calibration(self.model:export_calibration(self.runtime.reader:description()))
+        self.config_module.write_calibration(
+            self.model:export_calibration(self.runtime.reader:description()), self.model.profile)
         self.model:reset_round("Calibration evidence exported")
     end
     imgui.same_line()
     if imgui.button("Reload static AI data") then
-        local loaded = self.config_module.load_static_ai()
+        local loaded = self.config_module.load_static_ai(self.model.profile)
         if self.model:reload_static_ai(loaded) then
             self.model.status = "Static AI data reloaded"
         else
@@ -1007,7 +1010,7 @@ function M.draw_menu_content(self)
     end
 
     if #self.model.scenarios == 0 then
-        ui_text_wrapped("Forced moves are locked until a verified Tigrex Action map and safe request method are captured on this game build.")
+        ui_text_wrapped("Forced moves are locked until a verified target Action map and safe request method are captured on this game build.")
     end
 
     if changed then self.config_module.save(self.config) end

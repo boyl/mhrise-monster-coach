@@ -310,17 +310,41 @@ def build_runtime_pack(graph: dict[str, Any], required_action_category: int) -> 
                 }
             )
         actions[str(action_no)] = {
-            "kind": "fixed" if len(candidates) == 1 else "conditional",
+            # Multiple unique ActionEnd targets prove that the edge is not
+            # fixed, but do not by themselves prove whether selection is
+            # conditional or random.
+            "kind": "fixed" if len(candidates) == 1 else "unresolved",
             "evidence_count": total,
             "next": candidates,
         }
+
+    catalog_numbers = {
+        int(action_no)
+        for action_no in graph.get("action_catalog", {})
+        if str(action_no).lstrip("-").isdigit()
+    }
+    for action_no, row in actions.items():
+        catalog_numbers.add(int(action_no))
+        for candidate in row["next"]:
+            catalog_numbers.add(int(candidate["action"]))
+    moves = {
+        str(action_no): {
+            "name": f"Unverified Action {action_no}",
+            "short_name": f"Action {action_no}",
+            "certainty": "offline_static_candidate",
+        }
+        for action_no in sorted(catalog_numbers)
+    }
 
     return {
         "schema_version": 1,
         "monster": graph.get("monster"),
         "required_action_category": required_action_category,
+        "verification_status": "research_only",
         "evidence_policy": "unique_enemy_action_end_edge",
         "allowed_scopes": list(allowed_prefixes),
+        "training_scenarios": [],
+        "moves": moves,
         "actions": actions,
     }
 

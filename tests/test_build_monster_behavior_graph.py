@@ -168,6 +168,7 @@ class BuildMonsterBehaviorGraphTests(unittest.TestCase):
     def test_runtime_pack_excludes_noncombat_scopes_and_preserves_branches(self):
         graph = {
             "monster": "em032",
+            "action_catalog": {"2": [], "6": [], "10": [], "15": []},
             "fixed_action_edges": [
                 {"source": "common/act_tbl_user_data/combo/a.user.2", "from_action_no": 2, "to_action_no": 10},
                 {"source": "common/act_tbl_user_data/action/b.user.2", "from_action_no": 2, "to_action_no": 6},
@@ -177,10 +178,13 @@ class BuildMonsterBehaviorGraphTests(unittest.TestCase):
         }
         pack = build_runtime_pack(graph, 4)
         self.assertEqual(pack["required_action_category"], 4)
-        self.assertEqual(pack["actions"]["2"]["kind"], "conditional")
+        self.assertEqual(pack["actions"]["2"]["kind"], "unresolved")
         self.assertEqual([item["action"] for item in pack["actions"]["2"]["next"]], ["6", "10"])
         self.assertEqual(pack["actions"]["15"]["kind"], "fixed")
         self.assertNotIn("99", [item["action"] for item in pack["actions"]["2"]["next"]])
+        self.assertEqual(pack["verification_status"], "research_only")
+        self.assertEqual(pack["training_scenarios"], [])
+        self.assertEqual(pack["moves"]["10"]["certainty"], "offline_static_candidate")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "monster": "em042",
+  "required_action_category": 4,
+  "verification_status": "research_only",
+  "evidence_policy": "unique_enemy_action_end_edge",
+  "allowed_scopes": [
+    "common/act_tbl_user_data/action/",
+    "common/act_tbl_user_data/combo/"
+  ],
+  "training_scenarios": [],
+  "moves": {
+    "33": { "name": "未验证 Action 33", "short_name": "Action 33", "certainty": "offline_static_candidate" },
+    "34": { "name": "未验证 Action 34", "short_name": "Action 34", "certainty": "offline_static_candidate" },
+    "35": { "name": "未验证 Action 35", "short_name": "Action 35", "certainty": "offline_static_candidate" },
+    "5002": { "name": "未验证 Action 5002", "short_name": "Action 5002", "certainty": "offline_static_candidate" },
+    "5005": { "name": "未验证 Action 5005", "short_name": "Action 5005", "certainty": "offline_static_candidate" }
+  },
+  "actions": {
+    "33": {
+      "kind": "fixed",
+      "evidence_count": 2,
+      "next": [{
+        "action": "34",
+        "evidence_count": 2,
+        "sources": [
+          "common/act_tbl_user_data/action/em042_act_050.user.2",
+          "common/act_tbl_user_data/action/em042_act_051.user.2"
+        ]
+      }]
+    },
+    "35": {
+      "kind": "fixed",
+      "evidence_count": 2,
+      "next": [{
+        "action": "5005",
+        "evidence_count": 2,
+        "sources": ["common/act_tbl_user_data/action/em042_act_200.user.2"]
+      }]
+    },
+    "5005": {
+      "kind": "fixed",
+      "evidence_count": 2,
+      "next": [{
+        "action": "5002",
+        "evidence_count": 2,
+        "sources": ["common/act_tbl_user_data/action/em042_act_200.user.2"]
+      }]
+    }
+  }
+}

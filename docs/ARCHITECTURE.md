@@ -150,7 +150,9 @@ Think Context Reader 以 `(ThinkInfoData 地址, StateNo, TreeNodeID)` 为运行
 1. 增加一个与 `profile_tigrex.lua` 同契约的数据包和独立校准 JSON。
 2. 在组合根选择目标 Profile；Model、View、Controller 不接触原始怪物 ID。
 3. 运行同一套 Model 契约测试，再增加该怪物的固定/条件/随机派生测试。
-4. 只有第二个真实 Profile 落地时才提取 Profile Registry，避免当前提前构建插件系统。
+4. 第二个真实 Profile 已以 `research_only` 冰牙龙数据包落地，因此组合根现在通过最小 `profile_registry.lua` 取得默认 Profile；Registry 只负责唯一 ID 与枚举，不承担动态插件发现、UI 或运行时写入。
+
+Profile 声明各自的 `calibration_file` 与 `static_ai_file`，`config.lua` 只在数据边界解析路径。当前默认仍是轰龙；冰牙龙没有专用任务和实机验证场景，因此不能被产品 UI 选择，也不能触发玩法写入。离线生成器输出的多后继唯一 ActionEnd 证据统一标记为 `unresolved`，不能在缺少条件字段时误称 `conditional`。
 
 新增游戏版本时只改 `runtime.lua`/`action_reader.lua` 的显式版本分支，并保留 16.0.2.0 分支。未知版本默认只读校准，不自动沿用写操作。
 

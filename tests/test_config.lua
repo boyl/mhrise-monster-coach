@@ -1,8 +1,10 @@
 package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. package.path
 
 local loaded_config = {}
+local loaded_paths = {}
 json = {
     load_file = function(path)
+        loaded_paths[#loaded_paths + 1] = path
         if path == "MHRiseMonsterCoach/config.json" then return loaded_config end
         if path == "MHRiseMonsterCoach/tigrex_static_ai.json" then
             return {
@@ -10,6 +12,15 @@ json = {
                 required_action_category = 4,
                 moves = {},
                 actions = {},
+                training_scenarios = {},
+            }
+        end
+        if path == "MHRiseMonsterCoach/barioth_static_ai.json" then
+            return {
+                monster = "em042",
+                required_action_category = 4,
+                moves = { ["33"] = {}, ["34"] = {} },
+                actions = { ["33"] = { kind = "fixed", next = { { action = "34" } } } },
                 training_scenarios = {},
             }
         end
@@ -29,5 +40,18 @@ loaded_config = { weapon_response_extension_enabled = true }
 local opted_in = Config.load()
 assert(opted_in.weapon_response_extension_enabled == true,
     "an explicit user opt-in enables the retained weapon response extension")
+
+loaded_paths = {}
+local _, _, barioth_static = Config.load({
+    calibration_file = "barioth_calibration.json",
+    static_ai_file = "barioth_static_ai.json",
+})
+local observed = table.concat(loaded_paths, "|")
+assert(string.find(observed, "MHRiseMonsterCoach/barioth_calibration.json", 1, true),
+    "profile calibration path must be selected at the data boundary")
+assert(string.find(observed, "MHRiseMonsterCoach/barioth_static_ai.json", 1, true),
+    "profile static AI path must be selected at the data boundary")
+assert(barioth_static.monster == "em042" and barioth_static.validation.ok == true,
+    "the selected profile pack must pass the shared validator")
 
 print("test_config.lua: PASS")
