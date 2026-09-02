@@ -725,4 +725,40 @@ assert(branch_probe.state == "native_branch_recovery"
     and branch_probe.native_branch.status == "passed",
     "native Think branch writes only the parent reference and observes the engine successor")
 
+local profile_reports = {}
+local profile_context = {
+    in_quest = true, quest_no = 200042001, is_online = false,
+    build_supported = true, target_found = true, profile_id = "barioth_mr_normal",
+}
+local profile_api = { quest_api = quest_api }
+function profile_api:get_context() return profile_context end
+function profile_api:write_report(report) profile_reports[#profile_reports + 1] = report end
+function profile_api:write_lifecycle() end
+function profile_api:environment_evidence() return {} end
+function profile_api:area_snapshot() return {} end
+function profile_api:request_forced_action()
+    return false, "This monster profile is research-only; forced actions are locked"
+end
+local profile_probe = Probe.new(profile_api, 200032001, {
+    stable_frames = 1,
+    allowed_quest_ids = { [200032001] = true, [200042001] = true },
+})
+assert(profile_probe:accept_request({
+    session_id = "barioth-profile", kind = "profile_acceptance",
+    target_quest_id = 200042001, expected_profile_id = "barioth_mr_normal",
+}, profile_context))
+assert(profile_probe.quest_id == 200042001,
+    "profile acceptance selects only an explicitly allowlisted training quest")
+profile_probe:update()
+assert(profile_probe.state == "profile_acceptance_restart"
+    and profile_probe.profile_acceptance.forced_action_rejected == true,
+    "profile acceptance verifies automatic selection and the research-only write gate")
+profile_probe.quest_flow.state = "complete"
+profile_probe:update()
+profile_probe:update()
+assert(profile_reports[#profile_reports].status == "completed"
+    and profile_reports[#profile_reports].profile_acceptance.restart_profile_id
+        == "barioth_mr_normal",
+    "profile acceptance completes only after the same profile and target return")
+
 print("test_dev_probe_controller.lua: PASS")

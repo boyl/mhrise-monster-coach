@@ -50,6 +50,7 @@ function M.new(api, quest_id, options)
         quest_id = quest_id,
         default_quest_id = quest_id,
         player_action_quest_id = options.player_action_quest_id or quest_id,
+        allowed_quest_ids = options.allowed_quest_ids or { [quest_id] = true },
         state = "idle",
         frame = 0,
         state_frames = 0,
@@ -85,6 +86,7 @@ function M.new(api, quest_id, options)
         input_motion = nil,
         player_action = nil,
         ui_contract = nil,
+        profile_acceptance = nil,
         last_quest_flow_state = nil,
     }, { __index = M })
     return self
@@ -93,6 +95,8 @@ end
 function M:select_request_quest(request)
     local quest_id = self.default_quest_id
     if player_only_probe(request) then quest_id = self.player_action_quest_id end
+    local requested = tonumber(request and request.target_quest_id)
+    if requested ~= nil and self.allowed_quest_ids[requested] == true then quest_id = requested end
     self.quest_id = quest_id
     self.quest_flow = QuestRestart.new(self.api.quest_api, quest_id, {
         hub_stable_frames = self.quest_flow.hub_stable_required,
@@ -170,6 +174,7 @@ function M:report(status, reason)
         training_timeline = not ui_only and self.api.training_timeline_diagnostics
             and self.api:training_timeline_diagnostics() or nil,
         ui_contract = self.ui_contract,
+        profile_acceptance = self.profile_acceptance,
     }
     self.api:write_report(report)
     if report.session_id and (status == "completed" or status == "failed") then
@@ -236,6 +241,7 @@ function M:accept_request(request, context)
             and request.kind ~= "player_action_evidence"
             and request.kind ~= "input_motion_axis_write"
             and request.kind ~= "ui_contract_snapshot"
+            and request.kind ~= "profile_acceptance"
             and request.kind ~= "native_think_branch")
         or type(request.session_id) ~= "string" or request.session_id == "" then return false end
     if self.completed_sessions[request.session_id] then return false end
@@ -263,6 +269,7 @@ function M:accept_request(request, context)
     self.input_motion = nil
     self.player_action = nil
     self.ui_contract = nil
+    self.profile_acceptance = nil
     if request.kind == "forced_action_sequence" then
         if type(request.forced_actions) ~= "table"
             or #request.forced_actions == 0 or #request.forced_actions > 8 then
@@ -468,6 +475,28 @@ function M:update()
                     if self.request.kind == "forced_action_sequence" then
                         self.forced_index = 1
                         self:set_state("forced_prepare")
+                        return true
+                    end
+                    if self.request.kind == "profile_acceptance" then
+                        local expected = tostring(self.request.expected_profile_id or "")
+                        local forced_ok, forced_reason = self.api:request_forced_action(19)
+                        self.profile_acceptance = {
+                            expected_profile_id = expected,
+                            initial_profile_id = context.profile_id,
+                            initial_target_found = context.target_found == true,
+                            forced_action_rejected = forced_ok ~= true,
+                            forced_action_reason = forced_reason,
+                        }
+                        if expected == "" or context.profile_id ~= expected then
+                            return self:fail("Runtime selected the wrong monster profile")
+                        end
+                        if forced_ok == true or not tostring(forced_reason):find("research%-only") then
+                            return self:fail("Research-only forced-action gate was not observed")
+                        end
+                        self.quest_flow:reset_terminal()
+                        local ok, reason = self.quest_flow:start(context)
+                        if not ok then return self:fail(reason) end
+                        self:set_state("profile_acceptance_restart")
                         return true
                     end
                     if self.request.kind == "behavior_path_survey" then
@@ -1067,6 +1096,25 @@ function M:update()
             if self.stable_frames >= self.stable_required then
                 return self:fail(self.respawn_failure
                     .. "; F7 recovery completed and combat area restored")
+            end
+        else
+            self.stable_frames = 0
+        end
+    elseif self.state == "profile_acceptance_restart" then
+        self.quest_flow:update(context)
+        self:sync_quest_flow_lifecycle()
+        if self.state_frames % 30 == 0 then self:report("running") end
+        if self.quest_flow.state == "failed" then return self:fail(self.quest_flow.error) end
+        if self.quest_flow.state == "complete" then self:set_state("profile_acceptance_verify") end
+    elseif self.state == "profile_acceptance_verify" then
+        if self.state_frames % 30 == 1 then self:report("running") end
+        if target_quest(context, self.quest_id) and context.target_found
+            and context.profile_id == self.profile_acceptance.expected_profile_id then
+            self.stable_frames = self.stable_frames + 1
+            if self.stable_frames >= self.stable_required then
+                self.profile_acceptance.restart_profile_id = context.profile_id
+                self.profile_acceptance.restart_target_found = true
+                return self:complete()
             end
         else
             self.stable_frames = 0

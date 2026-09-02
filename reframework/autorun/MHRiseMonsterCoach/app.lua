@@ -213,8 +213,15 @@ function M.start()
             training_acceptance_config = nil
         end
     end
+    local allowed_probe_quest_ids = {}
+    for _, candidate in ipairs(ProfileRegistry.all()) do
+        if candidate.training_quest then
+            allowed_probe_quest_ids[tonumber(candidate.training_quest.id)] = true
+        end
+    end
     local dev_probe = DevProbeController.new(probe_api, Profile.training_quest.id, {
         player_action_quest_id = Profile.training_quest.player_calibration_id,
+        allowed_quest_ids = allowed_probe_quest_ids,
     })
     local bootstrap_api = {}
     function bootstrap_api:read_request() return probe_api:read_request() end
@@ -285,7 +292,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.50.1-auto-profile-selection loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.50.2-profile-acceptance-automation loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

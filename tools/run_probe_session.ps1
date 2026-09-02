@@ -24,6 +24,9 @@ param(
     [switch]$InputMotionAxisWrite,
     [switch]$UiContract,
     [switch]$NativeThinkBranch,
+    [switch]$ProfileAcceptance,
+    [int]$TargetQuestId = 200032001,
+    [string]$ExpectedProfileId = '',
     [ValidateRange(300, 7200)][int]$BehaviorSurveyFrames = 3600,
     [switch]$ResumeExisting,
     [switch]$SkipDeployment,
@@ -96,6 +99,9 @@ $effectiveRequireCombatArea = [bool]($RequireCombatArea -or $effectiveBehaviorSu
     $SemanticInputTrigger -or
     $ForcedActions.Count -gt 0 -or $MonsterRespawn -or
     -not [string]::IsNullOrWhiteSpace($TrainingScenarioId))
+if ($ProfileAcceptance -and [string]::IsNullOrWhiteSpace($ExpectedProfileId)) {
+    throw '-ProfileAcceptance requires -ExpectedProfileId.'
+}
 
 function Write-AtomicJson {
     param([Parameter(Mandatory)]$Value, [Parameter(Mandatory)][string]$Path, [int]$Depth = 6)
@@ -245,6 +251,7 @@ if ($ResumeExisting) {
         schema_version = 1
         session_id = $sessionId
         kind = if ($UiContract) { 'ui_contract_snapshot' }
+            elseif ($ProfileAcceptance) { 'profile_acceptance' }
             elseif ($TrainingScenarioId) { 'training_scenario_acceptance' }
             elseif ($ForcedActions.Count -gt 0) { 'forced_action_sequence' }
             elseif ($effectiveBehaviorSurvey) { 'behavior_path_survey' }
@@ -256,7 +263,8 @@ if ($ResumeExisting) {
             elseif ($NativeThinkBranch) { 'native_think_branch' }
             elseif ($MonsterRespawn) { 'monster_respawn_lifecycle' }
             else { 'environment_creature_lifecycle' }
-        target_quest_id = if ($PlayerActionEvidence) { 200032002 } else { 200032001 }
+        target_quest_id = if ($PlayerActionEvidence) { 200032002 } else { $TargetQuestId }
+        expected_profile_id = if ($ProfileAcceptance) { $ExpectedProfileId } else { $null }
         requested_at = [DateTimeOffset]::Now.ToString('o')
         source_version = $sourceVersion
         auto_load_save = -not $UiContract
