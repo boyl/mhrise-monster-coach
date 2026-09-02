@@ -16,6 +16,10 @@
   ],
   "training_scenarios": [],
   "moves": {
+    "5": { "name": "铁山靠起手", "short_name": "铁山靠起手", "enum_name": "TackleStart", "certainty": "runtime_fsm_observed" },
+    "9": { "name": "空中突进", "short_name": "空中突进", "enum_name": "RushFly", "certainty": "runtime_fsm_observed" },
+    "10": { "name": "空中回转落地", "short_name": "回转落地", "enum_name": "TurnAttackFlyToGround", "certainty": "runtime_fsm_observed" },
+    "21": { "name": "铁山靠", "short_name": "铁山靠", "enum_name": "TackleNormal", "certainty": "runtime_fsm_observed" },
     "33": { "name": "墙面回旋攻击（破坏态）", "short_name": "墙面回旋（破坏态）", "enum_name": "TurnAttackWallBreak", "certainty": "community_action_enum" },
     "34": { "name": "墙面回旋循环/结束", "short_name": "墙面回旋结束", "enum_name": "TurnAttackWallLoopAndEnd", "certainty": "community_action_enum" },
     "35": { "name": "全力尾击转身起手", "short_name": "全力尾击起手", "enum_name": "FullPowerTailAttackStartTurn", "certainty": "community_action_enum" },

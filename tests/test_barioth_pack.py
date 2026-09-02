@@ -38,6 +38,20 @@ class BariothPackTests(unittest.TestCase):
         self.assertEqual(self.pack["verification_status"], "research_only")
         self.assertEqual(self.pack["training_scenarios"], [])
 
+    def test_runtime_fsm_names_are_display_only(self):
+        expected = {
+            "5": "TackleStart",
+            "9": "RushFly",
+            "10": "TurnAttackFlyToGround",
+            "21": "TackleNormal",
+        }
+        for action, enum_name in expected.items():
+            self.assertEqual(self.pack["moves"][action]["enum_name"], enum_name)
+            self.assertEqual(
+                self.pack["moves"][action]["certainty"], "runtime_fsm_observed"
+            )
+            self.assertNotIn(action, self.pack["actions"])
+
 
 if __name__ == "__main__":
     unittest.main()
