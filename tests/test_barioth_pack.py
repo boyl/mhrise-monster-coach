@@ -29,6 +29,15 @@ class BariothPackTests(unittest.TestCase):
             self.assertTrue(row["next"][0]["sources"])
             self.assertIn(target, self.pack["moves"])
 
+    def test_community_names_do_not_upgrade_runtime_verification(self):
+        self.assertEqual(self.pack["move_name_source"]["section"], "Barioth / EmAttackNo")
+        self.assertEqual(
+            self.pack["moves"]["35"]["enum_name"], "FullPowerTailAttackStartTurn"
+        )
+        self.assertEqual(self.pack["moves"]["35"]["certainty"], "community_action_enum")
+        self.assertEqual(self.pack["verification_status"], "research_only")
+        self.assertEqual(self.pack["training_scenarios"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

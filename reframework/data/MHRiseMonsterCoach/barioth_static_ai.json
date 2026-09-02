@@ -3,6 +3,12 @@
   "monster": "em042",
   "required_action_category": 4,
   "verification_status": "research_only",
+  "move_name_source": {
+    "kind": "community_game_enum_catalog",
+    "url": "https://github.com/mhvuze/MonsterHunterRiseModding/wiki/Monster-Action-IDs-(A-%E2%80%90-N)",
+    "section": "Barioth / EmAttackNo",
+    "retrieved": "2026-09-03"
+  },
   "evidence_policy": "unique_enemy_action_end_edge",
   "allowed_scopes": [
     "common/act_tbl_user_data/action/",
@@ -10,11 +16,11 @@
   ],
   "training_scenarios": [],
   "moves": {
-    "33": { "name": "未验证 Action 33", "short_name": "Action 33", "certainty": "offline_static_candidate" },
-    "34": { "name": "未验证 Action 34", "short_name": "Action 34", "certainty": "offline_static_candidate" },
-    "35": { "name": "未验证 Action 35", "short_name": "Action 35", "certainty": "offline_static_candidate" },
-    "5002": { "name": "未验证 Action 5002", "short_name": "Action 5002", "certainty": "offline_static_candidate" },
-    "5005": { "name": "未验证 Action 5005", "short_name": "Action 5005", "certainty": "offline_static_candidate" }
+    "33": { "name": "墙面回旋攻击（破坏态）", "short_name": "墙面回旋（破坏态）", "enum_name": "TurnAttackWallBreak", "certainty": "community_action_enum" },
+    "34": { "name": "墙面回旋循环/结束", "short_name": "墙面回旋结束", "enum_name": "TurnAttackWallLoopAndEnd", "certainty": "community_action_enum" },
+    "35": { "name": "全力尾击转身起手", "short_name": "全力尾击起手", "enum_name": "FullPowerTailAttackStartTurn", "certainty": "community_action_enum" },
+    "5002": { "name": "全力尾击第一段", "short_name": "全力尾击第一段", "enum_name": "FullPowerTailAttackFirstAttack", "certainty": "community_action_enum" },
+    "5005": { "name": "全力尾击跳跃起手", "short_name": "全力尾击跳跃", "enum_name": "FullPowerTailAttackStartJump", "certainty": "community_action_enum" }
   },
   "actions": {
     "33": {

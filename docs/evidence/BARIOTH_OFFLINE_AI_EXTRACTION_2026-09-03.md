@@ -29,7 +29,12 @@
 - 距离、形态、部位破坏或飞行状态等进入条件；
 - 可重复训练与失败恢复安全。
 
-因此该数据包标记为 `research_only`，动作名称标记为 `offline_static_candidate`，公开训练场景保持为空。下一阶段只需对少量高价值起手做批量运行时关联，而不再要求玩家逐招猜测全部动作。
+因此该数据包标记为 `research_only`，初始占位名称标记为 `offline_static_candidate`，公开训练场景保持为空。下一阶段只需对少量高价值起手做批量运行时关联，而不再要求玩家逐招猜测全部动作。
+
+随后从社区 `Barioth / EmAttackNo` 目录补齐了这 5 个动作的枚举语义。名称证据与派生证据保持分离：目录名称不会把 `research_only` 升级为实机可信。当前优先候选为：
+
+1. `35 FullPowerTailAttackStartTurn -> 5005 FullPowerTailAttackStartJump -> 5002 FullPowerTailAttackFirstAttack`：高价值完整起手链，适合验证跳跃与部位状态上下文。
+2. `33 TurnAttackWallBreak -> 34 TurnAttackWallLoopAndEnd`：依赖墙面/破坏态的条件型候选，用于验证复杂环境条件，不作为首个强制入口。
 
 ## 参考
 
