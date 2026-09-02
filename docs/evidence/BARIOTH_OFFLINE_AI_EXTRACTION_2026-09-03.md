@@ -36,6 +36,23 @@
 1. `35 FullPowerTailAttackStartTurn -> 5005 FullPowerTailAttackStartJump -> 5002 FullPowerTailAttackFirstAttack`：高价值完整起手链，适合验证跳跃与部位状态上下文。
 2. `33 TurnAttackWallBreak -> 34 TurnAttackWallLoopAndEnd`：依赖墙面/破坏态的条件型候选，用于验证复杂环境条件，不作为首个强制入口。
 
+## 上层上下文复核
+
+`em042_act_200` 内存在两套独立但同构的状态路径：
+
+- State `20 -> 21 -> 9`：Action `35 -> 5005 -> 5002`；
+- State `23 -> 22 -> 8`：Action `35 -> 5005 -> 5002`。
+
+每一步均只有一条 `EnemyActionEnd` 后继，因此链内顺序可信；两套状态说明同一动作链可从不同上层上下文进入，不能把单一 StateNo 当作唯一身份。
+
+引用该动作表的 `combo_033` 至 `combo_036` 进一步给出三类进入条件证据：目标距离阈值 `10/13/15/16/28`、左右翼部位破坏检查，以及普通/愤怒的 Range2/Range3 例程引用。由此确定下一次运行时批量验收至少要覆盖：
+
+1. 普通状态，中距离带；
+2. 愤怒状态，中/远距离带；
+3. 至少单侧翼破坏后的分支。
+
+这些条件只用于构造候选矩阵；尚未确认 `_DistanceType=0` 的运行时度量与条件优先级，因此暂不写入可执行 `TrainingScenario`。
+
 ## 参考
 
 - HunterPie 怪物 ID：<https://github.com/HunterPie/HunterPie-legacy/blob/master/HunterPie/Languages/en-us.xml>
