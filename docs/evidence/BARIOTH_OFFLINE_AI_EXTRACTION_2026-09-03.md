@@ -8,6 +8,8 @@
 
 `0.50.2` 将上述发布前门禁实现为 `profile_acceptance` 自动会话。外部包装器只接受显式目标 Quest ID 与预期 Profile ID；游戏侧再次用注册任务白名单约束目标。会话稳定后先验证 Profile 和怪物已加载，再调用受限探针证明 `research_only` 在进入原生 Action 写入前拒绝请求，随后复用已验证的 QuestRestart 状态机重开并核对同一 Profile 与目标恢复。离线状态机测试已覆盖该完整合同。
 
+真实会话 `bdf3682927d841d08acdd2b03277cc3d` 已无人值守完成：首次进入与原生重开后均得到 `profile_id=barioth_mr_normal`、`target_found=true`；受限 Action 19 请求返回 `This monster profile is research-only; forced actions are locked`，证明没有落到原生 Action 写入。完整报告位于本地忽略目录 `artifacts/probe_reports`，SHA-256 为 `5A1415CE5CF0D127CB80254AD1CD047FB6CC95F621FDACCED048767C03847110`。同一报告额外确认运行时 Think Action 类型为 `Em042_00ActionSetMove`，当前树包含 Move Action 18/19/20 与 Fly Action 5，未用于提升静态攻击派生可信度。
+
 怪物标识为 `em042_00`（Barioth / 冰牙龙）。身份交叉参考 HunterPie 的怪物 ID 语言表；资源与行为事实来自用户本机 Steam `16.0.2.0` 游戏 PAK，而不是从第三方仓库复制。
 
 ## 自动化结果
