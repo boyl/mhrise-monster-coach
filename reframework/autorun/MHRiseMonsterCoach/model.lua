@@ -241,6 +241,41 @@ function M.training_catalog(self)
         end
         bucket.scenarios[#bucket.scenarios + 1] = scenario
     end
+    local executable_roots = {}
+    for _, scenario in ipairs(self.scenarios or {}) do
+        if scenario.actions and scenario.actions[1] ~= nil then
+            executable_roots[tostring(scenario.actions[1])] = true
+        end
+    end
+    local branch_targets = {}
+    for _, row in pairs(self.static_ai.actions or {}) do
+        for _, edge in ipairs(type(row) == "table" and row.next or {}) do
+            if edge and edge.action ~= nil then branch_targets[tostring(edge.action)] = true end
+        end
+    end
+    for action, row in pairs(self.static_ai.actions or {}) do
+        if type(row) == "table" and type(row.next) == "table" and #row.next > 0
+            and not executable_roots[tostring(action)] and not branch_targets[tostring(action)] then
+            local move = self.moves[tostring(action)]
+                or (self.static_ai.moves and self.static_ai.moves[tostring(action)]) or {}
+            local group = group_definitions.observed_branch
+            local bucket = groups[group.id]
+            if bucket == nil then
+                bucket = { id = group.id, name = group.name, order = group.order, scenarios = {} }
+                groups[group.id] = bucket
+            end
+            bucket.scenarios[#bucket.scenarios + 1] = {
+                id = "observe_" .. tostring(self.profile.id) .. "_" .. tostring(action),
+                name = move.name or ("Action " .. tostring(action)),
+                name_zh = move.short_name or move.name or ("Action " .. tostring(action)),
+                actions = { tonumber(action) or action },
+                training_category = "observed_branch",
+                training_order = tonumber(action) or 1000,
+                summary_zh = "静态数据中的只读派生；当前不可执行。",
+                verification = { status = "observation_only" },
+            }
+        end
+    end
     local result = {}
     for _, group in pairs(groups) do
         table.sort(group.scenarios, function(left, right)

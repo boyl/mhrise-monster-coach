@@ -96,9 +96,19 @@ function M.preview_training_scenario(self, scenario)
     end
     self.training_preview_scenario_id = tostring(scenario.id)
     self.training_preview_tree = tree
+    local executable = scenario.verification and scenario.verification.status == "verified"
     self.training_status = "已查看“" .. tostring(scenario.name_zh or scenario.name)
-        .. "”派生树，可开始训练"
+        .. "”派生树" .. (executable and "，可开始训练" or "；当前仅供观察")
     return true
+end
+
+local function find_catalog_scenario(self, scenario_id)
+    for _, group in ipairs(self.model:training_catalog() or {}) do
+        for _, scenario in ipairs(group.scenarios or {}) do
+            if tostring(scenario.id) == tostring(scenario_id) then return scenario end
+        end
+    end
+    return nil
 end
 
 function M.set_training_state(self, state, status, scenario)
@@ -164,23 +174,29 @@ function M.training_scope_status(self)
 end
 
 function M.training_menu_view_model(self, requested_override, include_catalog_trees)
-    local groups, scenario_count = {}, 0
+    local groups, scenario_count, observation_count = {}, 0, 0
     local catalog = self.model.training_catalog and self.model:training_catalog()
         or { { id = "legacy", name = "精选起手", scenarios = self.model.scenarios or {} } }
     local selected = nil
     for _, group in ipairs(catalog) do
         local rows = {}
         for _, scenario in ipairs(group.scenarios or {}) do
-            if scenario.verification and scenario.verification.status == "verified" then
+            local verification = scenario.verification and scenario.verification.status
+            if verification == "verified" or verification == "observation_only" then
                 local presentation = M.training_scenario_presentation(
                     self, scenario, requested_override)
+                presentation.executable = verification == "verified"
                 presentation.summary_zh = scenario.summary_zh
                 presentation.execution_mode = scenario.execution_mode
                 presentation.selected = self.training_preview_scenario_id == tostring(scenario.id)
                 presentation.branch_tree = (include_catalog_trees or presentation.selected)
                     and self.model:training_branch_tree(scenario, 3) or nil
                 rows[#rows + 1] = presentation
-                scenario_count = scenario_count + 1
+                if presentation.executable then
+                    scenario_count = scenario_count + 1
+                else
+                    observation_count = observation_count + 1
+                end
                 if presentation.selected then selected = presentation end
             end
         end
@@ -195,7 +211,13 @@ function M.training_menu_view_model(self, requested_override, include_catalog_tr
     local scope_ready, scope_status = M.training_scope_status(self)
     local active = M.training_is_active(self)
     local state, label, status, instruction
-    if not enabled then
+    local research_only = self.model.profile and self.model.profile.research_only == true
+    if research_only then
+        state, label = "observe_only", "仅观察"
+        status = "当前怪物尚未通过指定出招安全门禁"
+        instruction = observation_count > 0 and "可选择起手查看已知派生树。"
+            or "当前数据包还没有可展示的派生起手。"
+    elseif not enabled then
         state, label = "disabled", "未启用"
         status = "启用“指定出招训练”后才能开始；派生树仍可预览"
         instruction = "先查看派生树，再启用并开始训练。"
@@ -233,7 +255,7 @@ function M.training_menu_view_model(self, requested_override, include_catalog_tr
     end
 
     local can_start = enabled and scope_ready and not active and selected ~= nil
-        and scenario_count > 0
+        and selected.executable == true and scenario_count > 0
     local primary_label = selected and ("开始当前起手 × "
         .. tostring(selected.effective_repeats)) or nil
     if selected and self.training_state == "completed" then
@@ -255,6 +277,8 @@ function M.training_menu_view_model(self, requested_override, include_catalog_tr
             math.floor(tonumber(requested_override or self.config.training_repeat_count) or 1))),
         groups = groups,
         scenario_count = scenario_count,
+        observation_count = observation_count,
+        show_repeat_controls = scenario_count > 0 and not research_only,
         selected = selected,
         can_select = not active,
         can_start = can_start,
@@ -813,12 +837,14 @@ function M.draw_training_menu(self)
         imgui.text(string.format("进度：%d/%d",
             self.training_completed_rounds, self.training_target_rounds))
     else
-        imgui.text("练习次数：" .. tostring(self.config.training_repeat_count))
-        for index, count in ipairs({ 1, 3, 5, 10 }) do
-            if index > 1 then imgui.same_line() end
-            if imgui.button(tostring(count) .. " 次##training_repeat_" .. tostring(count)) then
-                self.config.training_repeat_count = count
-                changed = true
+        if menu.show_repeat_controls then
+            imgui.text("练习次数：" .. tostring(self.config.training_repeat_count))
+            for index, count in ipairs({ 1, 3, 5, 10 }) do
+                if index > 1 then imgui.same_line() end
+                if imgui.button(tostring(count) .. " 次##training_repeat_" .. tostring(count)) then
+                    self.config.training_repeat_count = count
+                    changed = true
+                end
             end
         end
     end
@@ -830,13 +856,7 @@ function M.draw_training_menu(self)
             local prefix = row.selected and "当前选择：" or "查看派生树："
             if menu.can_select then
                 if imgui.button(prefix .. row.name .. "##branch_" .. tostring(row.scenario_id)) then
-                    local scenario = nil
-                    for _, candidate in ipairs(self.model.scenarios or {}) do
-                        if tostring(candidate.id) == tostring(row.scenario_id) then
-                            scenario = candidate
-                            break
-                        end
-                    end
+                    local scenario = find_catalog_scenario(self, row.scenario_id)
                     if scenario ~= nil then M.preview_training_scenario(self, scenario) end
                 end
             else

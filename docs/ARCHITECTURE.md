@@ -154,6 +154,8 @@ Think Context Reader 以 `(ThinkInfoData 地址, StateNo, TreeNodeID)` 为运行
 
 Profile 声明各自的训练 Quest ID、`calibration_file` 与 `static_ai_file`，`config.lua` 只在数据边界解析路径。当前默认仍是轰龙；进入已注册的陪练任务后，单个 Runtime 原子切换 Profile、清理旧怪物引用与锚点并重建对应 F7 重开目标。Model 保持对象身份、替换怪物数据并清空逐怪运行证据，避免既有 View、探针和回调持有失效引用。冰牙龙专用任务只开放观察与 F7 重开；其 Profile 为 `research_only`，Controller 与 Runtime 两层均拒绝强制 Action，即使开发接口被误调用也不能触发怪物玩法写入。离线生成器输出的多后继唯一 ActionEnd 证据统一标记为 `unresolved`，不能在缺少条件字段时误称 `conditional`。
 
+只读派生浏览不要求创建可执行训练场景。Model 从静态 `actions` 图中选择“有后继且不是其他节点后继”的顶层根，生成 Profile 作用域内稳定 ID 的 `observation_only` 目录项；Controller 将其与已验证训练场景组合成同一菜单 ViewModel。研究包显示“仅观察”，允许选择和展开派生树，但不提供次数或开始操作。执行资格仍只来自显式 `verification.status=verified`，因此展示更多知识不会扩大玩法写入面。
+
 新增游戏版本时只改 `runtime.lua`/`action_reader.lua` 的显式版本分支，并保留 16.0.2.0 分支。未知版本默认只读校准，不自动沿用写操作。
 
 怪物数据包在进入 Model 前必须通过 `monster_pack_validator.lua`。校验器只验证跨怪物稳定契约：怪物标识与 Action 类别、数值动作键、派生类型、后继招式存在性、固定边唯一性、条件边条件说明，以及公开训练场景的唯一 ID、根动作、执行模式、验证状态和重复上限。条件诱导场景还必须声明位置带，预期后继必须属于同一派生图。任何错误都使整个数据包安全降级为空包，不能把部分有效数据与错误训练入口混合加载；具体怪物的招式枚举仍只存在于数据包和对应测试中。
