@@ -17,6 +17,8 @@ draw = {
 local View = require("MHRiseMonsterCoach.view")
 local config = {
     overlay_enabled = true,
+    simple_move_cue_enabled = true,
+    detailed_overlay_enabled = true,
     overlay_positioning_enabled = false,
     overlay_position = { x = 0.5, y = 0.065 },
     show_move = false,
@@ -83,7 +85,7 @@ assert(table.concat(drawn, "\n"):find("随机候选：", 1, true),
     "random branches are never presented as conditional or fixed")
 
 config.show_advice = true
-model.current_move = { advice = "Move sideways", threat = {
+model.current_move = { name = "右回旋攻击", advice = "Move sideways", threat = {
     direction = "front", response = "leave the line",
 } }
 model.response_candidates = { { availability = "available", name = "Foresight Slash" } }
@@ -137,7 +139,7 @@ assert(not compact_layout.horizontal_overflow and not compact_layout.vertical_ov
 assert(compact_layout.cue_visible and compact_layout.cue_line_height > compact_layout.line_height,
     "move cue is an independent, visually dominant layer")
 local compact_text = table.concat(compact_layout.text, "\n")
-assert(compact_text:find("陪练预警", 1, true)
+assert(compact_text:find("右回旋攻击", 1, true)
     and compact_text:find("Move sideways", 1, true)
     and compact_text:find("随机候选：", 1, true)
     and compact_text:find("训练 ·", 1, true),
@@ -146,7 +148,7 @@ for _, noise in ipairs({ "Target:", "State key:", "Animation:", "READ-ONLY:",
     "Long Sword loadout:", "Actual path", "Last hit" }) do
     assert(not compact_text:find(noise, 1, true), "battlefield HUD removes diagnostic noise: " .. noise)
 end
-assert(#rectangles == 0, "move cue and supporting text are frameless")
+assert(#rectangles == 2, "detailed HUD retains its background and border")
 for _, text in ipairs(compact_layout.text) do
     assert(imgui.calc_text_size(text).x <= compact_layout.content_width,
         "all compact overlay text shares the measured content width")
@@ -179,7 +181,22 @@ assert(not idle_layout.cue_visible and idle_layout.detail_line_count == 0 and #r
 drawn, rectangles = {}, {}
 view:draw(model, runtime, true, nil)
 assert(table.concat(drawn, "\n"):find("子弹时间", 1, true),
-    "slow-motion state is shown only while active")
+    "detailed HUD preserves slow-motion state while active")
+
+config.detailed_overlay_enabled = false
+model.current_move = { name = "右回旋攻击", advice = "Move sideways" }
+model.current_action = "12"
+drawn, rectangles = {}, {}
+view:draw(model, runtime, false, nil)
+local simple_layout = view:layout_snapshot()
+assert(simple_layout.cue_visible and not simple_layout.detailed_overlay_enabled
+    and simple_layout.detail_line_count == 0 and #rectangles == 0,
+    "default simple mode renders only a frameless move name")
+local simple_text = table.concat(simple_layout.text, "\n")
+assert(simple_text:find("右回旋攻击", 1, true)
+    and not simple_text:find("应对：", 1, true)
+    and not simple_text:find("阶段：", 1, true),
+    "simple cue never leaks detailed HUD content")
 
 local drag_frame = 1
 local drag_mouse = { { x = 600, y = 100 }, { x = 800, y = 200 }, { x = 800, y = 200 } }

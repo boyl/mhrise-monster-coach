@@ -917,21 +917,32 @@ function M.draw_menu_content(self)
     local changed = false
     changed = checkbox("Enable / 启用", self.config, "enabled") or changed
     changed = checkbox("Overlay / 场上提示", self.config, "overlay_enabled") or changed
-    changed = checkbox("Move HUD positioning / 调整出招提示位置",
-        self.config, "overlay_positioning_enabled") or changed
-    if self.config.overlay_positioning_enabled then
-        ui_text_wrapped("保持 REFramework 菜单打开，按住场上的预警文字拖动；关闭此项后不会占用鼠标。")
-        if imgui.button("Reset move HUD position / 恢复默认位置") then
-            self.config.overlay_position.x = 0.5
-            self.config.overlay_position.y = 0.065
-            changed = true
+    changed = checkbox("Simple move cue / 简洁招式提示",
+        self.config, "simple_move_cue_enabled") or changed
+    changed = checkbox("Detailed coaching HUD / 详细陪练 HUD",
+        self.config, "detailed_overlay_enabled") or changed
+    if self.config.simple_move_cue_enabled then
+        changed = checkbox("Move HUD positioning / 调整出招提示位置",
+            self.config, "overlay_positioning_enabled") or changed
+        if self.config.overlay_positioning_enabled then
+            ui_text_wrapped("保持 REFramework 菜单打开，按住场上的预警文字拖动；关闭此项后不会占用鼠标。")
+            if imgui.button("Reset move HUD position / 恢复默认位置") then
+                self.config.overlay_position.x = 0.5
+                self.config.overlay_position.y = 0.065
+                changed = true
+            end
         end
+    elseif self.config.overlay_positioning_enabled then
+        self.config.overlay_positioning_enabled = false
+        changed = true
     end
-    changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
-    changed = checkbox("General move advice / 通用招式应对", self.config, "show_advice") or changed
-    changed = checkbox("Weapon skill response (optional) / 武器技能应对（可选）",
-        self.config, "weapon_response_extension_enabled") or changed
-    changed = checkbox("Round review / 单轮复盘", self.config, "show_timeline_review") or changed
+    if self.config.detailed_overlay_enabled then
+        changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
+        changed = checkbox("General move advice / 通用招式应对", self.config, "show_advice") or changed
+        changed = checkbox("Weapon skill response (optional) / 武器技能应对（可选）",
+            self.config, "weapon_response_extension_enabled") or changed
+        changed = checkbox("Round review / 单轮复盘", self.config, "show_timeline_review") or changed
+    end
     changed = checkbox("Manual slow motion / 手动子弹时间", self.config, "time_control_enabled") or changed
     changed = M.draw_training_menu(self) or changed
     imgui.separator()

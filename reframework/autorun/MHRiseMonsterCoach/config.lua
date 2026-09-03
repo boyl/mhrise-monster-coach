@@ -13,6 +13,8 @@ local DEFAULTS = {
     diagnostic_safe_mode = true,
     enabled = true,
     overlay_enabled = true,
+    simple_move_cue_enabled = true,
+    detailed_overlay_enabled = false,
     overlay_positioning_enabled = false,
     overlay_position = { x = 0.5, y = 0.065 },
     show_move = true,

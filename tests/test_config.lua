@@ -38,6 +38,8 @@ assert(defaults.weapon_response_extension_enabled == false,
 assert(defaults.overlay_positioning_enabled == false
     and defaults.overlay_position.x == 0.5 and defaults.overlay_position.y == 0.065,
     "move HUD defaults to a non-interactive normalized screen position")
+assert(defaults.simple_move_cue_enabled == true and defaults.detailed_overlay_enabled == false,
+    "new and existing users get the simple cue without losing the opt-in detailed HUD")
 
 loaded_config = { weapon_response_extension_enabled = true,
     overlay_position = { x = 4, y = -2 } }

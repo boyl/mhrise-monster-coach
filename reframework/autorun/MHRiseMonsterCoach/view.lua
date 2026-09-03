@@ -2,6 +2,9 @@ local M = {}
 local TimelinePresenter = require("MHRiseMonsterCoach.timeline_presenter")
 
 local COLORS = {
+    panel = 0xE61B1E20,
+    panel_detail = 0xD9111417,
+    border = 0xFFB7A47A,
     coach = 0xFF76D7E8,
     title = 0xFFFFFFFF,
     text = 0xFFF4ECD8,
@@ -249,16 +252,25 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     end
     -- The move cue is the overlay's primary purpose. Keep reading legacy show_move
     -- config files, but do not let a removed toggle leave the core cue invisible.
-    local positioning = self.config.overlay_positioning_enabled == true
-    local cue_visible = model.current_move ~= nil or positioning
+    local positioning = self.config.simple_move_cue_enabled == true
+        and self.config.overlay_positioning_enabled == true
+    local cue_visible = self.config.simple_move_cue_enabled == true
+        and (model.current_move ~= nil or positioning)
 
     local lines = {}
-    if self.config.show_prediction and model.current_action and model.prediction
+    if self.config.detailed_overlay_enabled and model.current_action then
+        lines[#lines + 1] = { "阶段：" .. (phase_name or "阶段未知"),
+            phase == "active" and COLORS.warning
+                or (phase == "recovery" and COLORS.success or COLORS.text), PRIORITY.core }
+    end
+    if self.config.detailed_overlay_enabled and self.config.show_prediction
+        and model.current_action and model.prediction
         and #(model.prediction.candidates or {}) > 0 then
         lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text,
             PRIORITY.core }
     end
-    if self.config.show_advice and model.current_move and model.current_move.advice then
+    if self.config.detailed_overlay_enabled and self.config.show_advice
+        and model.current_move and model.current_move.advice then
         lines[#lines + 1] = { "应对：" .. truncate(model.current_move.advice, 76), COLORS.text,
             PRIORITY.result }
         if self.config.weapon_response_extension_enabled == true then
@@ -267,13 +279,14 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
                 truncate(weapon_response, 88), COLORS.coach, PRIORITY.detail } end
         end
     end
-    if self.config.show_timeline_review then
+    if self.config.detailed_overlay_enabled and self.config.show_timeline_review then
         local review = latest_timeline_review(self, model)
         if review then lines[#lines + 1] = { review.text, COLORS[review.tone] or COLORS.muted,
             PRIORITY.result } end
     end
     local training = model.training_scenario
-    if type(training) == "table" and training.state ~= "idle" then
+    if self.config.detailed_overlay_enabled and type(training) == "table"
+        and training.state ~= "idle" then
         local label = training.name and ("训练 · " .. tostring(training.name) .. "：") or "训练："
         local round_text = type(training.completed_rounds) == "number" and type(training.target_rounds) == "number"
             and string.format("%d/%d", training.completed_rounds, training.target_rounds) or nil
@@ -283,7 +296,7 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             result_color(training.state == "completed" and "success"
                 or (training.state == "failed" and "failure" or "running")), PRIORITY.core }
     end
-    if slowmo_active then
+    if self.config.detailed_overlay_enabled and slowmo_active then
         lines[#lines + 1] = { string.format("子弹时间  %.2fx", self.config.slowmo_scale),
             COLORS.warning, PRIORITY.always }
     end
@@ -294,42 +307,29 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     x = clamp(x, 12, math.max(12, screen_width - width - 12))
     y = clamp(y, 12, math.max(12, screen_height - body_height - cue_height - 12))
     local bottom_margin = 18
-    local cue_block_height = cue_visible and (body_height + 4 + cue_height) or 0
+    local cue_block_height = cue_visible and cue_height or 0
     local detail_gap = cue_visible and #lines > 0 and 10 or 0
     local available_height = math.max(body_height, screen_height - y - cue_block_height
         - detail_gap - bottom_margin)
     local max_lines = math.max(1, math.floor(available_height / (body_height + 3)))
     local raw_line_count = #lines
     lines = fit_line_budget(lines, max_lines)
-    local detail_height = #lines * (body_height + 3)
+    local detail_padding = 12
+    local detail_height = #lines > 0
+        and (detail_padding * 2 + #lines * (body_height + 3)) or 0
     local total_height = cue_block_height + detail_gap + detail_height
     local position_changed = false
     if cue_visible or #lines > 0 then
-        x, y, position_changed = update_drag(self, x, y, width, total_height,
+        x, y, position_changed = update_drag(self, x, y, width, cue_block_height,
             screen_width, screen_height)
     end
 
     if cue_visible then
-        local body_pushed = self.font and self.font:push() or false
-        local label = positioning and "拖动调整位置" or
-            ("陪练预警  ·  " .. tostring(model.profile.name or "目标怪物"))
-        label = fit_text(label, content_width)
-        shadow_text(label, x, y, COLORS.coach)
-        if phase_name and not positioning then
-            local phase_label = "[" .. phase_name .. "]"
-            local phase_width = measured_width(phase_label) or 0
-            shadow_text(phase_label, x + width - phase_width, y,
-                phase == "active" and COLORS.warning
-                    or (phase == "recovery" and COLORS.success or COLORS.muted))
-        end
-        rendered_text[#rendered_text + 1] = label
-        rendered_widths[#rendered_widths + 1] = measured_width(label)
-        if self.font then self.font:pop(body_pushed) end
         local cue_pushed = self.font and self.font:push("cue") or false
         local move_name = positioning and "招式提示位置" or
             tostring(model.current_move.name or "未收录动作")
         move_name = fit_text(move_name, content_width)
-        shadow_text(move_name, x, y + body_height + 4, COLORS.title)
+        shadow_text(move_name, x, y, COLORS.title)
         rendered_text[#rendered_text + 1] = move_name
         rendered_widths[#rendered_widths + 1] = measured_width(move_name)
         if self.font then self.font:pop(cue_pushed) end
@@ -345,7 +345,12 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         if type(measured) == "number" and measured > content_width then
             horizontal_overflow = true
         end
-        shadow_text(text, x, detail_y + (index - 1) * (body_height + 3), line[2])
+        if index == 1 then
+            draw.filled_rect(x, detail_y, width, detail_height, COLORS.panel_detail)
+            draw.outline_rect(x, detail_y, width, detail_height, COLORS.border)
+        end
+        draw.text(text, x + detail_padding,
+            detail_y + detail_padding + (index - 1) * (body_height + 3), line[2])
     end
     if self.font then self.font:pop(font_pushed) end
     self.last_layout = {
@@ -361,9 +366,11 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         line_height = body_height,
         cue_line_height = cue_height,
         cue_visible = cue_visible,
+        simple_cue_enabled = self.config.simple_move_cue_enabled == true,
+        detailed_overlay_enabled = self.config.detailed_overlay_enabled == true,
         detail_line_count = #lines,
         line_count = #rendered_text,
-        raw_line_count = raw_line_count + (cue_visible and 2 or 0),
+        raw_line_count = raw_line_count + (cue_visible and 1 or 0),
         clipped_line_count = raw_line_count - #lines,
         max_lines = max_lines,
         text = rendered_text,
@@ -372,7 +379,7 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         vertical_overflow = y + total_height > screen_height - bottom_margin,
         position_changed = position_changed == true,
         positioning = positioning,
-        framed = false,
+        framed = #lines > 0,
         font = {
             ready = self.font and self.font.ready == true or false,
             path = self.font and self.font.path or nil,
