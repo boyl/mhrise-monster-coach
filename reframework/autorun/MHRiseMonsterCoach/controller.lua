@@ -746,7 +746,9 @@ function M.update(self)
 end
 
 function M.draw_overlay(self)
-    self.view:draw(self.model, self.runtime, self.slowmo_active, self.input_state)
+    local position_changed = self.view:draw(
+        self.model, self.runtime, self.slowmo_active, self.input_state)
+    if position_changed then self.config_module.save(self.config) end
 end
 
 local function checkbox(label, config, key)
@@ -915,6 +917,16 @@ function M.draw_menu_content(self)
     local changed = false
     changed = checkbox("Enable / 启用", self.config, "enabled") or changed
     changed = checkbox("Overlay / 场上提示", self.config, "overlay_enabled") or changed
+    changed = checkbox("Move HUD positioning / 调整出招提示位置",
+        self.config, "overlay_positioning_enabled") or changed
+    if self.config.overlay_positioning_enabled then
+        ui_text_wrapped("保持 REFramework 菜单打开，按住场上的预警文字拖动；关闭此项后不会占用鼠标。")
+        if imgui.button("Reset move HUD position / 恢复默认位置") then
+            self.config.overlay_position.x = 0.5
+            self.config.overlay_position.y = 0.065
+            changed = true
+        end
+    end
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("General move advice / 通用招式应对", self.config, "show_advice") or changed
     changed = checkbox("Weapon skill response (optional) / 武器技能应对（可选）",

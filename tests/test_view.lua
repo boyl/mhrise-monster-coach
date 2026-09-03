@@ -17,6 +17,8 @@ draw = {
 local View = require("MHRiseMonsterCoach.view")
 local config = {
     overlay_enabled = true,
+    overlay_positioning_enabled = false,
+    overlay_position = { x = 0.5, y = 0.065 },
     show_move = false,
     show_prediction = false,
     show_advice = false,
@@ -53,7 +55,7 @@ local view = View.new(config, nil)
 view:draw(model, runtime, false, nil)
 assert(snapshot_calls == 1, "first render obtains one immutable timeline snapshot")
 for _, text in ipairs(drawn) do
-    assert(imgui.calc_text_size(text).x <= 336,
+    assert(imgui.calc_text_size(text).x <= 360,
         "minimum-width overlay text is measured into its content rectangle")
 end
 
@@ -144,11 +146,9 @@ for _, noise in ipairs({ "Target:", "State key:", "Animation:", "READ-ONLY:",
     "Long Sword loadout:", "Actual path", "Last hit" }) do
     assert(not compact_text:find(noise, 1, true), "battlefield HUD removes diagnostic noise: " .. noise)
 end
-local fill_count = 0
-for _, rectangle in ipairs(rectangles) do if rectangle.kind == "fill" then fill_count = fill_count + 1 end end
-assert(fill_count >= 3, "cue, coach accent and supporting detail use distinct visual surfaces")
+assert(#rectangles == 0, "move cue and supporting text are frameless")
 for _, text in ipairs(compact_layout.text) do
-    assert(imgui.calc_text_size(text).x <= compact_layout.width - 24,
+    assert(imgui.calc_text_size(text).x <= compact_layout.content_width,
         "all compact overlay text shares the measured content width")
 end
 
@@ -180,5 +180,31 @@ drawn, rectangles = {}, {}
 view:draw(model, runtime, true, nil)
 assert(table.concat(drawn, "\n"):find("子弹时间", 1, true),
     "slow-motion state is shown only while active")
+
+local drag_frame = 1
+local drag_mouse = { { x = 600, y = 100 }, { x = 800, y = 200 }, { x = 800, y = 200 } }
+reframework = { is_drawing_ui = function() return true end }
+imgui.set_next_window_pos = function() end
+imgui.set_next_window_size = function() end
+imgui.begin_window = function() return true end
+imgui.end_window = function() end
+imgui.set_cursor_pos = function() end
+imgui.invisible_button = function() end
+imgui.is_item_hovered = function() return true end
+imgui.is_mouse_clicked = function() return drag_frame == 1 end
+imgui.is_mouse_down = function() return drag_frame <= 2 end
+imgui.is_mouse_released = function() return drag_frame == 3 end
+imgui.get_mouse = function() return drag_mouse[drag_frame] end
+config.overlay_positioning_enabled = true
+for frame = 1, 3 do
+    drag_frame = frame
+    local saved = view:draw(model, runtime, false, nil)
+    if frame < 3 then assert(not saved, "dragging does not persist every frame")
+    else assert(saved, "drag release requests exactly one position save") end
+end
+local dragged_layout = view:layout_snapshot()
+assert(dragged_layout.positioning and not dragged_layout.framed
+    and config.overlay_position.x > 0.5 and config.overlay_position.y > 0.065,
+    "transparent drag target updates normalized HUD position without adding a frame")
 
 print("test_view.lua: PASS")

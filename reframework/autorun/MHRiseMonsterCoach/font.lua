@@ -24,7 +24,7 @@ function M.new()
     local self = setmetatable({
         path = "NotoSansSC-Regular.otf",
         size = 19,
-        cue_size = 28,
+        cue_size = 36,
         handle = nil,
         cue_handle = nil,
         ready = false,
@@ -32,7 +32,7 @@ function M.new()
         error = nil,
         sample_width = nil,
         line_height = 19,
-        cue_line_height = 28,
+        cue_line_height = 36,
     }, { __index = M })
 
     self:load()

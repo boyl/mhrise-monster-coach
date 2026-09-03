@@ -35,11 +35,17 @@ local Config = require("MHRiseMonsterCoach.config")
 local defaults = Config.load()
 assert(defaults.weapon_response_extension_enabled == false,
     "weapon response extension is disabled for new and existing configs by default")
+assert(defaults.overlay_positioning_enabled == false
+    and defaults.overlay_position.x == 0.5 and defaults.overlay_position.y == 0.065,
+    "move HUD defaults to a non-interactive normalized screen position")
 
-loaded_config = { weapon_response_extension_enabled = true }
+loaded_config = { weapon_response_extension_enabled = true,
+    overlay_position = { x = 4, y = -2 } }
 local opted_in = Config.load()
 assert(opted_in.weapon_response_extension_enabled == true,
     "an explicit user opt-in enables the retained weapon response extension")
+assert(opted_in.overlay_position.x == 1 and opted_in.overlay_position.y == 0,
+    "persisted move HUD position is clamped to the visible normalized screen")
 
 loaded_paths = {}
 local _, _, barioth_static = Config.load({

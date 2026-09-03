@@ -2,16 +2,15 @@ local M = {}
 local TimelinePresenter = require("MHRiseMonsterCoach.timeline_presenter")
 
 local COLORS = {
-    panel = 0xE61B1E20,
-    panel_detail = 0xD9111417,
-    border = 0xFFB7A47A,
     coach = 0xFF76D7E8,
-    title = 0xFFF4ECD8,
-    text = 0xFFEAE4D5,
+    title = 0xFFFFFFFF,
+    text = 0xFFF4ECD8,
     muted = 0xFFA9A69D,
     success = 0xFF72D99B,
     failure = 0xFF719DFF,
     warning = 0xFF70D6FF,
+    shadow = 0xE0000000,
+    disabled = 0xFF808080,
 }
 
 local PRIORITY = {
@@ -114,7 +113,85 @@ function M.new(config, font)
         timeline_revision = -1,
         timeline_review = nil,
         last_layout = nil,
+        dragging = false,
+        drag_offset_x = 0,
+        drag_offset_y = 0,
     }, { __index = M })
+end
+
+local function clamp(value, low, high)
+    if value < low then return low end
+    if value > high then return high end
+    return value
+end
+
+local function vector_component(value, name, index)
+    if value == nil then return nil end
+    local ok, component = pcall(function() return value[name] end)
+    if ok and type(component) == "number" then return component end
+    if type(value) == "table" then return tonumber(value[index]) end
+    return nil
+end
+
+local function shadow_text(text, x, y, color)
+    draw.text(text, x + 2, y + 2, COLORS.shadow)
+    draw.text(text, x, y, color)
+end
+
+local function positioning_available(config)
+    if not config.overlay_positioning_enabled then return false end
+    if type(reframework) ~= "table" or type(reframework.is_drawing_ui) ~= "function"
+        or not reframework:is_drawing_ui() then return false end
+    return type(imgui) == "table"
+        and type(imgui.set_next_window_pos) == "function"
+        and type(imgui.set_next_window_size) == "function"
+        and type(imgui.begin_window) == "function"
+        and type(imgui.end_window) == "function"
+        and type(imgui.set_cursor_pos) == "function"
+        and type(imgui.invisible_button) == "function"
+        and type(imgui.is_item_hovered) == "function"
+        and type(imgui.is_mouse_clicked) == "function"
+        and type(imgui.is_mouse_down) == "function"
+        and type(imgui.is_mouse_released) == "function"
+        and type(imgui.get_mouse) == "function"
+end
+
+local function update_drag(self, x, y, width, height, screen_width, screen_height)
+    if not positioning_available(self.config) then
+        self.dragging = false
+        return x, y, false
+    end
+
+    -- No title, resize, scrollbar, background or ImGui persistence. Position is
+    -- owned by Monster Coach config as normalized screen coordinates.
+    local window_flags = 1 + 2 + 8 + 32 + 128 + 256
+    imgui.set_next_window_pos({ x = x, y = y }, 1)
+    imgui.set_next_window_size({ x = width, y = math.max(height, 48) }, 1)
+    imgui.begin_window("##MonsterCoachMoveHudDrag", nil, window_flags)
+    imgui.set_cursor_pos({ x = 0, y = 0 })
+    imgui.invisible_button("##MonsterCoachMoveHudDragTarget",
+        { x = width, y = math.max(height, 48) })
+    local hovered = imgui.is_item_hovered()
+    local mouse = imgui.get_mouse()
+    local mouse_x = vector_component(mouse, "x", 1)
+    local mouse_y = vector_component(mouse, "y", 2)
+    if hovered and imgui.is_mouse_clicked(0) and mouse_x and mouse_y then
+        self.dragging = true
+        self.drag_offset_x = mouse_x - x
+        self.drag_offset_y = mouse_y - y
+    end
+    if self.dragging and imgui.is_mouse_down(0) and mouse_x and mouse_y then
+        x = math.floor(clamp(mouse_x - self.drag_offset_x, 12,
+            math.max(12, screen_width - width - 12)))
+        y = math.floor(clamp(mouse_y - self.drag_offset_y, 12,
+            math.max(12, screen_height - height - 12)))
+        self.config.overlay_position.x = (x + width / 2) / screen_width
+        self.config.overlay_position.y = y / screen_height
+    end
+    local changed = self.dragging and imgui.is_mouse_released(0)
+    if changed then self.dragging = false end
+    imgui.end_window()
+    return x, y, changed
 end
 
 local function fit_line_budget(lines, max_lines)
@@ -157,13 +234,10 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     if not model.context.in_quest and model.state ~= "error" then return end
 
     local screen_width, screen_height = runtime:screen_size()
-    local width = math.floor(math.max(360, math.min(660, screen_width * 0.52)))
-    local x = math.floor((screen_width - width) / 2)
-    local y = math.floor(math.max(22, screen_height * 0.065))
-    local padding, accent_width = 14, 5
+    local width = math.floor(math.max(360, math.min(900, screen_width * 0.54)))
     local body_height = self.font and self.font.line_height or 19
-    local cue_height = self.font and self.font.cue_line_height or 28
-    local content_width = width - padding * 2 - accent_width
+    local cue_height = self.font and self.font.cue_line_height or 36
+    local content_width = width
     local rendered_text, rendered_widths = {}, {}
     local horizontal_overflow = false
 
@@ -175,36 +249,8 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     end
     -- The move cue is the overlay's primary purpose. Keep reading legacy show_move
     -- config files, but do not let a removed toggle leave the core cue invisible.
-    local cue_visible = model.current_move ~= nil
-    local cue_panel_height = 0
-    if cue_visible then
-        cue_panel_height = padding * 2 + body_height + cue_height + 4
-        draw.filled_rect(x, y, width, cue_panel_height, COLORS.panel)
-        draw.filled_rect(x, y, accent_width, cue_panel_height, COLORS.coach)
-        draw.outline_rect(x, y, width, cue_panel_height, COLORS.border)
-        local body_pushed = self.font and self.font:push() or false
-        local label = "陪练预警  ·  " .. tostring(model.profile.name or "目标怪物")
-        label = fit_text(label, content_width)
-        draw.text(label, x + padding + accent_width, y + padding,
-            COLORS.coach)
-        if phase_name then
-            local phase_label = "[" .. phase_name .. "]"
-            local phase_width = measured_width(phase_label) or 0
-            draw.text(phase_label, x + width - padding - phase_width, y + padding,
-                phase == "active" and COLORS.warning
-                    or (phase == "recovery" and COLORS.success or COLORS.muted))
-        end
-        rendered_text[#rendered_text + 1] = label
-        rendered_widths[#rendered_widths + 1] = measured_width(label)
-        if self.font then self.font:pop(body_pushed) end
-        local cue_pushed = self.font and self.font:push("cue") or false
-        local move_name = fit_text(tostring(model.current_move.name or "未收录动作"), content_width)
-        draw.text(move_name, x + padding + accent_width, y + padding + body_height + 4,
-            COLORS.title)
-        rendered_text[#rendered_text + 1] = move_name
-        rendered_widths[#rendered_widths + 1] = measured_width(move_name)
-        if self.font then self.font:pop(cue_pushed) end
-    end
+    local positioning = self.config.overlay_positioning_enabled == true
+    local cue_visible = model.current_move ~= nil or positioning
 
     local lines = {}
     if self.config.show_prediction and model.current_action and model.prediction
@@ -242,34 +288,66 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             COLORS.warning, PRIORITY.always }
     end
 
-    local detail_y = y + cue_panel_height + (cue_visible and 6 or 0)
+    local position = self.config.overlay_position or { x = 0.5, y = 0.065 }
+    local x = math.floor(screen_width * clamp(tonumber(position.x) or 0.5, 0, 1) - width / 2)
+    local y = math.floor(screen_height * clamp(tonumber(position.y) or 0.065, 0, 1))
+    x = clamp(x, 12, math.max(12, screen_width - width - 12))
+    y = clamp(y, 12, math.max(12, screen_height - body_height - cue_height - 12))
     local bottom_margin = 18
-    local available_height = math.max(body_height + padding * 2,
-        screen_height - detail_y - bottom_margin)
-    local max_lines = math.max(1, math.floor((available_height - padding * 2) / body_height))
+    local cue_block_height = cue_visible and (body_height + 4 + cue_height) or 0
+    local detail_gap = cue_visible and #lines > 0 and 10 or 0
+    local available_height = math.max(body_height, screen_height - y - cue_block_height
+        - detail_gap - bottom_margin)
+    local max_lines = math.max(1, math.floor(available_height / (body_height + 3)))
     local raw_line_count = #lines
     lines = fit_line_budget(lines, max_lines)
-    local detail_height = #lines > 0 and (padding * 2 + body_height * #lines) or 0
+    local detail_height = #lines * (body_height + 3)
+    local total_height = cue_block_height + detail_gap + detail_height
+    local position_changed = false
+    if cue_visible or #lines > 0 then
+        x, y, position_changed = update_drag(self, x, y, width, total_height,
+            screen_width, screen_height)
+    end
+
+    if cue_visible then
+        local body_pushed = self.font and self.font:push() or false
+        local label = positioning and "拖动调整位置" or
+            ("陪练预警  ·  " .. tostring(model.profile.name or "目标怪物"))
+        label = fit_text(label, content_width)
+        shadow_text(label, x, y, COLORS.coach)
+        if phase_name and not positioning then
+            local phase_label = "[" .. phase_name .. "]"
+            local phase_width = measured_width(phase_label) or 0
+            shadow_text(phase_label, x + width - phase_width, y,
+                phase == "active" and COLORS.warning
+                    or (phase == "recovery" and COLORS.success or COLORS.muted))
+        end
+        rendered_text[#rendered_text + 1] = label
+        rendered_widths[#rendered_widths + 1] = measured_width(label)
+        if self.font then self.font:pop(body_pushed) end
+        local cue_pushed = self.font and self.font:push("cue") or false
+        local move_name = positioning and "招式提示位置" or
+            tostring(model.current_move.name or "未收录动作")
+        move_name = fit_text(move_name, content_width)
+        shadow_text(move_name, x, y + body_height + 4, COLORS.title)
+        rendered_text[#rendered_text + 1] = move_name
+        rendered_widths[#rendered_widths + 1] = measured_width(move_name)
+        if self.font then self.font:pop(cue_pushed) end
+    end
+
+    local detail_y = y + cue_block_height + detail_gap
     local font_pushed = self.font and self.font:push() or false
     for index, line in ipairs(lines) do
-        local text = fit_text(line[1], width - padding * 2)
+        local text = fit_text(line[1], content_width)
         rendered_text[#rendered_text + 1] = text
         local measured = measured_width(text)
         rendered_widths[#rendered_widths + 1] = measured
-        if type(measured) == "number" and measured > width - padding * 2 then
+        if type(measured) == "number" and measured > content_width then
             horizontal_overflow = true
         end
-    end
-    if #lines > 0 then
-        draw.filled_rect(x, detail_y, width, detail_height, COLORS.panel_detail)
-        draw.outline_rect(x, detail_y, width, detail_height, COLORS.border)
-        for index, line in ipairs(lines) do
-            draw.text(rendered_text[(cue_visible and 2 or 0) + index],
-                x + padding, detail_y + padding + (index - 1) * body_height, line[2])
-        end
+        shadow_text(text, x, detail_y + (index - 1) * (body_height + 3), line[2])
     end
     if self.font then self.font:pop(font_pushed) end
-    local total_height = cue_panel_height + (cue_visible and #lines > 0 and 6 or 0) + detail_height
     self.last_layout = {
         screen_width = screen_width,
         screen_height = screen_height,
@@ -292,6 +370,9 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         text_widths = rendered_widths,
         horizontal_overflow = horizontal_overflow,
         vertical_overflow = y + total_height > screen_height - bottom_margin,
+        position_changed = position_changed == true,
+        positioning = positioning,
+        framed = false,
         font = {
             ready = self.font and self.font.ready == true or false,
             path = self.font and self.font.path or nil,
@@ -299,6 +380,7 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             diagnostic = self.font and self.font:diagnostic() or "default font",
         },
     }
+    return position_changed == true
 end
 
 return M

@@ -24,7 +24,7 @@ app (composition root)
 - `runtime.lua` 集中隔离类型名、字段、方法、输入、TimeScale、位置与生命操作。
 - `runtime.lua` 通过 `EnemyManager.getBossEnemyCount/getBossEnemy` 轮询专用任务中的大型怪物，不挂钩 `EnemyCharacterBase.update`。
 - `action_reader.lua` 是游戏版本变化最大的边界，优先沿怪物继承链查找明确白名单中的零参数 Getter 或字段。直接成员不可用时，只枚举已知只读对象 `EnemyActionParam` 的成员定义，并且只读取 ActionNo/ActionID/ActionCategory 精确白名单字段或调用精确白名单零参数 Getter；枚举出的其他方法只记录名称，不执行。仍不可用时才降级为 `via.motion.Motion` 第 0 层的 `MotionBankID:MotionID` 状态键，并复用一个 `via.motion.MotionInfo` 查询名称和结束帧；脚本重载时释放该实例。诊断必须分别标记 `action_param_field`、`action_param_method` 或 `motion`。
-- `view.lua` 只消费 Model 和屏幕尺寸，不决定固定/随机派生。场上 HUD 分为独立的大字号招式预警和按需出现的辅助卡片；目标 ID、Action、动画帧、装备识别和原始路径等开发诊断不得进入战斗画面。单轮复盘由 `timeline_presenter.lua` 把领域快照压缩为一行语义摘要，View 按修订号缓存并在绘制前用当前字体测量最终宽度。完整体验契约见 `docs/COACHING_HUD_UX.md`。
+- `view.lua` 只消费 Model 和屏幕尺寸，不决定固定/随机派生。场上 HUD 使用无框的大字号招式字幕和按需辅助文字；目标 ID、Action、动画帧、装备识别和原始路径等开发诊断不得进入战斗画面。拖动命中矩形由 View 与实际布局共同计算，归一化位置仍由配置持有，View 只在拖动释放时返回持久化信号，Controller 负责保存。单轮复盘由 `timeline_presenter.lua` 把领域快照压缩为一行语义摘要，View 按修订号缓存并在绘制前用当前字体测量最终宽度。完整体验契约见 `docs/COACHING_HUD_UX.md`。
 - `controller.lua` 拥有输入边沿、单人安全门、生命周期和用例编排。
 - `profile_tigrex.lua` 与校准 JSON 保存怪物知识；原始 Action ID 不散布在业务代码中。
 

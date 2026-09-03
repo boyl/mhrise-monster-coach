@@ -13,6 +13,8 @@ local DEFAULTS = {
     diagnostic_safe_mode = true,
     enabled = true,
     overlay_enabled = true,
+    overlay_positioning_enabled = false,
+    overlay_position = { x = 0.5, y = 0.065 },
     show_move = true,
     show_prediction = true,
     show_advice = true,
@@ -98,6 +100,8 @@ function M.load(profile)
     config.quick_reset_cooldown_frames = math.floor(clamp(config.quick_reset_cooldown_frames, 60, 600))
     config.quick_reset_safe_frames = math.floor(clamp(config.quick_reset_safe_frames, 5, 60))
     config.training_repeat_count = math.floor(clamp(config.training_repeat_count, 1, 20))
+    config.overlay_position.x = clamp(config.overlay_position.x, 0.0, 1.0)
+    config.overlay_position.y = clamp(config.overlay_position.y, 0.0, 1.0)
 
     local calibration, static_ai = M.load_monster_data(profile)
     local long_sword_knowledge = json.load_file(LONG_SWORD_KNOWLEDGE_PATH)
