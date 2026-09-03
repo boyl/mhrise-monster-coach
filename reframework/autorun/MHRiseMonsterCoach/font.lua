@@ -24,12 +24,15 @@ function M.new()
     local self = setmetatable({
         path = "NotoSansSC-Regular.otf",
         size = 19,
+        cue_size = 28,
         handle = nil,
+        cue_handle = nil,
         ready = false,
         attempted = false,
         error = nil,
         sample_width = nil,
         line_height = 19,
+        cue_line_height = 28,
     }, { __index = M })
 
     self:load()
@@ -51,6 +54,8 @@ function M.load(self)
         return false
     end
     self.handle = handle
+    local cue_ok, cue_handle = pcall(imgui.load_font, self.path, self.cue_size, GLYPH_RANGES)
+    if cue_ok and cue_handle ~= nil then self.cue_handle = cue_handle end
     return true
 end
 
@@ -85,13 +90,30 @@ function M.validate(self)
     self.sample_width = width
     if type(height) == "number" and height > 0 then self.line_height = math.ceil(height) end
     self.ready = true
+    if self.cue_handle ~= nil then
+        local cue_pushed = pcall(imgui.push_font, self.cue_handle)
+        if cue_pushed then
+            local cue_measured, cue_size = pcall(imgui.calc_text_size, SAMPLE)
+            pcall(imgui.pop_font)
+            local cue_height = cue_measured and vector_component(cue_size, "y", 2) or nil
+            if type(cue_height) == "number" and cue_height > 0 then
+                self.cue_line_height = math.ceil(cue_height)
+            else
+                self.cue_handle = nil
+            end
+        else
+            self.cue_handle = nil
+        end
+    end
     self.error = nil
     return true
 end
 
-function M.push(self)
+function M.push(self, style)
     if not self:validate() then return false end
-    local ok, error_message = pcall(imgui.push_font, self.handle)
+    local handle = style == "cue" and self.cue_handle or self.handle
+    if handle == nil then handle = self.handle end
+    local ok, error_message = pcall(imgui.push_font, handle)
     if not ok then self.ready = false self.error = tostring(error_message) end
     return ok
 end

@@ -2,15 +2,16 @@ local M = {}
 local TimelinePresenter = require("MHRiseMonsterCoach.timeline_presenter")
 
 local COLORS = {
-    panel = 0xDC10141A,
-    border = 0xFF8A9AAA,
-    title = 0xFFFFFFFF,
-    text = 0xFFE2E8F0,
-    muted = 0xFF9AA7B5,
+    panel = 0xE61B1E20,
+    panel_detail = 0xD9111417,
+    border = 0xFFB7A47A,
+    coach = 0xFF76D7E8,
+    title = 0xFFF4ECD8,
+    text = 0xFFEAE4D5,
+    muted = 0xFFA9A69D,
     success = 0xFF72D99B,
     failure = 0xFF719DFF,
     warning = 0xFF70D6FF,
-    disabled = 0xFF808080,
 }
 
 local PRIORITY = {
@@ -18,7 +19,6 @@ local PRIORITY = {
     core = 10,
     result = 20,
     detail = 30,
-    diagnostic = 40,
 }
 
 local function truncate(text, max_chars)
@@ -68,7 +68,7 @@ local function result_color(state)
 end
 
 local function prediction_text(prediction)
-    if prediction == nil or #prediction.candidates == 0 then return "Next: collecting branch samples" end
+    if prediction == nil or #prediction.candidates == 0 then return nil end
     local pieces = {}
     for index = 1, math.min(3, #prediction.candidates) do
         local item = prediction.candidates[index]
@@ -78,38 +78,26 @@ local function prediction_text(prediction)
         pieces[#pieces + 1] = tostring(item.name) .. suffix
     end
     local prefixes = {
-        fixed = "Next (fixed): ",
-        conditional = "Next (condition): ",
-        random = "Next (random): ",
-        observed = "Next (observed): ",
-        observed_single = "Next (observed): ",
-        observed_candidates = "Next (observed): ",
-        unresolved = "Next (unresolved): ",
+        fixed = "固定派生：",
+        conditional = "条件派生：",
+        random = "随机候选：",
+        observed = "观测候选：",
+        observed_single = "观测候选：",
+        observed_candidates = "观测候选：",
+        unresolved = "待确认派生：",
     }
-    local prefix = prefixes[prediction.kind] or "Next (unresolved): "
+    local prefix = prefixes[prediction.kind] or "待确认派生："
     return prefix .. table.concat(pieces, " / ")
 end
 
 local function response_text(model)
     for _, item in ipairs(model.response_candidates or {}) do
         if item.availability == "available" then
-            return string.format("Weapon response: %s", tostring(item.name))
+            return string.format("武器应对：%s", tostring(item.name))
         end
     end
     if model.response_error == "unsupported_weapon" then return nil end
-    return "Weapon response: current weapon state is incomplete"
-end
-
-local function loadout_text(model)
-    local state = model.player_combat_state
-    if not state or state.weapon_type ~= "long_sword" then return nil end
-    local scroll = state.active_scroll
-    local skills = state.switch_skills and state.switch_skills[scroll]
-    if scroll ~= "red" and scroll ~= "blue" then return "Long Sword loadout: active scroll unknown" end
-    if type(skills) ~= "table" or #skills ~= 5 then
-        return string.format("Long Sword loadout: %s scroll | unresolved", scroll)
-    end
-    return string.format("Long Sword loadout: %s scroll | 5/5 skills resolved", scroll)
+    return "武器应对：当前武器状态尚未完整识别"
 end
 
 local PHASE_NAMES = {
@@ -118,34 +106,6 @@ local PHASE_NAMES = {
     recovery = "收招",
     unknown = "阶段未知",
 }
-
-local function phase_text(model)
-    local state = model:coaching_state()
-    local text = "Phase / 阶段: " .. (PHASE_NAMES[state.phase] or tostring(state.phase))
-    if state.frames_to_next_active then
-        text = text .. string.format("  |  距下一判定 %.1f 帧", state.frames_to_next_active)
-    elseif state.phase == "recovery" and state.frames_from_final_active then
-        text = text .. string.format("  |  判定结束 %.1f 帧", math.max(0, state.frames_from_final_active))
-    end
-    return text, state.phase
-end
-
-local function last_hit_text(event)
-    if type(event) ~= "table" then return nil end
-    local move = event.move_name or ("Action " .. tostring(event.action or "?"))
-    local timing = ""
-    if event.relation == "inside_active" and event.relative_frame then
-        timing = string.format(" | 判定内 +%.1f 帧", event.relative_frame)
-    elseif event.relation == "before_active" and event.relative_frame then
-        timing = string.format(" | 判定前 %.1f 帧", math.abs(event.relative_frame))
-    elseif event.relation == "after_active" and event.relative_frame then
-        timing = string.format(" | 判定后 +%.1f 帧", event.relative_frame)
-    elseif event.frame then
-        timing = string.format(" | 动画 %.1f 帧", event.frame)
-    end
-    return string.format("Last hit / 上次受击: %s | %.1f 伤害%s",
-        tostring(move), tonumber(event.damage) or 0, timing)
-end
 
 function M.new(config, font)
     return setmetatable({
@@ -197,79 +157,78 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
     if not model.context.in_quest and model.state ~= "error" then return end
 
     local screen_width, screen_height = runtime:screen_size()
-    local width = math.floor(math.max(360, math.min(720, screen_width * 0.42)))
+    local width = math.floor(math.max(360, math.min(660, screen_width * 0.52)))
     local x = math.floor((screen_width - width) / 2)
-    local y = math.floor(math.max(18, screen_height * 0.025))
+    local y = math.floor(math.max(22, screen_height * 0.065))
+    local padding, accent_width = 14, 5
+    local body_height = self.font and self.font.line_height or 19
+    local cue_height = self.font and self.font.cue_line_height or 28
+    local content_width = width - padding * 2 - accent_width
+    local rendered_text, rendered_widths = {}, {}
+    local horizontal_overflow = false
+
+    local phase_name, phase = nil, "unknown"
+    if model.current_action then
+        local state = model:coaching_state()
+        phase = state.phase or "unknown"
+        phase_name = PHASE_NAMES[phase] or tostring(phase)
+    end
+    -- The move cue is the overlay's primary purpose. Keep reading legacy show_move
+    -- config files, but do not let a removed toggle leave the core cue invisible.
+    local cue_visible = model.current_move ~= nil
+    local cue_panel_height = 0
+    if cue_visible then
+        cue_panel_height = padding * 2 + body_height + cue_height + 4
+        draw.filled_rect(x, y, width, cue_panel_height, COLORS.panel)
+        draw.filled_rect(x, y, accent_width, cue_panel_height, COLORS.coach)
+        draw.outline_rect(x, y, width, cue_panel_height, COLORS.border)
+        local body_pushed = self.font and self.font:push() or false
+        local label = "陪练预警  ·  " .. tostring(model.profile.name or "目标怪物")
+        label = fit_text(label, content_width)
+        draw.text(label, x + padding + accent_width, y + padding,
+            COLORS.coach)
+        if phase_name then
+            local phase_label = "[" .. phase_name .. "]"
+            local phase_width = measured_width(phase_label) or 0
+            draw.text(phase_label, x + width - padding - phase_width, y + padding,
+                phase == "active" and COLORS.warning
+                    or (phase == "recovery" and COLORS.success or COLORS.muted))
+        end
+        rendered_text[#rendered_text + 1] = label
+        rendered_widths[#rendered_widths + 1] = measured_width(label)
+        if self.font then self.font:pop(body_pushed) end
+        local cue_pushed = self.font and self.font:push("cue") or false
+        local move_name = fit_text(tostring(model.current_move.name or "未收录动作"), content_width)
+        draw.text(move_name, x + padding + accent_width, y + padding + body_height + 4,
+            COLORS.title)
+        rendered_text[#rendered_text + 1] = move_name
+        rendered_widths[#rendered_widths + 1] = measured_width(move_name)
+        if self.font then self.font:pop(cue_pushed) end
+    end
 
     local lines = {}
-    lines[#lines + 1] = { "MONSTER COACH  |  " .. model.profile.name, COLORS.title, PRIORITY.always }
-    lines[#lines + 1] = { truncate(model.status, 88), result_color(model.state), PRIORITY.always }
-    if model.context.in_quest then
-        local target = model.context.target_found
-            and ("Target: " .. tostring(model.profile.name or "monster")
-                .. " detected  |  Enemy ID " .. tostring(model.context.enemy_id or "unknown"))
-            or ("Target: waiting for " .. tostring(model.profile.name or "monster"))
-        lines[#lines + 1] = { target, model.context.target_found and COLORS.success or COLORS.muted,
-            PRIORITY.always }
-    end
-
-    if self.config.show_move and model.current_move then
-        lines[#lines + 1] = { "Move: " .. truncate(model.current_move.name, 74), COLORS.text,
-            PRIORITY.core }
-        local progress = model.context.outcome_tracking
-            and string.format("Round %d  |  Streak %d", model.rounds + 1, model.streak)
-            or string.format("Observed changes %d", model.state_changes)
-        lines[#lines + 1] = { string.format("State key: %s  |  %s", model.current_state_key or model.current_action, progress),
-            COLORS.muted, PRIORITY.diagnostic }
-        local metadata = model.current_metadata
-        if metadata and type(metadata.current_frame) == "number" and type(metadata.end_frame) == "number"
-            and metadata.end_frame > 0 then
-            lines[#lines + 1] = {
-                string.format("Animation: %.1f / %.1f  |  %.0f%%", metadata.current_frame, metadata.end_frame, (metadata.motion_progress or 0) * 100),
-                COLORS.muted, PRIORITY.diagnostic,
-            }
-        end
-    end
-    if self.config.show_prediction and model.current_action then
+    if self.config.show_prediction and model.current_action and model.prediction
+        and #(model.prediction.candidates or {}) > 0 then
         lines[#lines + 1] = { truncate(prediction_text(model.prediction), 88), COLORS.text,
             PRIORITY.core }
     end
-    if model.current_action then
-        local phase_line, phase = phase_text(model)
-        lines[#lines + 1] = { phase_line, phase == "active" and COLORS.warning
-            or (phase == "recovery" and COLORS.success or COLORS.text), PRIORITY.core }
-    end
-    if self.config.show_advice and model.current_move then
-        local threat = model.current_move.threat
-        if threat then
-            lines[#lines + 1] = { "Threat / 威胁: " .. truncate(threat.direction, 30)
-                .. "  →  " .. truncate(threat.response, 42), COLORS.warning, PRIORITY.result }
-        end
-        lines[#lines + 1] = { "Advice: " .. truncate(model.current_move.advice, 76), COLORS.text,
+    if self.config.show_advice and model.current_move and model.current_move.advice then
+        lines[#lines + 1] = { "应对：" .. truncate(model.current_move.advice, 76), COLORS.text,
             PRIORITY.result }
         if self.config.weapon_response_extension_enabled == true then
             local weapon_response = response_text(model)
-            if weapon_response then
-                lines[#lines + 1] = { truncate(weapon_response, 88), COLORS.text, PRIORITY.detail }
-            end
+            if weapon_response then lines[#lines + 1] = {
+                truncate(weapon_response, 88), COLORS.coach, PRIORITY.detail } end
         end
-    end
-    if self.config.weapon_response_extension_enabled == true then
-        local loadout = loadout_text(model)
-        if loadout then lines[#lines + 1] = { loadout, COLORS.muted, PRIORITY.diagnostic } end
-    end
-    if model.context.outcome_tracking and model.last_result then
-        lines[#lines + 1] = { "Last: " .. truncate(model.last_result, 82), result_color(model.state),
-            PRIORITY.result }
     end
     if self.config.show_timeline_review then
         local review = latest_timeline_review(self, model)
         if review then lines[#lines + 1] = { review.text, COLORS[review.tone] or COLORS.muted,
-            PRIORITY.core } end
+            PRIORITY.result } end
     end
     local training = model.training_scenario
     if type(training) == "table" and training.state ~= "idle" then
-        local label = training.name and ("Training " .. tostring(training.name) .. ": ") or "Training: "
+        local label = training.name and ("训练 · " .. tostring(training.name) .. "：") or "训练："
         local round_text = type(training.completed_rounds) == "number" and type(training.target_rounds) == "number"
             and string.format("%d/%d", training.completed_rounds, training.target_rounds) or nil
         local progress = round_text and not string.find(tostring(training.status or ""), round_text, 1, true)
@@ -277,85 +236,62 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
         lines[#lines + 1] = { truncate(label .. tostring(training.status or training.state) .. progress, 88),
             result_color(training.state == "completed" and "success"
                 or (training.state == "failed" and "failure" or "running")), PRIORITY.core }
-        local events = training.actual_path and training.actual_path.events or {}
-        if #events > 0 then
-            local names, first = {}, math.max(1, #events - 2)
-            for index = first, #events do
-                names[#names + 1] = tostring(events[index].node and events[index].node.name or "?")
-            end
-            lines[#lines + 1] = { truncate("Actual path / 实际路径: " .. table.concat(names, " > "), 88),
-                COLORS.muted, PRIORITY.detail }
-        end
     end
-    local hit_result = last_hit_text(model.last_hit_event)
-    if hit_result then lines[#lines + 1] = { truncate(hit_result, 88), COLORS.failure,
-        PRIORITY.result } end
-
-    local controls
-    if model.context.build_supported == false then
-        controls = string.format("Read-only runtime: %s / TDB %s", tostring(model.context.game_name), tostring(model.context.tdb_version))
-    elseif model.context.is_online then
-        controls = "Multiplayer detected: all gameplay controls disabled"
-    elseif slowmo_active then
-        controls = input_state and input_state.device == "gamepad"
-            and string.format("Release shoulder buttons: 1.00x | ACTIVE %.2fx", self.config.slowmo_scale)
-            or string.format("Press F6: 1.00x  |  ACTIVE %.2fx", self.config.slowmo_scale)
-    elseif not self.config.time_control_enabled then
-        controls = model.context.safe_mode
-            and "READ-ONLY: Action/Hitbox polling on; gameplay writes off"
-            or "Manual slow motion disabled in Monster Coach menu"
-    elseif input_state and input_state.available and input_state.device == "gamepad" then
-        controls = "Hold LB+RB/L1+R1: slow | reset shortcut: restart training quest"
-    elseif model.context.safe_mode then
-        controls = model.context.in_quest
-            and "F6: slow | F7: quest restart | F8: set reset point | F9: in-place reset disabled"
-            or "One-key restart continues automatically; no second F7 needed"
-    else
-        controls = "F6: slow | F7: quest restart | F8: set reset point | F9: in-place reset disabled"
+    if slowmo_active then
+        lines[#lines + 1] = { string.format("子弹时间  %.2fx", self.config.slowmo_scale),
+            COLORS.warning, PRIORITY.always }
     end
-    lines[#lines + 1] = { controls, slowmo_active and COLORS.warning or COLORS.muted,
-        PRIORITY.always }
 
-    local font_pushed = self.font and self.font:push() or false
-    local line_height = self.font and self.font.line_height or 19
-    local padding = 12
+    local detail_y = y + cue_panel_height + (cue_visible and 6 or 0)
     local bottom_margin = 18
-    local available_height = math.max(line_height * 4 + padding * 2,
-        screen_height - y - bottom_margin)
-    local max_lines = math.max(4, math.floor((available_height - padding * 2) / line_height))
+    local available_height = math.max(body_height + padding * 2,
+        screen_height - detail_y - bottom_margin)
+    local max_lines = math.max(1, math.floor((available_height - padding * 2) / body_height))
     local raw_line_count = #lines
     lines = fit_line_budget(lines, max_lines)
-    local height = padding * 2 + line_height * #lines
-    local rendered_text = {}
-    local rendered_widths = {}
-    local content_width = width - padding * 2
-    local horizontal_overflow = false
+    local detail_height = #lines > 0 and (padding * 2 + body_height * #lines) or 0
+    local font_pushed = self.font and self.font:push() or false
     for index, line in ipairs(lines) do
-        rendered_text[index] = fit_text(line[1], content_width)
-        rendered_widths[index] = measured_width(rendered_text[index])
-        if type(rendered_widths[index]) == "number" and rendered_widths[index] > content_width then
+        local text = fit_text(line[1], width - padding * 2)
+        rendered_text[#rendered_text + 1] = text
+        local measured = measured_width(text)
+        rendered_widths[#rendered_widths + 1] = measured
+        if type(measured) == "number" and measured > width - padding * 2 then
             horizontal_overflow = true
         end
     end
+    if #lines > 0 then
+        draw.filled_rect(x, detail_y, width, detail_height, COLORS.panel_detail)
+        draw.outline_rect(x, detail_y, width, detail_height, COLORS.border)
+        for index, line in ipairs(lines) do
+            draw.text(rendered_text[(cue_visible and 2 or 0) + index],
+                x + padding, detail_y + padding + (index - 1) * body_height, line[2])
+        end
+    end
+    if self.font then self.font:pop(font_pushed) end
+    local total_height = cue_panel_height + (cue_visible and #lines > 0 and 6 or 0) + detail_height
     self.last_layout = {
         screen_width = screen_width,
         screen_height = screen_height,
         x = x,
         y = y,
         width = width,
-        height = height,
-        bottom = y + height,
+        height = total_height,
+        bottom = y + total_height,
         bottom_margin = bottom_margin,
         content_width = content_width,
-        line_height = line_height,
-        line_count = #lines,
-        raw_line_count = raw_line_count,
+        line_height = body_height,
+        cue_line_height = cue_height,
+        cue_visible = cue_visible,
+        detail_line_count = #lines,
+        line_count = #rendered_text,
+        raw_line_count = raw_line_count + (cue_visible and 2 or 0),
         clipped_line_count = raw_line_count - #lines,
         max_lines = max_lines,
         text = rendered_text,
         text_widths = rendered_widths,
         horizontal_overflow = horizontal_overflow,
-        vertical_overflow = y + height > screen_height - bottom_margin,
+        vertical_overflow = y + total_height > screen_height - bottom_margin,
         font = {
             ready = self.font and self.font.ready == true or false,
             path = self.font and self.font.path or nil,
@@ -363,13 +299,6 @@ function M.draw(self, model, runtime, slowmo_active, input_state)
             diagnostic = self.font and self.font:diagnostic() or "default font",
         },
     }
-    draw.filled_rect(x, y, width, height, COLORS.panel)
-    draw.outline_rect(x, y, width, height, COLORS.border)
-    for index, line in ipairs(lines) do
-        draw.text(rendered_text[index],
-            x + padding, y + padding + (index - 1) * line_height, line[2])
-    end
-    if self.font then self.font:pop(font_pushed) end
 end
 
 return M

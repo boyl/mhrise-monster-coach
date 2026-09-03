@@ -1,12 +1,16 @@
 package.path = "reframework/autorun/?.lua;reframework/autorun/?/init.lua;" .. package.path
 
-local drawn = {}
+local drawn, rectangles = {}, {}
 imgui = {
     calc_text_size = function(text) return { x = #text * 10, y = 19 } end,
 }
 draw = {
-    filled_rect = function() end,
-    outline_rect = function() end,
+    filled_rect = function(x, y, w, h, color)
+        rectangles[#rectangles + 1] = { kind = "fill", x = x, y = y, w = w, h = h, color = color }
+    end,
+    outline_rect = function(x, y, w, h, color)
+        rectangles[#rectangles + 1] = { kind = "outline", x = x, y = y, w = w, h = h, color = color }
+    end,
     text = function(text) drawn[#drawn + 1] = text end,
 }
 
@@ -68,12 +72,12 @@ model.current_action = "2"
 model.prediction = { kind = "conditional", candidates = { { name = "冲锋急停" } } }
 drawn = {}
 view:draw(model, runtime, false, nil)
-assert(table.concat(drawn, "\n"):find("Next (condition):", 1, true),
+assert(table.concat(drawn, "\n"):find("条件派生：", 1, true),
     "conditional branches are visibly distinct from generic candidates")
 model.prediction.kind = "random"
 drawn = {}
 view:draw(model, runtime, false, nil)
-assert(table.concat(drawn, "\n"):find("Next (random):", 1, true),
+assert(table.concat(drawn, "\n"):find("随机候选：", 1, true),
     "random branches are never presented as conditional or fixed")
 
 config.show_advice = true
@@ -86,7 +90,7 @@ model.player_combat_state = { weapon_type = "long_sword", active_scroll = "red",
 drawn = {}
 view:draw(model, runtime, false, nil)
 local response_disabled_text = table.concat(drawn, "\n")
-assert(not response_disabled_text:find("Weapon response:", 1, true),
+assert(not response_disabled_text:find("武器应对：", 1, true),
     "disabled optional extension hides weapon-specific response text")
 assert(not response_disabled_text:find("Long Sword loadout:", 1, true),
     "disabled optional extension hides weapon loadout diagnostics")
@@ -94,12 +98,13 @@ config.weapon_response_extension_enabled = true
 drawn = {}
 view:draw(model, runtime, false, nil)
 local response_enabled_text = table.concat(drawn, "\n")
-assert(response_enabled_text:find("Weapon response: Foresight Slash", 1, true),
+assert(view:layout_snapshot().cue_visible,
+    "legacy show_move=false cannot hide the overlay's primary move cue")
+assert(response_enabled_text:find("武器应对：Foresight Slash", 1, true),
     "enabled optional extension shows weapon-specific response text")
-assert(response_enabled_text:find("Long Sword loadout: red scroll", 1, true),
-    "enabled optional extension shows weapon loadout diagnostics")
+assert(not response_enabled_text:find("Long Sword loadout:", 1, true),
+    "battlefield HUD never exposes loadout diagnostics")
 
-config.show_move = true
 model.rounds = 4
 model.streak = 2
 model.state_changes = 9
@@ -120,22 +125,28 @@ model.last_hit_event = { move_name = "直线冲锋", damage = 42,
     relation = "inside_active", relative_frame = 3 }
 screen_width = 640
 drawn = {}
+rectangles = {}
 view:draw(model, runtime, false, nil)
 local compact_layout = view:layout_snapshot()
 assert(compact_layout.bottom <= compact_layout.screen_height - compact_layout.bottom_margin,
     "minimum-height overlay stays inside its measured screen content rectangle")
 assert(not compact_layout.horizontal_overflow and not compact_layout.vertical_overflow,
     "shared runtime layout snapshot reports no horizontal or vertical overflow")
-assert(compact_layout.clipped_line_count > 0 and compact_layout.line_count <= compact_layout.max_lines,
-    "low resolution hides lower-priority diagnostics instead of overflowing")
+assert(compact_layout.cue_visible and compact_layout.cue_line_height > compact_layout.line_height,
+    "move cue is an independent, visually dominant layer")
 local compact_text = table.concat(compact_layout.text, "\n")
-assert(compact_text:find("Move:", 1, true)
-    and compact_text:find("Next (random):", 1, true)
-    and compact_text:find("Phase / 阶段:", 1, true)
-    and compact_text:find("Training ", 1, true),
-    "compact layout preserves move, branch certainty, phase and training state")
-assert(compact_layout.text[#compact_layout.text]:find("READ%-ONLY:") ~= nil,
-    "device-appropriate controls remain the final visible overlay line")
+assert(compact_text:find("陪练预警", 1, true)
+    and compact_text:find("Move sideways", 1, true)
+    and compact_text:find("随机候选：", 1, true)
+    and compact_text:find("训练 ·", 1, true),
+    "compact HUD preserves move cue, branch, response and training state")
+for _, noise in ipairs({ "Target:", "State key:", "Animation:", "READ-ONLY:",
+    "Long Sword loadout:", "Actual path", "Last hit" }) do
+    assert(not compact_text:find(noise, 1, true), "battlefield HUD removes diagnostic noise: " .. noise)
+end
+local fill_count = 0
+for _, rectangle in ipairs(rectangles) do if rectangle.kind == "fill" then fill_count = fill_count + 1 end end
+assert(fill_count >= 3, "cue, coach accent and supporting detail use distinct visual surfaces")
 for _, text in ipairs(compact_layout.text) do
     assert(imgui.calc_text_size(text).x <= compact_layout.width - 24,
         "all compact overlay text shares the measured content width")
@@ -147,10 +158,27 @@ drawn = {}
 view:draw(model, runtime, false, nil)
 local full_layout = view:layout_snapshot()
 assert(full_layout.clipped_line_count == 0 and full_layout.raw_line_count == full_layout.line_count,
-    "common 1080p layout retains the full evidence and diagnostic set")
+    "common 1080p layout retains the complete focused coaching set")
 
 revision = 2
 view:draw(model, runtime, false, nil)
 assert(snapshot_calls == 2, "new completed round invalidates the cached review once")
+
+drawn, rectangles = {}, {}
+model.current_move = nil
+model.current_action = nil
+model.prediction = nil
+model.training_scenario = nil
+model.training_timeline_snapshot = function() return { last_round = nil } end
+revision = 3
+view:draw(model, runtime, false, nil)
+local idle_layout = view:layout_snapshot()
+assert(not idle_layout.cue_visible and idle_layout.detail_line_count == 0 and #rectangles == 0,
+    "idle battlefield HUD is silent instead of showing status or controls")
+
+drawn, rectangles = {}, {}
+view:draw(model, runtime, true, nil)
+assert(table.concat(drawn, "\n"):find("子弹时间", 1, true),
+    "slow-motion state is shown only while active")
 
 print("test_view.lua: PASS")

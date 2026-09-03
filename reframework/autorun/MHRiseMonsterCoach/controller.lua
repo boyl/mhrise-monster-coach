@@ -915,7 +915,6 @@ function M.draw_menu_content(self)
     local changed = false
     changed = checkbox("Enable / 启用", self.config, "enabled") or changed
     changed = checkbox("Overlay / 场上提示", self.config, "overlay_enabled") or changed
-    changed = checkbox("Show move / 显示招式", self.config, "show_move") or changed
     changed = checkbox("Show branches / 显示派生", self.config, "show_prediction") or changed
     changed = checkbox("General move advice / 通用招式应对", self.config, "show_advice") or changed
     changed = checkbox("Weapon skill response (optional) / 武器技能应对（可选）",
@@ -923,13 +922,8 @@ function M.draw_menu_content(self)
     changed = checkbox("Round review / 单轮复盘", self.config, "show_timeline_review") or changed
     changed = checkbox("Manual slow motion / 手动子弹时间", self.config, "time_control_enabled") or changed
     changed = M.draw_training_menu(self) or changed
-    local shapes_changed = checkbox("HitboxViewer debug shapes / 显示判定体",
-        self.config, "show_hitboxviewer_debug_shapes")
-    if shapes_changed then
-        self.runtime:set_hitboxviewer_debug_shapes(self.config.show_hitboxviewer_debug_shapes)
-        changed = true
-    end
-    changed = checkbox("Controller shortcuts (experimental, may conflict)", self.config.controller_input, "enabled") or changed
+    imgui.separator()
+    imgui.text("训练保护")
     changed = checkbox("Player safety lock (offline only)", self.config, "safety_health_lock") or changed
     changed = checkbox("Protect monster HP (offline only)", self.config, "protect_monster_health") or changed
 
@@ -1018,33 +1012,29 @@ function M.draw_menu_content(self)
     if imgui.button(f7_label) then
         if self.model.context.in_quest then M.request_native_quest_reset(self) end
     end
-    if imgui.button("Record reset point (F8)") then
-        local ok, reason = self.runtime:capture_anchors()
-        self.reset_status = ok and "Reset point recorded" or ("Reset point failed: " .. tostring(reason))
-        self.model:reset_round(self.reset_status)
-    end
-    imgui.same_line()
-    if imgui.button("In-place reset disabled after crash evidence (F9)") then
-        local ok, reason = self.runtime:experimental_native_in_place_reset()
-        self.reset_status = ok and "Experimental in-place reset completed"
-            or ("Experimental in-place reset failed: " .. tostring(reason))
-        if ok then self.model:clear_round_runtime(self.reset_status)
-        else self.model:reset_round(self.reset_status) end
-    end
-
-    if imgui.button("Export calibration evidence") then
-        self.config_module.write_calibration(
-            self.model:export_calibration(self.runtime.reader:description()), self.model.profile)
-        self.model:reset_round("Calibration evidence exported")
-    end
-    imgui.same_line()
-    if imgui.button("Reload static AI data") then
-        local loaded = self.config_module.load_static_ai(self.model.profile)
-        if self.model:reload_static_ai(loaded) then
-            self.model.status = "Static AI data reloaded"
-        else
-            self.model:fail("Static AI data is invalid")
+    if imgui.tree_node("Developer diagnostics / 开发诊断") then
+        local shapes_changed = checkbox("HitboxViewer debug shapes / 显示判定体",
+            self.config, "show_hitboxviewer_debug_shapes")
+        if shapes_changed then
+            self.runtime:set_hitboxviewer_debug_shapes(self.config.show_hitboxviewer_debug_shapes)
+            changed = true
         end
+        if imgui.button("Export calibration evidence") then
+            self.config_module.write_calibration(
+                self.model:export_calibration(self.runtime.reader:description()), self.model.profile)
+            self.model:reset_round("Calibration evidence exported")
+        end
+        imgui.same_line()
+        if imgui.button("Reload static AI data") then
+            local loaded = self.config_module.load_static_ai(self.model.profile)
+            if self.model:reload_static_ai(loaded) then
+                self.model.status = "Static AI data reloaded"
+            else
+                self.model:fail("Static AI data is invalid")
+            end
+        end
+        ui_text_wrapped("F8/F9 原地快照入口已从普通界面移除：当前实现无法完整重建区域和环境状态。")
+        imgui.tree_pop()
     end
 
     if #self.model.scenarios == 0 then
