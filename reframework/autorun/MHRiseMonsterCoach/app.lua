@@ -140,6 +140,7 @@ function M.start()
         }
     end
     local training_acceptance_config = nil
+    local overlay_mode_evidence = nil
     function probe_api:start_training_acceptance(scenario_id, repeat_count)
         local scenario = nil
         for _, candidate in ipairs(model.scenarios or {}) do
@@ -153,6 +154,8 @@ function M.start()
             show_move = config.show_move,
             show_prediction = config.show_prediction,
             weapon_response_extension_enabled = config.weapon_response_extension_enabled,
+            simple_move_cue_enabled = config.simple_move_cue_enabled,
+            detailed_overlay_enabled = config.detailed_overlay_enabled,
         }
         config.forced_action_training_enabled = true
         config.training_repeat_count = math.max(1, math.min(20, math.floor(tonumber(repeat_count) or 1)))
@@ -160,6 +163,9 @@ function M.start()
         config.show_move = true
         config.show_prediction = true
         config.weapon_response_extension_enabled = false
+        config.simple_move_cue_enabled = true
+        config.detailed_overlay_enabled = false
+        overlay_mode_evidence = { simple = nil, detailed = nil }
         controller:preview_training_scenario(scenario)
         local ok = controller:start_training_scenario(scenario)
         if not ok then
@@ -170,7 +176,10 @@ function M.start()
             config.show_prediction = training_acceptance_config.show_prediction
             config.weapon_response_extension_enabled =
                 training_acceptance_config.weapon_response_extension_enabled
+            config.simple_move_cue_enabled = training_acceptance_config.simple_move_cue_enabled
+            config.detailed_overlay_enabled = training_acceptance_config.detailed_overlay_enabled
             training_acceptance_config = nil
+            overlay_mode_evidence = nil
             return false, controller.training_status
         end
         return true
@@ -179,6 +188,20 @@ function M.start()
         local scenario = controller.training_scenario
         local geometry = runtime.target_geometry_snapshot
             and runtime:target_geometry_snapshot() or nil
+        local layout = view:layout_snapshot()
+        if overlay_mode_evidence and layout and layout.cue_visible == true then
+            if overlay_mode_evidence.simple == nil
+                and layout.simple_cue_enabled == true
+                and layout.detailed_overlay_enabled == false then
+                overlay_mode_evidence.simple = layout
+                config.detailed_overlay_enabled = true
+            elseif overlay_mode_evidence.simple ~= nil
+                and overlay_mode_evidence.detailed == nil
+                and layout.detailed_overlay_enabled == true
+                and tonumber(layout.detail_line_count or 0) > 0 then
+                overlay_mode_evidence.detailed = layout
+            end
+        end
         return {
             state = controller.training_state,
             status = controller.training_status,
@@ -191,7 +214,8 @@ function M.start()
             target_rounds = controller.training_target_rounds,
             actual_path = model.training_scenario and model.training_scenario.actual_path or nil,
             actual_branch = model.training_scenario and model.training_scenario.actual_branch or nil,
-            overlay_layout = view:layout_snapshot(),
+            overlay_layout = layout,
+            overlay_modes = overlay_mode_evidence,
         }
     end
     function probe_api:training_menu_snapshot(requested_repeats)
@@ -210,8 +234,11 @@ function M.start()
             config.show_prediction = training_acceptance_config.show_prediction
             config.weapon_response_extension_enabled =
                 training_acceptance_config.weapon_response_extension_enabled
+            config.simple_move_cue_enabled = training_acceptance_config.simple_move_cue_enabled
+            config.detailed_overlay_enabled = training_acceptance_config.detailed_overlay_enabled
             training_acceptance_config = nil
         end
+        overlay_mode_evidence = nil
     end
     local allowed_probe_quest_ids = {}
     for _, candidate in ipairs(ProfileRegistry.all()) do
@@ -292,7 +319,7 @@ function M.start()
     re.on_config_save(function() Config.save(config) end)
     re.on_script_reset(function() startup_bootstrap:shutdown() dev_probe:shutdown() controller:shutdown() end)
 
-    log.info("[MHRiseMonsterCoach] 0.54.0-dual-overlay-modes loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
+    log.info("[MHRiseMonsterCoach] 0.54.1-automated-overlay-acceptance loaded; diagnostic safe mode=" .. tostring(config.diagnostic_safe_mode))
 end
 
 return M

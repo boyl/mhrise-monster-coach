@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a measured Monster Coach overlay snapshot from a real probe report."""
-
+"""Validate both measured Monster Coach overlay modes from a real probe report."""
 from __future__ import annotations
 
 import argparse
@@ -8,113 +7,91 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-REQUIRED_PREFIX_GROUPS = (
-    ("MONSTER COACH",),
-    ("Target:",),
-    ("Move:",),
-    ("Next (", "Next:"),
-    ("Phase / 阶段:",),
-    ("Training ",),
+NUMERIC_FIELDS = (
+    "screen_width", "screen_height", "x", "y", "width", "height", "bottom",
+    "bottom_margin", "content_width", "line_height", "line_count", "raw_line_count",
+    "clipped_line_count", "max_lines", "detail_line_count",
 )
+
+
+def _validate_layout(layout: dict[str, Any], mode: str, violations: list[str]) -> str:
+    if not layout:
+        violations.append(f"{mode}:layout_missing")
+        return ""
+    for field in NUMERIC_FIELDS:
+        if not isinstance(layout.get(field), (int, float)):
+            violations.append(f"{mode}:layout_field_missing:{field}")
+    text = layout.get("text") if isinstance(layout.get("text"), list) else []
+    widths = layout.get("text_widths") if isinstance(layout.get("text_widths"), list) else []
+    if layout.get("horizontal_overflow") is not False:
+        violations.append(f"{mode}:horizontal_overflow")
+    if layout.get("vertical_overflow") is not False:
+        violations.append(f"{mode}:vertical_overflow")
+    if layout.get("line_count") != len(text):
+        violations.append(f"{mode}:line_count_mismatch")
+    if len(widths) != len(text):
+        violations.append(f"{mode}:text_width_count_mismatch")
+    content_width = layout.get("content_width")
+    if isinstance(content_width, (int, float)):
+        for index, width in enumerate(widths):
+            if not isinstance(width, (int, float)) or width <= 0:
+                violations.append(f"{mode}:text_width_invalid:{index}")
+            elif width > content_width:
+                violations.append(f"{mode}:text_width_exceeded:{index}")
+    if all(isinstance(layout.get(field), (int, float)) for field in
+           ("bottom", "screen_height", "bottom_margin")):
+        if layout["bottom"] > layout["screen_height"] - layout["bottom_margin"]:
+            violations.append(f"{mode}:content_exceeds_bottom")
+    font = layout.get("font") if isinstance(layout.get("font"), dict) else {}
+    if font.get("ready") is not True:
+        violations.append(f"{mode}:cjk_font_not_ready")
+    if not isinstance(font.get("sample_width"), (int, float)) or font.get("sample_width", 0) <= 0:
+        violations.append(f"{mode}:cjk_sample_width_invalid")
+    return "\n".join(str(line) for line in text)
 
 
 def analyze(report: dict[str, Any]) -> dict[str, Any]:
     violations: list[str] = []
     training = report.get("training_acceptance") or {}
-    layout = training.get("overlay_layout") or {}
-    text = layout.get("text") if isinstance(layout.get("text"), list) else []
-    widths = layout.get("text_widths") if isinstance(layout.get("text_widths"), list) else []
-
-    if report.get("kind") != "training_scenario_acceptance" or report.get("status") not in {
-        "completed",
-        "failed",
-    }:
+    modes = training.get("overlay_modes") if isinstance(training.get("overlay_modes"), dict) else {}
+    simple = modes.get("simple") if isinstance(modes.get("simple"), dict) else {}
+    detailed = modes.get("detailed") if isinstance(modes.get("detailed"), dict) else {}
+    if report.get("kind") != "training_scenario_acceptance" or report.get("status") not in {"completed", "failed"}:
         violations.append("terminal_training_report_required")
-    if not layout:
-        violations.append("overlay_layout_missing")
 
-    numeric_fields = (
-        "screen_width", "screen_height", "x", "y", "width", "height", "bottom",
-        "bottom_margin", "content_width", "line_height", "line_count", "raw_line_count",
-        "clipped_line_count", "max_lines",
-    )
-    for field in numeric_fields:
-        if not isinstance(layout.get(field), (int, float)):
-            violations.append(f"layout_field_missing:{field}")
+    simple_text = _validate_layout(simple, "simple", violations)
+    if simple:
+        if simple.get("simple_cue_enabled") is not True or simple.get("cue_visible") is not True:
+            violations.append("simple:cue_not_visible")
+        if simple.get("detailed_overlay_enabled") is not False:
+            violations.append("simple:detailed_mode_visible")
+        if simple.get("framed") is not False or simple.get("detail_line_count") != 0:
+            violations.append("simple:not_frameless_move_only")
+        if len(simple.get("text") or []) != 1:
+            violations.append("simple:not_single_move_line")
+        if any(token in simple_text for token in ("阶段：", "应对：", "训练 ·", "固定派生：")):
+            violations.append("simple:detailed_text_leaked")
 
-    if layout:
-        if layout.get("horizontal_overflow") is not False:
-            violations.append("horizontal_overflow")
-        if layout.get("vertical_overflow") is not False:
-            violations.append("vertical_overflow")
-        if isinstance(layout.get("bottom"), (int, float)) and isinstance(
-            layout.get("screen_height"), (int, float)
-        ) and isinstance(layout.get("bottom_margin"), (int, float)):
-            if layout["bottom"] > layout["screen_height"] - layout["bottom_margin"]:
-                violations.append("panel_exceeds_bottom_content_edge")
-        if layout.get("line_count") != len(text):
-            violations.append("line_count_mismatch")
-        if isinstance(layout.get("line_count"), (int, float)) and isinstance(
-            layout.get("max_lines"), (int, float)
-        ) and layout["line_count"] > layout["max_lines"]:
-            violations.append("line_budget_exceeded")
-        if len(widths) != len(text):
-            violations.append("text_width_count_mismatch")
-        content_width = layout.get("content_width")
-        if isinstance(content_width, (int, float)):
-            for index, width in enumerate(widths):
-                if not isinstance(width, (int, float)) or width <= 0:
-                    violations.append(f"text_width_invalid:{index}")
-                elif width > content_width:
-                    violations.append(f"text_width_exceeded:{index}")
-
-    font = layout.get("font") if isinstance(layout.get("font"), dict) else {}
-    if font.get("ready") is not True:
-        violations.append("cjk_font_not_ready")
-    if not isinstance(font.get("sample_width"), (int, float)) or font.get("sample_width", 0) <= 0:
-        violations.append("cjk_sample_width_invalid")
-
-    visible = "\n".join(str(line) for line in text)
-    for prefixes in REQUIRED_PREFIX_GROUPS:
-        if not any(prefix in visible for prefix in prefixes):
-            violations.append("required_text_missing:" + "|".join(prefixes))
-    if "Weapon response:" in visible or "Long Sword loadout:" in visible:
-        violations.append("optional_weapon_response_visible")
-
-    controls_present = any(
-        token in visible
-        for token in ("F6:", "Press F6", "Hold LB+RB", "Release shoulder buttons")
-    )
-    if not controls_present:
-        violations.append("active_device_controls_missing")
+    detailed_text = _validate_layout(detailed, "detailed", violations)
+    if detailed:
+        if detailed.get("detailed_overlay_enabled") is not True:
+            violations.append("detailed:mode_not_enabled")
+        if detailed.get("framed") is not True or detailed.get("detail_line_count", 0) < 1:
+            violations.append("detailed:panel_not_restored")
+        for token in ("阶段：", "训练 ·"):
+            if token not in detailed_text:
+                violations.append(f"detailed:required_text_missing:{token}")
 
     valid = not violations
     return {
-        "schema_version": 1,
-        "status": "verified_measured_overlay" if valid else "invalid_measured_overlay",
+        "schema_version": 2,
+        "status": "verified_dual_overlay_modes" if valid else "invalid_dual_overlay_modes",
         "contract_valid": valid,
         "violations": violations,
         "scenario_id": training.get("scenario_id"),
         "training_report_status": report.get("status"),
-        "screen": {
-            "width": layout.get("screen_width"),
-            "height": layout.get("screen_height"),
-        },
-        "panel": {
-            "x": layout.get("x"),
-            "y": layout.get("y"),
-            "width": layout.get("width"),
-            "height": layout.get("height"),
-            "line_count": layout.get("line_count"),
-            "raw_line_count": layout.get("raw_line_count"),
-            "clipped_line_count": layout.get("clipped_line_count"),
-        },
-        "font": font,
-        "required_text_complete": not any(
-            item.startswith("required_text_missing:") for item in violations
-        ),
-        "optional_weapon_response_hidden": "optional_weapon_response_visible" not in violations,
+        "simple_move_only": simple.get("framed") is False and simple.get("detail_line_count") == 0,
+        "detailed_hud_restored": detailed.get("framed") is True,
     }
 
 
