@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "summary_date": "2026-09-13",
+  "code_baseline": "01b9e19",
+  "version": "0.54.1-automated-overlay-acceptance",
+  "evidence_scope": "历史本机报告摘录；本次未重跑游戏。原报告不随仓库分发，摘要不替代独立复验。",
+  "historical_overlay": {
+    "source_file": "9f2f70a485244e36805c6b4377475fb1.training_scenario_acceptance.completed.overlay.analysis.json",
+    "sha256": "e776193aba753a5daf5c2c5c684b758921e99c7b729a1972347c688f1f38e5f1",
+    "analysis": {
+      "schema_version": 2,
+      "status": "verified_dual_overlay_modes",
+      "contract_valid": true,
+      "violations": [],
+      "scenario_id": "tigrex_roar_single",
+      "training_report_status": "completed",
+      "simple_move_only": true,
+      "detailed_hud_restored": true
+    }
+  },
+  "historical_barioth": {
+    "source_file": "bdf3682927d841d08acdd2b03277cc3d.profile_acceptance.completed.json",
+    "sha256": "5a1415ce5cf0d127cb80254ad1cd047fb6cc95f621fdacced048767c03847110",
+    "status": "completed",
+    "profile_acceptance": {
+      "expected_profile_id": "barioth_mr_normal",
+      "forced_action_reason": "This monster profile is research-only; forced actions are locked",
+      "forced_action_rejected": true,
+      "initial_profile_id": "barioth_mr_normal",
+      "initial_target_found": true,
+      "restart_profile_id": "barioth_mr_normal",
+      "restart_target_found": true
+    }
+  },
+  "handoff_offline_validation": {
+    "lua_behavior": "40/40 PASS",
+    "lua_syntax": "78/78 PASS",
+    "python_unittest": "104 PASS",
+    "deployment_fixture": "PASS, 44 files",
+    "release_install_uninstall_fixture": "PASS",
+    "real_game_run": "未执行",
+    "new_installable_release": "未发布，本次仅源码交接预览"
+  }
+}

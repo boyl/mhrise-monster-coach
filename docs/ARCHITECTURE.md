@@ -2,7 +2,7 @@
 
 ## 体验简报
 
-目标用户是在高容错成本下练习怪物招式的猎人。唯一核心任务是：在同一单人任务中反复观察一个招式、决定是否减速、完成应对并立即重置。完成证据是本轮结果与累计成功/受击统计；退出路径是松开 F6、关闭功能或重载脚本；失败后可查看明确原因并保留校准记录。
+目标用户是在高容错成本下练习怪物招式的猎人。唯一核心任务是：在同一单人任务中反复观察一个招式、决定是否减速、完成应对并立即重置。完成证据是本轮结果与累计成功/受击统计；退出慢速的常规操作是再次按 F6；关闭功能或重载脚本的恢复属于单独验收项；失败后可查看明确原因并保留校准记录。
 
 指定起手菜单由 Controller 生成单一 `training_menu_view_model`，普通 ImGui 菜单和开发探针共同消费。Model 仍只提供训练目录与派生树，View/菜单渲染不重新判断联机、任务、验证状态或训练生命周期。状态集合、操作所有权和恢复不变量见 `TRAINING_MENU_UX.md`；新增怪物只提供目录数据，不新增另一套菜单状态机。
 
@@ -14,7 +14,7 @@ app (composition root)
  │       ├──────> runtime adapter ──> REFramework / MHRise
  │       └──────> view ─────────────> draw / imgui
  ├─ config
- └─ monster profile (Tigrex)
+ └─ profile_registry ──> monster profiles (Tigrex / Barioth research_only)
 ```
 
 任务重开由 `quest_restart.lua` 保存跨场景状态，只依赖 Runtime 提供的语义操作：原生重置、据点就绪、柜台接取和出发。Controller 只启动用例并展示状态；任务 ID 来自怪物 Profile。运行时实现参考 AutoQuest 已验证的任务柜台 FSM 入口，但不依赖或复制其模块。
