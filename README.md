@@ -1,3 +1,5 @@
+![GitHub Release Downloads](https://img.shields.io/github/downloads/boyl/mhrise-monster-coach/total?label=Downloads&color=blue)
+
 # 《怪物猎人崛起：曙光》怪物陪练 Mod
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
