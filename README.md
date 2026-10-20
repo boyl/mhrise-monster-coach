@@ -1,4 +1,4 @@
-![GitHub Release Downloads](https://img.shields.io/github/downloads/boyl/mhrise-monster-coach/total?label=Downloads&color=blue)
+[![Downloads](https://img.shields.io/github/downloads/boyl/mhrise-monster-coach/total?label=Downloads&color=blue)](https://github.com/boyl/mhrise-monster-coach/releases) [![Stars](https://img.shields.io/github/stars/boyl/mhrise-monster-coach?label=Stars)](https://github.com/boyl/mhrise-monster-coach/stargazers) [![Latest Release](https://img.shields.io/github/v/release/boyl/mhrise-monster-coach?label=Release)](https://github.com/boyl/mhrise-monster-coach/releases/latest) [![License](https://img.shields.io/github/license/boyl/mhrise-monster-coach?label=License)](https://github.com/boyl/mhrise-monster-coach/blob/HEAD/LICENSE)
 
 # 《怪物猎人崛起：曙光》怪物陪练 Mod
 
